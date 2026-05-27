@@ -171,6 +171,64 @@ func checkTimelineSupportsParallelEvents() {
     expect(parallelEvents.map(\.title) == ["回邮件", "整理资料"], "planning draft should return parallel events in timeline order")
 }
 
+func checkDailyMarkdownRendersTimelineAndRecall() {
+    let date = Date(timeIntervalSince1970: 1_780_000_000)
+    let event = TimelineEvent(
+        id: UUID(uuidString: "00000000-0000-0000-0000-000000000301")!,
+        date: date,
+        time: .fixed(hour: 14, minute: 0),
+        title: "写作提纲",
+        linkedTaskID: nil,
+        source: .focus,
+        parallelGroupID: nil
+    )
+    let record = DailyMarkdownRecord(
+        dateLabel: "2026-05-27",
+        timelineEvents: [event],
+        recallText: "今天下午的写作提纲比预期顺。"
+    )
+
+    let markdown = record.render()
+
+    expect(markdown.contains("# 2026-05-27"), "daily markdown should render date title")
+    expect(markdown.contains("- 14:00 写作提纲"), "daily markdown should render fixed timeline event")
+    expect(markdown.contains("## 回想"), "daily markdown should include recall heading")
+    expect(markdown.contains("今天下午的写作提纲比预期顺。"), "daily markdown should include recall text")
+}
+
+func checkTaskCSVUsesStableColumnOrder() {
+    let task = TaskItem.cumulative(
+        id: UUID(uuidString: "00000000-0000-0000-0000-000000000302")!,
+        title: "读完一本书",
+        unit: "页",
+        targetAmount: 1000,
+        priority: .none
+    )
+
+    let row = TaskCSVRow(task: task)
+
+    expect(TaskCSVRow.header == "id,title,kind,priority,status,completed_amount,target_amount,unit", "task CSV header should be stable")
+    expect(row.csvLine == "00000000-0000-0000-0000-000000000302,读完一本书,cumulative,none,active,0.0,1000.0,页", "task CSV row should be deterministic")
+}
+
+func checkTimelineCSVUsesStableColumnOrder() {
+    let date = Date(timeIntervalSince1970: 1_780_000_000)
+    let event = TimelineEvent(
+        id: UUID(uuidString: "00000000-0000-0000-0000-000000000303")!,
+        date: date,
+        time: .unknown,
+        title: "读书 40 页",
+        linkedTaskID: UUID(uuidString: "00000000-0000-0000-0000-000000000302")!,
+        source: .aiPlanning,
+        parallelGroupID: nil
+    )
+
+    let row = TimelineEventCSVRow(event: event)
+
+    expect(TimelineEventCSVRow.header == "id,date,time,title,linked_task_id,source,parallel_group_id", "timeline CSV header should be stable")
+    expect(row.csvLine == "00000000-0000-0000-0000-000000000303,2026-05-28T20:26:40Z,unknown,读书 40 页,00000000-0000-0000-0000-000000000302,aiPlanning,", "timeline CSV row should be deterministic")
+}
+
 checkCriticalTaskUsesAlarmKitWithLocalNotificationFallback()
 checkCriticalTaskFallsBackWhenAlarmKitUnavailable()
 checkMediumTaskUsesSoundNotificationAndVibration()
@@ -181,5 +239,8 @@ checkCumulativeTaskAddsProgressTowardTotal()
 checkFrequencyTaskCountsCompletionsInPeriod()
 checkPlanningDraftKeepsUnknownTimesAndUnplacedTasks()
 checkTimelineSupportsParallelEvents()
+checkDailyMarkdownRendersTimelineAndRecall()
+checkTaskCSVUsesStableColumnOrder()
+checkTimelineCSVUsesStableColumnOrder()
 
 print("FocusTimelineCoreChecks passed")
