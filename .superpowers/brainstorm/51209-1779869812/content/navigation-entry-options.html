@@ -1,0 +1,181 @@
+<style>
+  .nav-options {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+  }
+  .nav-card {
+    border: 1px solid rgba(20, 24, 32, 0.12);
+    border-radius: 8px;
+    background: #fff;
+    cursor: pointer;
+    overflow: hidden;
+    transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+  }
+  .nav-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(48, 108, 255, 0.45);
+    box-shadow: 0 14px 32px rgba(20, 24, 32, 0.12);
+  }
+  .nav-card.selected {
+    border-color: #306cff;
+    box-shadow: 0 0 0 3px rgba(48, 108, 255, 0.16), 0 14px 32px rgba(20, 24, 32, 0.12);
+  }
+  .phone {
+    width: min(100%, 270px);
+    aspect-ratio: 9 / 19.5;
+    margin: 18px auto 14px;
+    border-radius: 28px;
+    border: 6px solid #111827;
+    background: #f7f8f5;
+    overflow: hidden;
+    padding: 14px;
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+    color: #1f2933;
+  }
+  .topline {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    font-weight: 750;
+  }
+  .hero {
+    margin-top: 14px;
+    border-radius: 8px;
+    background: #ffffff;
+    padding: 12px;
+    box-shadow: 0 8px 20px rgba(74, 88, 72, 0.1);
+  }
+  .hero.dark {
+    background: linear-gradient(160deg, #1b1e23, #4b3036);
+    color: #fff8ec;
+  }
+  .small-label {
+    font-size: 11px;
+    color: #68746d;
+    margin-bottom: 5px;
+  }
+  .hero.dark .small-label { color: #f0d8c7; }
+  .large {
+    font-size: 28px;
+    font-weight: 820;
+    letter-spacing: 0;
+    line-height: 1;
+  }
+  .row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 9px;
+    padding: 9px;
+    border-radius: 8px;
+    font-size: 11px;
+    background: #edf5ec;
+  }
+  .row.blue { background: #e6eef9; }
+  .row.warm { background: #f4eadf; }
+  .row.dark { background: rgba(255,248,236,.12); color: #fff8ec; }
+  .pill {
+    border-radius: 999px;
+    padding: 4px 7px;
+    font-size: 10px;
+    background: rgba(36, 55, 43, 0.1);
+    white-space: nowrap;
+  }
+  .tabs {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+    margin-top: 11px;
+    font-size: 9px;
+    color: #6f776f;
+    text-align: center;
+  }
+  .tab-active {
+    color: #24372b;
+    font-weight: 800;
+  }
+  .choice {
+    padding: 0 18px 18px;
+  }
+  .choice h3 {
+    margin: 0 0 6px;
+    font-size: 17px;
+  }
+  .choice p {
+    margin: 0;
+    color: #596174;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  @media (max-width: 860px) {
+    .nav-options { grid-template-columns: 1fr; }
+    .phone { max-width: 250px; }
+  }
+</style>
+
+<h2>选择首页和番茄钟入口</h2>
+<p class="subtitle">A+B 视觉方向已经纳入：日常页面清爽，进入专注时切到更有仪式感的色彩。这里先定信息架构。</p>
+
+<div class="nav-options">
+  <div class="nav-card" data-choice="today-hub" onclick="toggleSelect(this)">
+    <div class="phone">
+      <div class="topline"><span>Today</span><span>晨间绿</span></div>
+      <div class="hero">
+        <div class="small-label">Next focus</div>
+        <div class="large">写作 25m</div>
+        <div class="row warm"><span>站立提醒 48m 后</span><span class="pill">Start</span></div>
+      </div>
+      <div class="row blue"><span>10:30 出门</span><span class="pill">calendar</span></div>
+      <div class="row"><span>跑步 2 / 5</span><span class="pill">focus</span></div>
+      <div class="row warm"><span>AI plan 明天</span><span class="pill">draft</span></div>
+      <div class="row blue"><span>回想：2 个完成记录</span><span class="pill">write</span></div>
+      <div class="tabs"><span class="tab-active">Today</span><span>Tasks</span><span>Focus</span><span>Recall</span></div>
+    </div>
+    <div class="choice">
+      <h3>A. Today Hub</h3>
+      <p>首页是今天：下一段专注、任务、日程、AI planning 和回想都在一条时间线上。任务可以一键进入番茄。</p>
+    </div>
+  </div>
+
+  <div class="nav-card" data-choice="task-first" onclick="toggleSelect(this)">
+    <div class="phone">
+      <div class="topline"><span>Tasks</span><span>午后蓝</span></div>
+      <div class="hero">
+        <div class="small-label">Active task</div>
+        <div class="large">跑步计划</div>
+        <div class="row blue"><span>本周 2 / 5 次</span><span class="pill">Start 30m</span></div>
+      </div>
+      <div class="row"><span>读书 50 / 1000 页</span><span class="pill">log</span></div>
+      <div class="row warm"><span>一次性：买耳塞</span><span class="pill">remind</span></div>
+      <div class="row blue"><span>30 天长跑 0 / 3</span><span class="pill">focus</span></div>
+      <div class="tabs"><span>Today</span><span class="tab-active">Tasks</span><span>Focus</span><span>Recall</span></div>
+    </div>
+    <div class="choice">
+      <h3>B. Task First</h3>
+      <p>首页就是任务进度。番茄钟几乎总是从任务进入，目标感强，但当日回想和 AI planning 会变成次级入口。</p>
+    </div>
+  </div>
+
+  <div class="nav-card" data-choice="focus-first" onclick="toggleSelect(this)">
+    <div class="phone">
+      <div class="topline"><span>Focus</span><span>夜间铜</span></div>
+      <div class="hero dark">
+        <div class="small-label">Zen mode</div>
+        <div class="large">25:00</div>
+        <div class="row dark"><span>当前任务：写作</span><span class="pill">Pause</span></div>
+      </div>
+      <div class="row warm"><span>Stand 2m after focus</span><span class="pill">sound</span></div>
+      <div class="row blue"><span>无任务时显示短句</span><span class="pill">quote</span></div>
+      <div class="row"><span>完成后写入时间线</span><span class="pill">auto</span></div>
+      <div class="tabs"><span>Today</span><span>Tasks</span><span class="tab-active">Focus</span><span>Recall</span></div>
+    </div>
+    <div class="choice">
+      <h3>C. Focus First</h3>
+      <p>打开 app 先进入专注状态。适合强番茄钟产品，但任务追踪、planning 和回想需要更多跳转。</p>
+    </div>
+  </div>
+</div>

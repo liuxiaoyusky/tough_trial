@@ -1,0 +1,327 @@
+<style>
+  .stage {
+    display: grid;
+    grid-template-columns: minmax(320px, 430px) 1fr;
+    gap: 28px;
+    align-items: start;
+  }
+  .iphone {
+    width: min(100%, 340px);
+    aspect-ratio: 9 / 19.5;
+    margin: 0 auto;
+    border-radius: 38px;
+    border: 8px solid #101115;
+    background: #f8f7f1;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+    position: relative;
+    color: #171b20;
+    box-shadow: 0 24px 70px rgba(17, 20, 24, 0.24);
+  }
+  .screen {
+    height: 100%;
+    padding: 18px 17px 14px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    background:
+      linear-gradient(180deg, rgba(217, 229, 212, 0.68), transparent 31%),
+      #fbfaf7;
+  }
+  .island {
+    width: 82px;
+    height: 21px;
+    border-radius: 999px;
+    background: #101115;
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  .status {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 18px;
+    font-size: 11px;
+    font-weight: 760;
+  }
+  .header {
+    margin-top: 18px;
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: start;
+  }
+  .title {
+    font-size: 31px;
+    font-weight: 850;
+    line-height: 1;
+    letter-spacing: 0;
+  }
+  .theme-chip {
+    border-radius: 999px;
+    padding: 7px 9px;
+    font-size: 10px;
+    font-weight: 760;
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(23, 27, 32, 0.08);
+    white-space: nowrap;
+  }
+  .focus-candidate {
+    margin-top: 18px;
+    border-radius: 26px;
+    padding: 17px;
+    min-height: 148px;
+    box-sizing: border-box;
+    background:
+      radial-gradient(circle at 82% 12%, rgba(255,255,255,.36), transparent 26%),
+      linear-gradient(142deg, #d9e5d4 0%, #f0e8d8 52%, #e3b99e 100%);
+    color: #1d2821;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    box-shadow: 0 18px 42px rgba(94, 111, 88, 0.2);
+  }
+  .candidate-meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    align-items: center;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    opacity: .7;
+  }
+  .candidate-title {
+    margin-top: 8px;
+    font-size: 25px;
+    font-weight: 850;
+    line-height: 1.05;
+    letter-spacing: 0;
+  }
+  .candidate-sub {
+    margin-top: 6px;
+    font-size: 11px;
+    line-height: 1.35;
+    color: rgba(29, 40, 33, 0.72);
+  }
+  .candidate-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-top: 14px;
+  }
+  .duration {
+    display: flex;
+    gap: 5px;
+  }
+  .duration span, .start {
+    border-radius: 999px;
+    padding: 8px 10px;
+    font-size: 11px;
+    font-weight: 820;
+    background: rgba(255,255,255,.58);
+    border: 1px solid rgba(255,255,255,.5);
+    white-space: nowrap;
+  }
+  .duration span:first-child {
+    background: #1f242b;
+    color: #fff8ec;
+    border-color: transparent;
+  }
+  .start {
+    background: #171b20;
+    color: #fff8ec;
+    border-color: transparent;
+    min-width: 56px;
+    text-align: center;
+  }
+  .timeline {
+    margin-top: 18px;
+    position: relative;
+    padding-left: 21px;
+  }
+  .timeline::before {
+    content: "";
+    position: absolute;
+    left: 7px;
+    top: 8px;
+    bottom: 8px;
+    width: 2px;
+    border-radius: 999px;
+    background: linear-gradient(#9fbea7, #496fbc 48%, #c47b58);
+  }
+  .event {
+    position: relative;
+    display: grid;
+    grid-template-columns: 43px 1fr;
+    gap: 9px;
+    align-items: start;
+    padding: 10px 10px 10px 0;
+    margin-bottom: 7px;
+    font-size: 10px;
+  }
+  .event::before {
+    content: "";
+    position: absolute;
+    left: -18px;
+    top: 17px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #9fbea7;
+    box-shadow: 0 0 0 4px #fbfaf7;
+  }
+  .event.selected {
+    margin-left: -8px;
+    padding: 11px 11px 11px 8px;
+    border-radius: 18px;
+    background: #1f242b;
+    color: #fff8ec;
+    box-shadow: 0 14px 32px rgba(31, 36, 43, 0.2);
+  }
+  .event.selected::before {
+    left: -10px;
+    background: #e3b99e;
+    box-shadow: 0 0 0 4px #1f242b;
+  }
+  .time {
+    color: #6f7782;
+    font-weight: 760;
+  }
+  .selected .time {
+    color: rgba(255,248,236,.66);
+  }
+  .event-title {
+    font-weight: 820;
+    line-height: 1.22;
+  }
+  .event-note {
+    margin-top: 2px;
+    color: #6f7782;
+    font-weight: 520;
+    line-height: 1.25;
+  }
+  .selected .event-note {
+    color: rgba(255,248,236,.64);
+  }
+  .bottom-nav {
+    margin-top: auto;
+    height: 49px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.78);
+    border: 1px solid rgba(23,27,32,.08);
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    align-items: center;
+    font-size: 9px;
+    color: #77808b;
+    text-align: center;
+    backdrop-filter: blur(18px);
+  }
+  .nav-on {
+    color: #1f2933;
+    font-weight: 850;
+  }
+  .notes {
+    padding-top: 8px;
+  }
+  .notes h3 {
+    margin: 0 0 10px;
+    font-size: 20px;
+  }
+  .notes p {
+    margin: 0 0 12px;
+    color: #596174;
+    line-height: 1.55;
+  }
+  .rule {
+    border-radius: 10px;
+    border: 1px solid rgba(23,27,32,.1);
+    padding: 12px;
+    margin-bottom: 10px;
+    background: #fff;
+  }
+  .rule strong {
+    display: block;
+    margin-bottom: 4px;
+  }
+  @media (max-width: 880px) {
+    .stage { grid-template-columns: 1fr; }
+    .iphone { max-width: 330px; }
+  }
+</style>
+
+<h2>Today：14:00 任务进入 Focus 候选态</h2>
+<p class="subtitle">保留你喜欢的时间线主页：点中 14:00 的任务后，上方 Focus 区域变成该任务的候选卡；用户再点 Start 才进入 Zen mode。</p>
+
+<div class="stage">
+  <div class="iphone">
+    <div class="screen">
+      <div class="island"></div>
+      <div class="status"><span>9:42</span><span>78%</span></div>
+      <div class="header">
+        <div>
+          <div class="title">Today</div>
+          <div style="font-size:11px;color:#6f7782;margin-top:5px">May 27 · Wednesday</div>
+        </div>
+        <div class="theme-chip">Morning Sage</div>
+      </div>
+
+      <div class="focus-candidate">
+        <div>
+          <div class="candidate-meta"><span>Focus candidate</span><span>from 14:00</span></div>
+          <div class="candidate-title">写作提纲</div>
+          <div class="candidate-sub">从时间线任务选中。可切换时长，或点 Start 进入 Zen mode。</div>
+        </div>
+        <div class="candidate-actions">
+          <div class="duration"><span>25m</span><span>45m</span><span>custom</span></div>
+          <div class="start">Start</div>
+        </div>
+      </div>
+
+      <div class="timeline">
+        <div class="event">
+          <div class="time">10:30</div>
+          <div>
+            <div class="event-title">出门</div>
+            <div class="event-note">memory: commute usually takes 28m</div>
+          </div>
+        </div>
+        <div class="event selected">
+          <div class="time">14:00</div>
+          <div>
+            <div class="event-title">写作提纲</div>
+            <div class="event-note">selected as focus candidate · linked task</div>
+          </div>
+        </div>
+        <div class="event">
+          <div class="time">16:20</div>
+          <div>
+            <div class="event-title">读书 20 页</div>
+            <div class="event-note">progress: 50 / 1000 pages</div>
+          </div>
+        </div>
+        <div class="event">
+          <div class="time">Tonight</div>
+          <div>
+            <div class="event-title">Recall</div>
+            <div class="event-note">2 tasks, 1 focus block ready to reference</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bottom-nav"><span class="nav-on">Today</span><span>Tasks</span><span>Plan</span><span>Recall</span></div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <h3>交互含义</h3>
+    <p>这个版本把 Today 当作主页：时间线始终可见，Focus 候选卡是时间线选择的结果，而不是一个独立页面。</p>
+    <div class="rule"><strong>默认状态</strong>未选择任务时，上方显示 Next Focus 默认推荐。</div>
+    <div class="rule"><strong>选择状态</strong>点时间线里的 14:00 任务后，该任务高亮，上方卡片切换成 Focus candidate。</div>
+    <div class="rule"><strong>启动状态</strong>点 Start 后才进入 Zen mode，只显示倒计时和当前任务。</div>
+  </div>
+</div>

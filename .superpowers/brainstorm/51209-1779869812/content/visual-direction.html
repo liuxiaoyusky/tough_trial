@@ -1,0 +1,187 @@
+<style>
+  .phone-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+  }
+  .phone-card {
+    border: 1px solid rgba(20, 24, 32, 0.12);
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fff;
+    cursor: pointer;
+    transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+  }
+  .phone-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(48, 108, 255, 0.45);
+    box-shadow: 0 14px 32px rgba(20, 24, 32, 0.12);
+  }
+  .phone-card.selected {
+    border-color: #306cff;
+    box-shadow: 0 0 0 3px rgba(48, 108, 255, 0.16), 0 14px 32px rgba(20, 24, 32, 0.12);
+  }
+  .phone-shell {
+    width: min(100%, 270px);
+    aspect-ratio: 9 / 19.5;
+    margin: 18px auto 14px;
+    border-radius: 28px;
+    padding: 14px;
+    box-sizing: border-box;
+    border: 6px solid #111827;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+  }
+  .phone-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0;
+  }
+  .metric-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .mini-panel {
+    border-radius: 8px;
+    padding: 9px;
+    font-size: 11px;
+    line-height: 1.25;
+  }
+  .timeline-line {
+    height: 8px;
+    border-radius: 999px;
+    margin: 8px 0;
+  }
+  .choice-body {
+    padding: 0 18px 18px;
+  }
+  .choice-body h3 {
+    margin: 0 0 6px;
+    font-size: 17px;
+  }
+  .choice-body p {
+    margin: 0;
+    color: #596174;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  .a-shell { background: #f7f8f5; color: #1f2933; }
+  .a-main {
+    margin-top: 16px;
+    border-radius: 8px;
+    background: #ffffff;
+    padding: 14px;
+    box-shadow: 0 10px 24px rgba(74, 88, 72, 0.12);
+  }
+  .a-time { font-size: 46px; font-weight: 800; letter-spacing: 0; color: #24372b; }
+  .a-panel { background: #edf5ec; color: #284735; }
+  .a-panel:nth-child(2) { background: #f4eadf; color: #65412d; }
+  .a-line1 { background: #7bb28a; width: 80%; }
+  .a-line2 { background: #d68b64; width: 55%; }
+  .b-shell {
+    background: linear-gradient(160deg, #16181d 0%, #292319 42%, #4d2f35 100%);
+    color: #fff8ec;
+  }
+  .b-main {
+    margin-top: 16px;
+    border-radius: 8px;
+    background: rgba(255, 248, 236, 0.1);
+    border: 1px solid rgba(255, 248, 236, 0.18);
+    padding: 14px;
+  }
+  .b-time { font-size: 45px; font-weight: 750; letter-spacing: 0; color: #fff8ec; }
+  .b-panel { background: rgba(112, 212, 192, 0.18); color: #d6fff7; }
+  .b-panel:nth-child(2) { background: rgba(255, 166, 116, 0.2); color: #ffe6d5; }
+  .b-line1 { background: #70d4c0; width: 72%; }
+  .b-line2 { background: #ffa674; width: 48%; }
+  .c-shell { background: #fbfaf7; color: #202124; }
+  .c-main {
+    margin-top: 16px;
+    border-radius: 8px;
+    background: #1d2320;
+    color: #f8f5ec;
+    padding: 14px;
+  }
+  .c-time { font-size: 44px; font-weight: 820; letter-spacing: 0; color: #f8f5ec; }
+  .c-panel { background: #e6eef9; color: #24374d; }
+  .c-panel:nth-child(2) { background: #f4e0d9; color: #5d332b; }
+  .c-line1 { background: #4e7fb7; width: 67%; }
+  .c-line2 { background: #d9795f; width: 62%; }
+  @media (max-width: 860px) {
+    .phone-grid { grid-template-columns: 1fr; }
+    .phone-shell { max-width: 250px; }
+  }
+</style>
+
+<h2>选择 v1 的视觉气质</h2>
+<p class="subtitle">这会决定首页、番茄钟、任务进度和当日回想的整体设计语言。点击一个方向，也可以在终端告诉我想混合哪些元素。</p>
+
+<div class="phone-grid">
+  <div class="phone-card" data-choice="calm-ledger" onclick="toggleSelect(this)">
+    <div class="phone-shell a-shell">
+      <div class="phone-title"><span>Today</span><span>09:42</span></div>
+      <div class="a-main">
+        <div style="font-size:12px;color:#65736a">Focus</div>
+        <div class="a-time">25:00</div>
+        <div class="timeline-line a-line1"></div>
+        <div class="timeline-line a-line2"></div>
+      </div>
+      <div class="metric-row">
+        <div class="mini-panel a-panel">Run<br><strong>2 / 5</strong></div>
+        <div class="mini-panel a-panel">Book<br><strong>50 / 1000</strong></div>
+      </div>
+      <div class="mini-panel a-panel" style="margin-top:10px;background:#fff;color:#24372b">Timeline<br>09:00 Read 20 pages<br>10:30 Stand break</div>
+    </div>
+    <div class="choice-body">
+      <h3>A. Calm Ledger</h3>
+      <p>安静、清晰、偏 Apple 原生质感。适合每天多次打开，重点是可读性、节奏感和低干扰。</p>
+    </div>
+  </div>
+
+  <div class="phone-card" data-choice="focus-studio" onclick="toggleSelect(this)">
+    <div class="phone-shell b-shell">
+      <div class="phone-title"><span>Ritual</span><span>09:42</span></div>
+      <div class="b-main">
+        <div style="font-size:12px;color:#f0d8c7">Deep Work</div>
+        <div class="b-time">25:00</div>
+        <div class="timeline-line b-line1"></div>
+        <div class="timeline-line b-line2"></div>
+      </div>
+      <div class="metric-row">
+        <div class="mini-panel b-panel">Runs<br><strong>2 / 5</strong></div>
+        <div class="mini-panel b-panel">Pages<br><strong>50</strong></div>
+      </div>
+      <div class="mini-panel b-panel" style="margin-top:10px;background:rgba(255,248,236,.12)">Reflection<br>What shifted today?</div>
+    </div>
+    <div class="choice-body">
+      <h3>B. Focus Studio</h3>
+      <p>更有氛围和仪式感，番茄钟像一个专注空间。好看但要小心别压过任务信息密度。</p>
+    </div>
+  </div>
+
+  <div class="phone-card" data-choice="urban-journal" onclick="toggleSelect(this)">
+    <div class="phone-shell c-shell">
+      <div class="phone-title"><span>Daily</span><span>09:42</span></div>
+      <div class="c-main">
+        <div style="font-size:12px;color:#c7d2c8">Focus block</div>
+        <div class="c-time">25:00</div>
+        <div class="timeline-line c-line1"></div>
+        <div class="timeline-line c-line2"></div>
+      </div>
+      <div class="metric-row">
+        <div class="mini-panel c-panel">Long run<br><strong>0 / 3</strong></div>
+        <div class="mini-panel c-panel">Book<br><strong>5%</strong></div>
+      </div>
+      <div class="mini-panel c-panel" style="margin-top:10px;background:#fff1c7;color:#4d3c15">Recall<br>2 tasks done, 1 note</div>
+    </div>
+    <div class="choice-body">
+      <h3>C. Urban Journal</h3>
+      <p>更像高级手账和工具的结合：有视觉性，但仍保留任务、时间线、随笔的结构感。</p>
+    </div>
+  </div>
+</div>

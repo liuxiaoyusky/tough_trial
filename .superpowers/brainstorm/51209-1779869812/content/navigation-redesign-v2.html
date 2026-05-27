@@ -1,0 +1,404 @@
+<style>
+  :root {
+    --ink: #171b20;
+    --muted: #68727f;
+    --line: rgba(23, 27, 32, 0.1);
+    --sage: #9fbea7;
+    --cobalt: #496fbc;
+    --copper: #c47b58;
+    --night: #22262c;
+    --paper: #fbfaf7;
+  }
+  .redesign-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+  }
+  .design-option {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: white;
+    cursor: pointer;
+    overflow: hidden;
+    transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+  }
+  .design-option:hover {
+    transform: translateY(-2px);
+    border-color: rgba(73, 111, 188, 0.48);
+    box-shadow: 0 18px 40px rgba(22, 27, 35, 0.13);
+  }
+  .design-option.selected {
+    border-color: #496fbc;
+    box-shadow: 0 0 0 3px rgba(73, 111, 188, 0.16), 0 18px 40px rgba(22, 27, 35, 0.13);
+  }
+  .iphone {
+    width: min(100%, 292px);
+    aspect-ratio: 9 / 19.5;
+    margin: 18px auto 12px;
+    border-radius: 34px;
+    border: 7px solid #101115;
+    background: var(--paper);
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+    position: relative;
+    color: var(--ink);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.4);
+  }
+  .screen {
+    height: 100%;
+    padding: 18px 16px 12px;
+    box-sizing: border-box;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+  .island {
+    width: 78px;
+    height: 20px;
+    border-radius: 999px;
+    background: #101115;
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  .status {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 18px;
+    font-size: 11px;
+    font-weight: 760;
+    letter-spacing: 0;
+  }
+  .large-title {
+    margin-top: 16px;
+    font-size: 28px;
+    font-weight: 820;
+    letter-spacing: 0;
+    line-height: 1.02;
+  }
+  .subcopy {
+    margin-top: 6px;
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.35;
+  }
+  .focus-orb {
+    margin-top: 16px;
+    min-height: 118px;
+    border-radius: 22px;
+    padding: 16px;
+    box-sizing: border-box;
+    background:
+      radial-gradient(circle at 80% 10%, rgba(255,255,255,.35), transparent 28%),
+      linear-gradient(140deg, #d9e5d4, #f2eadc 56%, #e8c4af);
+    color: #1e2922;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .focus-orb.dark {
+    background:
+      radial-gradient(circle at 76% 8%, rgba(255,255,255,.16), transparent 25%),
+      linear-gradient(145deg, #181b21, #36303a 54%, #794c43);
+    color: #fff8ec;
+  }
+  .timer {
+    font-size: 46px;
+    font-weight: 790;
+    letter-spacing: 0;
+    line-height: 1;
+  }
+  .micro {
+    font-size: 10px;
+    color: inherit;
+    opacity: .72;
+    letter-spacing: 0;
+  }
+  .action-row {
+    display: flex;
+    gap: 7px;
+    align-items: center;
+  }
+  .round-action {
+    border-radius: 999px;
+    padding: 7px 10px;
+    font-size: 10px;
+    font-weight: 760;
+    background: rgba(255,255,255,.54);
+    backdrop-filter: blur(12px);
+    white-space: nowrap;
+  }
+  .timeline {
+    margin-top: 16px;
+    position: relative;
+    padding-left: 18px;
+  }
+  .timeline::before {
+    content: "";
+    position: absolute;
+    left: 5px;
+    top: 5px;
+    bottom: 5px;
+    width: 2px;
+    border-radius: 999px;
+    background: linear-gradient(var(--sage), var(--cobalt), var(--copper));
+  }
+  .event {
+    display: grid;
+    grid-template-columns: 42px 1fr;
+    gap: 8px;
+    align-items: start;
+    margin: 0 0 12px;
+    font-size: 10px;
+  }
+  .event-time {
+    color: var(--muted);
+    font-weight: 700;
+  }
+  .event-main {
+    font-weight: 760;
+    line-height: 1.2;
+  }
+  .event-note {
+    color: var(--muted);
+    font-weight: 520;
+    margin-top: 2px;
+  }
+  .bottom-nav {
+    margin-top: auto;
+    height: 48px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.72);
+    border: 1px solid rgba(23,27,32,.08);
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    align-items: center;
+    font-size: 9px;
+    color: #77808b;
+    text-align: center;
+    backdrop-filter: blur(18px);
+  }
+  .nav-on { color: #1f2933; font-weight: 850; }
+  .task-stack {
+    margin-top: 15px;
+    display: grid;
+    gap: 8px;
+  }
+  .task-line {
+    padding: 11px;
+    border-radius: 16px;
+    background: rgba(255,255,255,.72);
+    border: 1px solid rgba(23,27,32,.08);
+  }
+  .task-name {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 11px;
+    font-weight: 790;
+  }
+  .bar {
+    height: 5px;
+    background: rgba(23,27,32,.08);
+    border-radius: 999px;
+    overflow: hidden;
+    margin-top: 8px;
+  }
+  .bar > span {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--cobalt), var(--copper));
+  }
+  .plan-sheet {
+    margin-top: 15px;
+    border-radius: 24px 24px 0 0;
+    background: #191d23;
+    color: #fff8ec;
+    padding: 15px;
+    min-height: 190px;
+    box-sizing: border-box;
+  }
+  .plan-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .plan-tile {
+    border-radius: 14px;
+    padding: 10px;
+    background: rgba(255,255,255,.08);
+    font-size: 10px;
+    line-height: 1.28;
+  }
+  .memory-strip {
+    margin-top: 14px;
+    display: flex;
+    gap: 6px;
+    overflow: hidden;
+  }
+  .memory-chip {
+    border-radius: 999px;
+    padding: 6px 9px;
+    white-space: nowrap;
+    font-size: 9px;
+    background: #eef1e8;
+    color: #3a4b3c;
+  }
+  .zen-screen {
+    height: 100%;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.04), transparent 34%),
+      linear-gradient(145deg, #15171c, #2f2933 54%, #6e493d);
+    color: #fff8ec;
+  }
+  .zen-center {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+  .zen-time {
+    font-size: 70px;
+    font-weight: 720;
+    letter-spacing: 0;
+    line-height: 1;
+  }
+  .zen-task {
+    width: 78%;
+    margin-top: 18px;
+    font-size: 13px;
+    line-height: 1.35;
+    opacity: .86;
+  }
+  .caption {
+    padding: 0 18px 18px;
+  }
+  .caption h3 {
+    margin: 0 0 6px;
+    font-size: 17px;
+  }
+  .caption p {
+    margin: 0;
+    color: #596174;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  @media (max-width: 920px) {
+    .redesign-grid { grid-template-columns: 1fr; }
+    .iphone { max-width: 276px; }
+  }
+</style>
+
+<h2>重新设计：更清晰、更有品牌感</h2>
+<p class="subtitle">这轮重点解决“信息太乱”和“设计感不足”。三个方向都保留：任务进入番茄、Zen mode、随时间切换主题色、memory + AI planning。</p>
+
+<div class="redesign-grid">
+  <div class="design-option" data-choice="living-timeline" onclick="toggleSelect(this)">
+    <div class="iphone">
+      <div class="screen">
+        <div class="island"></div>
+        <div class="status"><span>9:42</span><span>Morning Sage</span></div>
+        <div class="large-title">Today flows<br>from here.</div>
+        <div class="subcopy">一条时间线承接任务、专注、计划和回想。</div>
+        <div class="focus-orb">
+          <div>
+            <div class="micro">NEXT FOCUS · linked task</div>
+            <div class="timer">25:00</div>
+          </div>
+          <div class="action-row">
+            <span class="round-action">写作提纲</span>
+            <span class="round-action">Start</span>
+          </div>
+        </div>
+        <div class="timeline">
+          <div class="event"><div class="event-time">10:30</div><div><div class="event-main">出门</div><div class="event-note">from memory: commute 28m</div></div></div>
+          <div class="event"><div class="event-time">14:00</div><div><div class="event-main">AI plan draft</div><div class="event-note">fill open slots for Saturday</div></div></div>
+          <div class="event"><div class="event-time">今晚</div><div><div class="event-main">Recall</div><div class="event-note">2 tasks, 1 focus block</div></div></div>
+        </div>
+        <div class="bottom-nav"><span class="nav-on">Today</span><span>Tasks</span><span>Focus</span><span>Recall</span></div>
+      </div>
+    </div>
+    <div class="caption">
+      <h3>A. Living Timeline</h3>
+      <p>推荐。首页只讲“今天怎么流动”：当前专注是主视觉，任务、planning、回想都挂在时间线上，层级最干净。</p>
+    </div>
+  </div>
+
+  <div class="design-option" data-choice="progress-orbit" onclick="toggleSelect(this)">
+    <div class="iphone">
+      <div class="screen" style="background:linear-gradient(180deg,#fbfaf7,#eef1e8)">
+        <div class="island"></div>
+        <div class="status"><span>9:42</span><span>Afternoon Blue</span></div>
+        <div class="large-title">Progress<br>with rhythm.</div>
+        <div class="subcopy">任务是入口；每个任务都有进度、提醒和专注动作。</div>
+        <div class="task-stack">
+          <div class="task-line">
+            <div class="task-name"><span>本周跑步 3km</span><span>2 / 5</span></div>
+            <div class="bar"><span style="width:40%"></span></div>
+          </div>
+          <div class="task-line">
+            <div class="task-name"><span>读完这本书</span><span>50 / 1000</span></div>
+            <div class="bar"><span style="width:5%"></span></div>
+          </div>
+          <div class="task-line">
+            <div class="task-name"><span>30 天长跑</span><span>0 / 3</span></div>
+            <div class="bar"><span style="width:12%"></span></div>
+          </div>
+        </div>
+        <div class="focus-orb dark" style="min-height:106px">
+          <div>
+            <div class="micro">ZEN MODE FROM TASK</div>
+            <div class="timer" style="font-size:38px">30:00</div>
+          </div>
+          <div class="action-row"><span class="round-action">Start long run prep</span></div>
+        </div>
+        <div class="bottom-nav"><span>Today</span><span class="nav-on">Tasks</span><span>Plan</span><span>Recall</span></div>
+      </div>
+    </div>
+    <div class="caption">
+      <h3>B. Progress Orbit</h3>
+      <p>任务追踪最强。所有番茄钟都围绕任务展开，适合目标管理；AI planning 放到 Plan tab，首页没那么有日记感。</p>
+    </div>
+  </div>
+
+  <div class="design-option" data-choice="planner-studio" onclick="toggleSelect(this)">
+    <div class="iphone">
+      <div class="screen" style="padding:0">
+        <div class="zen-screen screen">
+          <div class="island"></div>
+          <div class="status"><span>9:42</span><span>Evening Copper</span></div>
+          <div class="large-title" style="color:#fff8ec">Plan the day,<br>then disappear.</div>
+          <div class="memory-strip">
+            <span class="memory-chip">wake 7:40</span>
+            <span class="memory-chip">office 10-18</span>
+            <span class="memory-chip">commute 28m</span>
+          </div>
+          <div class="plan-sheet">
+            <div class="micro">AI PLANNING DRAFT · Saturday</div>
+            <div style="font-size:22px;font-weight:820;margin-top:5px;line-height:1.06">Leave two open blocks.</div>
+            <div class="plan-grid">
+              <div class="plan-tile">09:30<br><strong>Long run</strong></div>
+              <div class="plan-tile">12:20<br><strong>Lunch buffer</strong></div>
+              <div class="plan-tile">15:00<br><strong>Read 40 pages</strong></div>
+              <div class="plan-tile">20:30<br><strong>Recall</strong></div>
+            </div>
+          </div>
+          <div class="zen-center" style="flex:.7">
+            <div class="zen-time" style="font-size:46px">25:00</div>
+            <div class="zen-task">Zen mode hides everything except the timer and current task.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">
+      <h3>C. Planner Studio</h3>
+      <p>AI planning 最有存在感，memory 被设计成“私人上下文”。高级感强，但核心产品会更像日程规划器。</p>
+    </div>
+  </div>
+</div>

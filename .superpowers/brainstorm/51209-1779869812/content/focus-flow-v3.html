@@ -1,0 +1,260 @@
+<style>
+  .flow-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+  }
+  .flow-card {
+    border: 1px solid rgba(23,27,32,.1);
+    border-radius: 10px;
+    background: white;
+    overflow: hidden;
+  }
+  .phone {
+    width: min(100%, 286px);
+    aspect-ratio: 9 / 19.5;
+    margin: 18px auto 12px;
+    border-radius: 34px;
+    border: 7px solid #101115;
+    background: #fbfaf7;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+    position: relative;
+    color: #171b20;
+  }
+  .screen {
+    height: 100%;
+    padding: 18px 16px 12px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+  }
+  .island {
+    width: 78px;
+    height: 20px;
+    border-radius: 999px;
+    background: #101115;
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  .status {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 18px;
+    font-size: 11px;
+    font-weight: 760;
+  }
+  .title {
+    margin-top: 16px;
+    font-size: 27px;
+    font-weight: 830;
+    line-height: 1.02;
+  }
+  .focus-card {
+    margin-top: 16px;
+    min-height: 118px;
+    border-radius: 22px;
+    padding: 16px;
+    box-sizing: border-box;
+    background: linear-gradient(140deg, #d9e5d4, #f2eadc 56%, #e8c4af);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .timer {
+    font-size: 43px;
+    font-weight: 790;
+    line-height: 1;
+  }
+  .micro {
+    font-size: 10px;
+    opacity: .7;
+    font-weight: 700;
+  }
+  .pill-row {
+    display: flex;
+    gap: 7px;
+    align-items: center;
+  }
+  .pill {
+    border-radius: 999px;
+    padding: 7px 10px;
+    font-size: 10px;
+    font-weight: 760;
+    background: rgba(255,255,255,.56);
+    white-space: nowrap;
+  }
+  .timeline {
+    margin-top: 15px;
+    display: grid;
+    gap: 8px;
+  }
+  .event {
+    display: grid;
+    grid-template-columns: 40px 1fr;
+    gap: 8px;
+    align-items: center;
+    padding: 9px;
+    border-radius: 15px;
+    background: rgba(255,255,255,.7);
+    border: 1px solid rgba(23,27,32,.08);
+    font-size: 10px;
+  }
+  .selected-event {
+    background: #1f242b;
+    color: #fff8ec;
+    border-color: transparent;
+  }
+  .task-list {
+    margin-top: 14px;
+    display: grid;
+    gap: 8px;
+    overflow: hidden;
+  }
+  .search {
+    margin-top: 14px;
+    border-radius: 999px;
+    padding: 10px 12px;
+    font-size: 10px;
+    background: #eef1e8;
+    color: #677466;
+  }
+  .task {
+    padding: 11px;
+    border-radius: 16px;
+    background: #fff;
+    border: 1px solid rgba(23,27,32,.08);
+    font-size: 10px;
+  }
+  .task strong {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    margin-bottom: 7px;
+  }
+  .bar {
+    height: 5px;
+    border-radius: 999px;
+    background: rgba(23,27,32,.08);
+    overflow: hidden;
+  }
+  .bar span {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg,#496fbc,#c47b58);
+  }
+  .zen {
+    background: linear-gradient(145deg,#15171c,#2f2933 54%,#6e493d);
+    color: #fff8ec;
+  }
+  .zen-center {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+  }
+  .zen-time {
+    font-size: 70px;
+    font-weight: 720;
+    line-height: 1;
+  }
+  .zen-task {
+    margin-top: 18px;
+    width: 82%;
+    font-size: 13px;
+    line-height: 1.35;
+    opacity: .86;
+  }
+  .caption {
+    padding: 0 18px 18px;
+  }
+  .caption h3 {
+    margin: 0 0 6px;
+    font-size: 16px;
+  }
+  .caption p {
+    margin: 0;
+    color: #596174;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  @media (max-width: 900px) {
+    .flow-grid { grid-template-columns: 1fr; }
+    .phone { max-width: 276px; }
+  }
+</style>
+
+<h2>确认交互流：Today / Tasks / Zen</h2>
+<p class="subtitle">按你的反馈重画成同一个系统：Today 是主页；Next Focus 是默认候选；用户可以从时间线或任务列表挑选候选，再启动 Zen mode。</p>
+
+<div class="flow-grid">
+  <div class="flow-card">
+    <div class="phone">
+      <div class="screen">
+        <div class="island"></div>
+        <div class="status"><span>9:42</span><span>Morning Sage</span></div>
+        <div class="title">Today</div>
+        <div class="focus-card">
+          <div>
+            <div class="micro">DEFAULT NEXT FOCUS</div>
+            <div class="timer">25:00</div>
+          </div>
+          <div class="pill-row"><span class="pill">写作提纲</span><span class="pill">Start</span></div>
+        </div>
+        <div class="timeline">
+          <div class="event"><span>10:30</span><strong>出门 · commute 28m</strong></div>
+          <div class="event selected-event"><span>14:00</span><strong>点选后变成 Focus 候选</strong></div>
+          <div class="event"><span>今晚</span><strong>Recall · 2 tasks done</strong></div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">
+      <h3>1. Today 首页</h3>
+      <p>Next Focus 是默认入口，但时间线里的过去/未来任务都能点选，滑入或展开为候选态。</p>
+    </div>
+  </div>
+
+  <div class="flow-card">
+    <div class="phone">
+      <div class="screen">
+        <div class="island"></div>
+        <div class="status"><span>9:42</span><span>Tasks</span></div>
+        <div class="title">Tasks</div>
+        <div class="search">Search tasks, notes, plans...</div>
+        <div class="task-list">
+          <div class="task"><strong><span>本周跑步 3km</span><span>2/5</span></strong><div class="bar"><span style="width:40%"></span></div></div>
+          <div class="task"><strong><span>读完这本书</span><span>50/1000</span></strong><div class="bar"><span style="width:5%"></span></div></div>
+          <div class="task"><strong><span>30 天长跑</span><span>0/3</span></strong><div class="bar"><span style="width:12%"></span></div></div>
+          <div class="task" style="background:#1f242b;color:#fff8ec"><strong><span>单击进入候选态</span><span>Start</span></strong><div class="bar"><span style="width:62%"></span></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">
+      <h3>2. Tasks 列表</h3>
+      <p>默认是可搜索、可上下滚动的 list。单击 item 不直接开始，而是进入同一个 Focus 候选态。</p>
+    </div>
+  </div>
+
+  <div class="flow-card">
+    <div class="phone">
+      <div class="screen zen">
+        <div class="island" style="background:#050608"></div>
+        <div class="status"><span>9:42</span><span>Zen</span></div>
+        <div class="zen-center">
+          <div class="micro">CURRENT TASK</div>
+          <div class="zen-time">25:00</div>
+          <div class="zen-task">写作提纲<br>如果没有任务，则显示短句。</div>
+        </div>
+        <div class="pill-row" style="justify-content:center;margin-bottom:12px"><span class="pill">Pause</span><span class="pill">Stand after</span></div>
+      </div>
+    </div>
+    <div class="caption">
+      <h3>3. Zen mode</h3>
+      <p>第二次点击 Start 才进入。界面只保留倒计时和当前任务；无任务时显示短句。</p>
+    </div>
+  </div>
+</div>
