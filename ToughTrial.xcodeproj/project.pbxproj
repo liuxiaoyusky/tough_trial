@@ -7,16 +7,28 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		002516C7B4462C011660E9FA /* TodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E07195560F51F72F740C7D28 /* TodayView.swift */; };
+		1BD49A234D27F1818A5A94D7 /* PlanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5717B040A6A9908AEBBF68E /* PlanView.swift */; };
+		8C6A77D5D73192784429EFC2 /* TasksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A35935B4A1847B74547340B /* TasksView.swift */; };
+		BBCB8CF40F219A209A1338B1 /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93F418BEE89391ECA9580933 /* AppTheme.swift */; };
 		BCDB076741A7F95F76C93659 /* ToughTrialApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8017D2B1927D86816D35F7A2 /* ToughTrialApp.swift */; };
 		C87E503163C286015B02A716 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03FC72ED240975B6584B1051 /* RootView.swift */; };
+		CCFC84E1CF4DFC1F37B2C719 /* ZenModeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0914BD79356BC48EF4EDF868 /* ZenModeView.swift */; };
 		D9044005C87C18D19764F6C7 /* FocusTimelineCore in Frameworks */ = {isa = PBXBuildFile; productRef = 16F71B05B5627B39DEB0EF77 /* FocusTimelineCore */; };
+		F439E4DF6A24FA14687316F8 /* RecallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7F2C18C166A846358A3C735 /* RecallView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		03FC72ED240975B6584B1051 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		0914BD79356BC48EF4EDF868 /* ZenModeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZenModeView.swift; sourceTree = "<group>"; };
 		400CA85D2F585BEF46001134 /* ToughTrial.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ToughTrial.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5937E2365044428AFC0C7211 /* tough_trial */ = {isa = PBXFileReference; lastKnownFileType = folder; name = tough_trial; path = .; sourceTree = SOURCE_ROOT; };
 		8017D2B1927D86816D35F7A2 /* ToughTrialApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToughTrialApp.swift; sourceTree = "<group>"; };
+		93F418BEE89391ECA9580933 /* AppTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTheme.swift; sourceTree = "<group>"; };
+		9A35935B4A1847B74547340B /* TasksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TasksView.swift; sourceTree = "<group>"; };
+		D7F2C18C166A846358A3C735 /* RecallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecallView.swift; sourceTree = "<group>"; };
+		E07195560F51F72F740C7D28 /* TodayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayView.swift; sourceTree = "<group>"; };
+		F5717B040A6A9908AEBBF68E /* PlanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanView.swift; sourceTree = "<group>"; };
 		FD8772DA95A010AE8A56356B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -35,9 +47,15 @@
 		0D4813E67E488CA4AB7CC391 /* ToughTrialApp */ = {
 			isa = PBXGroup;
 			children = (
+				93F418BEE89391ECA9580933 /* AppTheme.swift */,
 				FD8772DA95A010AE8A56356B /* Info.plist */,
+				F5717B040A6A9908AEBBF68E /* PlanView.swift */,
+				D7F2C18C166A846358A3C735 /* RecallView.swift */,
 				03FC72ED240975B6584B1051 /* RootView.swift */,
+				9A35935B4A1847B74547340B /* TasksView.swift */,
+				E07195560F51F72F740C7D28 /* TodayView.swift */,
 				8017D2B1927D86816D35F7A2 /* ToughTrialApp.swift */,
+				0914BD79356BC48EF4EDF868 /* ZenModeView.swift */,
 			);
 			name = ToughTrialApp;
 			path = Sources/ToughTrialApp;
@@ -128,8 +146,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BBCB8CF40F219A209A1338B1 /* AppTheme.swift in Sources */,
+				1BD49A234D27F1818A5A94D7 /* PlanView.swift in Sources */,
+				F439E4DF6A24FA14687316F8 /* RecallView.swift in Sources */,
 				C87E503163C286015B02A716 /* RootView.swift in Sources */,
+				8C6A77D5D73192784429EFC2 /* TasksView.swift in Sources */,
+				002516C7B4462C011660E9FA /* TodayView.swift in Sources */,
 				BCDB076741A7F95F76C93659 /* ToughTrialApp.swift in Sources */,
+				CCFC84E1CF4DFC1F37B2C719 /* ZenModeView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
