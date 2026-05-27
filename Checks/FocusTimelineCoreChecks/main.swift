@@ -229,6 +229,46 @@ func checkTimelineCSVUsesStableColumnOrder() {
     expect(row.csvLine == "00000000-0000-0000-0000-000000000303,2026-05-28T20:26:40Z,unknown,读书 40 页,00000000-0000-0000-0000-000000000302,aiPlanning,", "timeline CSV row should be deterministic")
 }
 
+func checkTaskMapsToReminderAndScheduledBlockMapsToCalendar() {
+    let task = TaskItem.oneTime(
+        id: UUID(uuidString: "00000000-0000-0000-0000-000000000401")!,
+        title: "写作提纲",
+        priority: .notifyOnly
+    )
+    let reminder = AppleIntegrationMapper.reminderPayload(for: task)
+
+    expect(reminder.title == "写作提纲", "task should map to reminder title")
+    expect(reminder.sourceTaskID == task.id, "reminder payload should keep source task ID")
+
+    let event = TimelineEvent(
+        id: UUID(uuidString: "00000000-0000-0000-0000-000000000402")!,
+        date: Date(timeIntervalSince1970: 1_780_000_000),
+        time: .fixed(hour: 14, minute: 0),
+        title: "专注：写作提纲",
+        linkedTaskID: task.id,
+        source: .aiPlanning,
+        parallelGroupID: nil
+    )
+    let calendar = AppleIntegrationMapper.calendarPayload(for: event, durationMinutes: 25)
+
+    expect(calendar.title == "专注：写作提纲", "scheduled timeline block should map to calendar title")
+    expect(calendar.durationMinutes == 25, "calendar payload should preserve duration")
+    expect(calendar.sourceEventID == event.id, "calendar payload should keep source event ID")
+}
+
+func checkCriticalTaskStartMapsToAlarmPolicy() {
+    let task = TaskItem.oneTime(
+        id: UUID(uuidString: "00000000-0000-0000-0000-000000000403")!,
+        title: "重要会议准备",
+        priority: .critical
+    )
+
+    let plan = AppleIntegrationMapper.reminderPlan(for: task, alarmKitAvailable: true)
+
+    expect(plan.policy.primaryChannel == .alarmKit, "critical task plan should use AlarmKit")
+    expect(plan.externalObjectKind == .alarm, "critical task plan should target alarm external object")
+}
+
 checkCriticalTaskUsesAlarmKitWithLocalNotificationFallback()
 checkCriticalTaskFallsBackWhenAlarmKitUnavailable()
 checkMediumTaskUsesSoundNotificationAndVibration()
@@ -242,5 +282,7 @@ checkTimelineSupportsParallelEvents()
 checkDailyMarkdownRendersTimelineAndRecall()
 checkTaskCSVUsesStableColumnOrder()
 checkTimelineCSVUsesStableColumnOrder()
+checkTaskMapsToReminderAndScheduledBlockMapsToCalendar()
+checkCriticalTaskStartMapsToAlarmPolicy()
 
 print("FocusTimelineCoreChecks passed")
