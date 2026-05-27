@@ -269,6 +269,49 @@ func checkCriticalTaskStartMapsToAlarmPolicy() {
     expect(plan.externalObjectKind == .alarm, "critical task plan should target alarm external object")
 }
 
+func checkAIDraftRequiresConfirmationBeforeTaskCreation() {
+    let draft = AITaskDraft(
+        title: "读书 40 页",
+        priority: .notifyOnly,
+        estimatedDurationMinutes: 40,
+        confirmationState: .pending
+    )
+
+    expect(draft.confirmedTask(id: UUID()) == nil, "pending AI task draft should not create a task")
+
+    let confirmed = draft.confirmed()
+    let task = confirmed.confirmedTask(id: UUID(uuidString: "00000000-0000-0000-0000-000000000501")!)
+
+    expect(task?.title == "读书 40 页", "confirmed AI task draft should create a task")
+    expect(task?.priority == .notifyOnly, "confirmed AI task draft should preserve priority")
+}
+
+func checkMemorySuggestionRequiresConfirmationBeforeSaving() {
+    let suggestion = MemorySuggestion(
+        id: UUID(uuidString: "00000000-0000-0000-0000-000000000502")!,
+        title: "通勤通常 28 分钟",
+        evidenceSummary: "最近 3 次工作日上午相似",
+        confirmationState: .pending
+    )
+
+    expect(!suggestion.canSave, "pending memory suggestion should not save")
+    expect(suggestion.confirmed().canSave, "confirmed memory suggestion should save")
+}
+
+func checkInboxMessageWrapsAISuggestions() {
+    let message = InboxMessage(
+        id: UUID(uuidString: "00000000-0000-0000-0000-000000000503")!,
+        kind: .aiSuggestion,
+        title: "周六适合安排长跑",
+        body: "上午空档最长。",
+        confirmationState: .pending
+    )
+
+    expect(message.kind == .aiSuggestion, "inbox should represent AI suggestion messages")
+    expect(!message.isActionable, "pending inbox message should not be actionable as a saved change")
+    expect(message.confirmed().isActionable, "confirmed inbox message should become actionable")
+}
+
 checkCriticalTaskUsesAlarmKitWithLocalNotificationFallback()
 checkCriticalTaskFallsBackWhenAlarmKitUnavailable()
 checkMediumTaskUsesSoundNotificationAndVibration()
@@ -284,5 +327,8 @@ checkTaskCSVUsesStableColumnOrder()
 checkTimelineCSVUsesStableColumnOrder()
 checkTaskMapsToReminderAndScheduledBlockMapsToCalendar()
 checkCriticalTaskStartMapsToAlarmPolicy()
+checkAIDraftRequiresConfirmationBeforeTaskCreation()
+checkMemorySuggestionRequiresConfirmationBeforeSaving()
+checkInboxMessageWrapsAISuggestions()
 
 print("FocusTimelineCoreChecks passed")
