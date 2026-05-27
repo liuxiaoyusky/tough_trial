@@ -6,20 +6,20 @@
 
 **Architecture:** Use a Swift Package core for platform-neutral domain rules and tests, plus an XcodeGen-generated iOS SwiftUI app target for the native interface. Keep reminder mapping, task/progress models, planning drafts, AI confirmation models, and export schemas independent from SwiftUI so Android and HarmonyOS clients can reuse the concepts.
 
-**Tech Stack:** Swift 6.3, Swift Package Manager, XCTest, SwiftUI, SwiftData, UserNotifications, EventKit, AlarmKit guarded by availability, XcodeGen.
+**Tech Stack:** Swift 6.3, Swift Package Manager, custom Swift check runner, SwiftUI, SwiftData, UserNotifications, EventKit, AlarmKit guarded by availability, XcodeGen.
 
 ---
 
 ## Environment Notes
 
-- `swift test` is available and should be used for core tests.
+- This local Command Line Tools Swift environment cannot import `XCTest` or Swift `Testing`; use `swift run FocusTimelineCoreChecks` for core verification until full Xcode is selected.
 - `xcodegen` is installed at `/opt/homebrew/bin/xcodegen`.
 - `xcodebuild` currently requires full Xcode selection, so CI-style simulator builds are blocked until Xcode is installed or selected with `xcode-select`.
 - The first implementation commit should establish a tested core package and generated iOS project files without requiring simulator execution.
 
 ## File Structure
 
-- `Package.swift` - Swift Package manifest for `FocusTimelineCore` and `FocusTimelineCoreTests`.
+- `Package.swift` - Swift Package manifest for `FocusTimelineCore` and `FocusTimelineCoreChecks`.
 - `Sources/FocusTimelineCore/TaskModels.swift` - task type, priority tier, task status, and task entity.
 - `Sources/FocusTimelineCore/ReminderPolicy.swift` - priority-to-reminder mapping and AlarmKit fallback rules.
 - `Sources/FocusTimelineCore/TimelineModels.swift` - timeline events, fuzzy time markers, and event source.
@@ -32,10 +32,7 @@
 - `Sources/ToughTrialApp/PlanView.swift` - approved Plan timeline editor layout implementation.
 - `Sources/ToughTrialApp/ZenModeView.swift` - approved Zen mode layout implementation.
 - `project.yml` - XcodeGen project definition for the iOS app.
-- `Tests/FocusTimelineCoreTests/ReminderPolicyTests.swift` - reminder mapping tests.
-- `Tests/FocusTimelineCoreTests/TaskProgressTests.swift` - task/progress behavior tests.
-- `Tests/FocusTimelineCoreTests/PlanningDraftTests.swift` - AI planning draft tests.
-- `Tests/FocusTimelineCoreTests/ExportRoundTripTests.swift` - Markdown/CSV export tests.
+- `Checks/FocusTimelineCoreChecks/main.swift` - executable check runner for reminder mapping first, then task/progress, planning draft, and export checks as phases are added.
 
 ## Task 1: Core Package And Reminder Policy
 
@@ -43,62 +40,45 @@
 - Create: `Package.swift`
 - Create: `Sources/FocusTimelineCore/TaskModels.swift`
 - Create: `Sources/FocusTimelineCore/ReminderPolicy.swift`
-- Create: `Tests/FocusTimelineCoreTests/ReminderPolicyTests.swift`
+- Create: `Checks/FocusTimelineCoreChecks/main.swift`
 
 - [ ] **Step 1: Write the failing reminder mapping tests**
 
 ```swift
-import XCTest
-@testable import FocusTimelineCore
+import FocusTimelineCore
+import Foundation
 
-final class ReminderPolicyTests: XCTestCase {
-    func testCriticalTaskUsesAlarmKitWithLocalNotificationFallback() {
-        let policy = ReminderPolicy.policy(for: .critical, alarmKitAvailable: true)
-
-        XCTAssertEqual(policy.primaryChannel, .alarmKit)
-        XCTAssertEqual(policy.fallbackChannel, .localNotificationWithSound)
-        XCTAssertTrue(policy.requiresScheduledStart)
-    }
-
-    func testCriticalTaskFallsBackWhenAlarmKitUnavailable() {
-        let policy = ReminderPolicy.policy(for: .critical, alarmKitAvailable: false)
-
-        XCTAssertEqual(policy.primaryChannel, .localNotificationWithSound)
-        XCTAssertNil(policy.fallbackChannel)
-        XCTAssertTrue(policy.requiresScheduledStart)
-    }
-
-    func testMediumTaskUsesSoundNotificationAndVibration() {
-        let policy = ReminderPolicy.policy(for: .medium, alarmKitAvailable: true)
-
-        XCTAssertEqual(policy.primaryChannel, .soundNotificationAndVibration)
-        XCTAssertNil(policy.fallbackChannel)
-        XCTAssertFalse(policy.requiresScheduledStart)
-    }
-
-    func testNotifyOnlyTaskUsesNotificationOnly() {
-        let policy = ReminderPolicy.policy(for: .notifyOnly, alarmKitAvailable: true)
-
-        XCTAssertEqual(policy.primaryChannel, .notificationOnly)
-        XCTAssertNil(policy.fallbackChannel)
-        XCTAssertFalse(policy.requiresScheduledStart)
-    }
-
-    func testNoPriorityTaskDoesNotNotify() {
-        let policy = ReminderPolicy.policy(for: .none, alarmKitAvailable: true)
-
-        XCTAssertEqual(policy.primaryChannel, .none)
-        XCTAssertNil(policy.fallbackChannel)
-        XCTAssertFalse(policy.requiresScheduledStart)
+func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
+    if !condition() {
+        FileHandle.standardError.write(Data("Check failed: \(message)\n".utf8))
+        Foundation.exit(1)
     }
 }
+
+let critical = ReminderPolicy.policy(for: .critical, alarmKitAvailable: true)
+expect(critical.primaryChannel == .alarmKit, "critical task should use AlarmKit")
+expect(critical.fallbackChannel == .localNotificationWithSound, "critical task should fall back to local notification with sound")
+expect(critical.requiresScheduledStart, "critical task should require scheduled start")
+
+let criticalFallback = ReminderPolicy.policy(for: .critical, alarmKitAvailable: false)
+expect(criticalFallback.primaryChannel == .localNotificationWithSound, "critical task should fall back without AlarmKit")
+expect(criticalFallback.fallbackChannel == nil, "critical fallback should not have a second fallback")
+
+let medium = ReminderPolicy.policy(for: .medium, alarmKitAvailable: true)
+expect(medium.primaryChannel == .soundNotificationAndVibration, "medium task should use sound, notification, and vibration")
+
+let notifyOnly = ReminderPolicy.policy(for: .notifyOnly, alarmKitAvailable: true)
+expect(notifyOnly.primaryChannel == .notificationOnly, "notify-only task should use notification only")
+
+let none = ReminderPolicy.policy(for: .none, alarmKitAvailable: true)
+expect(none.primaryChannel == .none, "no-priority task should not notify")
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `swift test --filter ReminderPolicyTests`
+Run: `swift run FocusTimelineCoreChecks`
 
-Expected: FAIL because `FocusTimelineCore`, `ReminderPolicy`, and related types do not exist yet.
+Expected: FAIL because `ReminderPolicy` and related types do not exist yet.
 
 - [ ] **Step 3: Add the Swift package and minimal reminder implementation**
 
@@ -119,9 +99,10 @@ let package = Package(
     ],
     targets: [
         .target(name: "FocusTimelineCore"),
-        .testTarget(
-            name: "FocusTimelineCoreTests",
-            dependencies: ["FocusTimelineCore"]
+        .executableTarget(
+            name: "FocusTimelineCoreChecks",
+            dependencies: ["FocusTimelineCore"],
+            path: "Checks/FocusTimelineCoreChecks"
         )
     ]
 )
@@ -201,24 +182,26 @@ public struct ReminderPolicy: Equatable, Sendable {
 
 - [ ] **Step 4: Run tests to verify green**
 
-Run: `swift test --filter ReminderPolicyTests`
+Run: `swift run FocusTimelineCoreChecks`
 
 Expected: PASS.
 
 - [ ] **Step 5: Run all current tests**
 
-Run: `swift test`
+Run: `swift build`
 
 Expected: PASS.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add Package.swift Sources/FocusTimelineCore Tests/FocusTimelineCoreTests
+git add Package.swift Sources/FocusTimelineCore Checks/FocusTimelineCoreChecks
 git commit -m "feat: add focus timeline core reminder policy"
 ```
 
 ## Task 2: Task And Progress Domain
+
+Local test adaptation: because this environment cannot import `XCTest` or Swift `Testing`, implement Task 2 and later verification by adding focused check functions to `Checks/FocusTimelineCoreChecks/main.swift`. The `Tests/FocusTimelineCoreTests/...` paths below document the intended XCTest organization for a full Xcode setup, but this local run should keep using the executable check runner.
 
 **Files:**
 - Modify: `Sources/FocusTimelineCore/TaskModels.swift`
@@ -482,4 +465,4 @@ git commit -m "feat: add ai draft inbox models"
 - V1 boundary: Dreaming analysis and push delivery are not implemented in V1 tasks; inbox message type is included.
 - Reminder boundary: AlarmKit is limited to critical task start reminders.
 - Platform boundary: Google Calendar and Android/HarmonyOS clients are excluded from V1 implementation.
-- Verification: every behavior task starts with a failing test and uses `swift test`.
+- Verification: every behavior task starts with a failing executable check and uses `swift run FocusTimelineCoreChecks` in this local environment.
