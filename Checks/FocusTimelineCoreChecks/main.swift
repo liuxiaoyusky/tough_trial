@@ -53,10 +53,60 @@ func checkNoPriorityTaskDoesNotNotify() {
     expect(!policy.requiresScheduledStart, "no-priority task does not require scheduled start")
 }
 
+func checkOneTimeTaskCompletesOnce() {
+    var task = TaskItem.oneTime(
+        id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
+        title: "买耳塞",
+        priority: .notifyOnly
+    )
+
+    task.recordCompletion(amount: nil, at: Date(timeIntervalSince1970: 100))
+
+    expect(task.status == .completed, "one-time task should complete after one completion")
+    expect(task.progress.completedAmount == 1, "one-time task should record one completed amount")
+    expect(task.progress.targetAmount == 1, "one-time task target should be one")
+}
+
+func checkCumulativeTaskAddsProgressTowardTotal() {
+    var task = TaskItem.cumulative(
+        id: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!,
+        title: "读完一本书",
+        unit: "页",
+        targetAmount: 1000,
+        priority: .none
+    )
+
+    task.recordCompletion(amount: 30, at: Date(timeIntervalSince1970: 100))
+    task.recordCompletion(amount: 20, at: Date(timeIntervalSince1970: 200))
+
+    expect(task.progress.completedAmount == 50, "cumulative task should add progress amounts")
+    expect(task.status == .active, "cumulative task should remain active before reaching target")
+}
+
+func checkFrequencyTaskCountsCompletionsInPeriod() {
+    var task = TaskItem.frequencyGoal(
+        id: UUID(uuidString: "00000000-0000-0000-0000-000000000003")!,
+        title: "本周跑 5 次 3 公里",
+        targetCount: 5,
+        period: .week,
+        priority: .medium
+    )
+
+    task.recordCompletion(amount: nil, at: Date(timeIntervalSince1970: 100))
+    task.recordCompletion(amount: nil, at: Date(timeIntervalSince1970: 200))
+
+    expect(task.progress.completedAmount == 2, "frequency task should count completions")
+    expect(task.progress.targetAmount == 5, "frequency task target should match requested count")
+    expect(task.status == .active, "frequency task should remain active before target count")
+}
+
 checkCriticalTaskUsesAlarmKitWithLocalNotificationFallback()
 checkCriticalTaskFallsBackWhenAlarmKitUnavailable()
 checkMediumTaskUsesSoundNotificationAndVibration()
 checkNotifyOnlyTaskUsesNotificationOnly()
 checkNoPriorityTaskDoesNotNotify()
+checkOneTimeTaskCompletesOnce()
+checkCumulativeTaskAddsProgressTowardTotal()
+checkFrequencyTaskCountsCompletionsInPeriod()
 
 print("FocusTimelineCoreChecks passed")
