@@ -1,6 +1,8 @@
+import FocusTimelineCore
 import SwiftUI
 
 struct PlanView: View {
+    @ObservedObject var store: DemoAppStore
     @State private var showInbox = true
 
     var body: some View {
@@ -11,7 +13,11 @@ struct PlanView: View {
                     timeline
                     backlog
                     Spacer()
-                    Button("AI 规划") {}
+                    Button("AI 规划") {
+                        withAnimation(.spring(response: 0.44, dampingFraction: 0.82)) {
+                            store.state.applyAIPlanning()
+                        }
+                    }
                         .buttonStyle(CapsuleButtonStyle(filled: true))
                         .frame(maxWidth: .infinity)
                 }
@@ -63,19 +69,23 @@ struct PlanView: View {
 
     private var timeline: some View {
         VStack(alignment: .leading, spacing: 10) {
-            planEvent(time: "09:30", title: "长跑", note: "AI 排入 · 预计 55 分钟")
-            planEvent(time: "??:??", title: "读书 40 页", note: "未定时间 · 可拖入合适空档", uncertain: true)
-
-            HStack(alignment: .top, spacing: 12) {
-                Text("15:00")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(AppTheme.muted)
-                    .frame(width: 48, alignment: .leading)
-                TimelineMarker()
-                    .padding(.top, 18)
-                HStack(spacing: 8) {
-                    parallelCard("回邮件", "25 分钟")
-                    parallelCard("整理资料", "可并行")
+            ForEach(groupedPlanEvents) { group in
+                if group.events.count > 1 {
+                    HStack(alignment: .top, spacing: 12) {
+                        Text(group.timeLabel)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(AppTheme.muted)
+                            .frame(width: 48, alignment: .leading)
+                        TimelineMarker()
+                            .padding(.top, 18)
+                        HStack(spacing: 8) {
+                            ForEach(group.events) { event in
+                                parallelCard(event.title, event.note)
+                            }
+                        }
+                    }
+                } else if let event = group.events.first {
+                    planEvent(event)
                 }
             }
         }
@@ -93,8 +103,15 @@ struct PlanView: View {
                     .foregroundStyle(AppTheme.muted)
             }
 
-            backlogChip(title: "学 SwiftUI", detail: "建议拆小后再安排")
-            backlogChip(title: "整理相册", detail: "低优先级 · 可改天")
+            ForEach(store.state.backlogTasks) { task in
+                backlogChip(title: task.title, detail: task.detail)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        withAnimation(.spring(response: 0.36, dampingFraction: 0.84)) {
+                            store.state.moveBacklogTaskToTimeline(taskID: task.id, timeLabel: "18:40")
+                        }
+                    }
+            }
         }
         .padding(.top, 12)
     }
@@ -120,19 +137,33 @@ struct PlanView: View {
         .shadow(color: .black.opacity(0.28), radius: 24, x: 0, y: 16)
     }
 
-    private func planEvent(time: String, title: String, note: String, uncertain: Bool = false) -> some View {
+    private var groupedPlanEvents: [PlanEventGroup] {
+        var groups: [PlanEventGroup] = []
+
+        for event in store.state.planEvents {
+            if event.isParallel, let lastIndex = groups.indices.last, groups[lastIndex].timeLabel == event.timeLabel {
+                groups[lastIndex].events.append(event)
+            } else {
+                groups.append(PlanEventGroup(timeLabel: event.timeLabel, events: [event]))
+            }
+        }
+
+        return groups
+    }
+
+    private func planEvent(_ event: DemoTimelineEntry) -> some View {
         HStack(alignment: .top, spacing: 12) {
-            Text(time)
+            Text(event.timeLabel)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(AppTheme.muted)
-                .blur(radius: uncertain ? 2.4 : 0)
+                .blur(radius: event.isUncertain ? 2.4 : 0)
                 .frame(width: 48, alignment: .leading)
             TimelineMarker()
                 .padding(.top, 18)
             VStack(alignment: .leading, spacing: 4) {
-                Text(title)
+                Text(event.title)
                     .font(.subheadline.weight(.bold))
-                Text(note)
+                Text(event.note)
                     .font(.caption)
                     .foregroundStyle(AppTheme.muted)
             }
@@ -187,6 +218,15 @@ struct PlanView: View {
     }
 }
 
+private struct PlanEventGroup: Identifiable {
+    let timeLabel: String
+    var events: [DemoTimelineEntry]
+
+    var id: String {
+        timeLabel + events.map(\.id.uuidString).joined()
+    }
+}
+
 #Preview {
-    PlanView()
+    PlanView(store: DemoAppStore())
 }

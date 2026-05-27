@@ -1,8 +1,8 @@
+import FocusTimelineCore
 import SwiftUI
 
 struct TodayView: View {
-    @State private var selectedEvent = "写作提纲"
-    @State private var showZenMode = false
+    @ObservedObject var store: DemoAppStore
 
     var body: some View {
         NavigationStack {
@@ -16,9 +16,6 @@ struct TodayView: View {
             }
             .dailyScreen()
             .navigationBarHidden(true)
-            .fullScreenCover(isPresented: $showZenMode) {
-                ZenModeView(taskTitle: selectedEvent)
-            }
         }
     }
 
@@ -42,35 +39,38 @@ struct TodayView: View {
         }
     }
 
+    @ViewBuilder
     private var focusCandidate: some View {
+        let candidate = store.state.focusCandidate
+        let selectedTime = store.state.todayEvents.first(where: { $0.id == store.state.selectedTodayEventID })?.timeLabel ?? "任务列表"
+
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 Text("专注候选")
                 Spacer()
-                Text("来自 14:00")
+                Text("来自 \(selectedTime)")
             }
             .font(.caption.weight(.bold))
             .textCase(.uppercase)
             .foregroundStyle(AppTheme.ink.opacity(0.62))
 
             VStack(alignment: .leading, spacing: 6) {
-                Text(selectedEvent)
+                Text(candidate?.title ?? "选择一个任务")
                     .font(.system(size: 28, weight: .bold, design: .rounded))
-                Text("从时间线任务选中。可以切换时长，也可以直接开始。")
+                Text(candidate?.detail ?? "从时间线或任务列表选择后开始。")
                     .font(.subheadline)
                     .foregroundStyle(AppTheme.ink.opacity(0.7))
             }
 
             HStack {
-                Button("25 分钟") {}
-                    .buttonStyle(CapsuleButtonStyle(filled: true))
-                Button("45 分钟") {}
-                    .buttonStyle(CapsuleButtonStyle())
+                durationButton(minutes: 25)
+                durationButton(minutes: 45)
                 Spacer()
                 Button("开始") {
-                    showZenMode = true
+                    store.startZen()
                 }
                 .buttonStyle(CapsuleButtonStyle(filled: true))
+                .disabled(candidate == nil)
             }
         }
         .padding(18)
@@ -80,31 +80,32 @@ struct TodayView: View {
 
     private var timeline: some View {
         VStack(alignment: .leading, spacing: 0) {
-            timelineRow(time: "10:30", title: "出门", note: "通勤通常约 28 分钟")
-
-            timelineRow(
-                time: "14:00",
-                title: "写作提纲",
-                note: "已选为专注候选 · 关联任务",
-                isSelected: selectedEvent == "写作提纲"
-            )
-            .onTapGesture {
-                selectedEvent = "写作提纲"
-            }
-
-            timelineRow(time: "16:20", title: "读书 20 页", note: "进度：50 / 1000 页")
+            ForEach(store.state.todayEvents) { event in
+                timelineRow(
+                    event: event,
+                    isSelected: store.state.selectedTodayEventID == event.id
+                )
+                .contentShape(Rectangle())
                 .onTapGesture {
-                    selectedEvent = "读书 20 页"
+                    withAnimation(.spring(response: 0.26, dampingFraction: 0.86)) {
+                        store.state.selectTodayEvent(id: event.id)
+                    }
                 }
-
-            timelineRow(time: "今晚", title: "回想", note: "可引用今天的完成记录")
+            }
         }
         .padding(.leading, 4)
     }
 
-    private func timelineRow(time: String, title: String, note: String, isSelected: Bool = false) -> some View {
+    private func durationButton(minutes: Int) -> some View {
+        Button("\(minutes) 分钟") {
+            store.state.selectDuration(minutes: minutes)
+        }
+        .buttonStyle(CapsuleButtonStyle(filled: store.state.selectedDurationMinutes == minutes))
+    }
+
+    private func timelineRow(event: DemoTimelineEntry, isSelected: Bool = false) -> some View {
         HStack(alignment: .top, spacing: 12) {
-            Text(time)
+            Text(event.timeLabel)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(isSelected ? Color.white.opacity(0.7) : AppTheme.muted)
                 .frame(width: 48, alignment: .leading)
@@ -113,9 +114,9 @@ struct TodayView: View {
                 .padding(.top, 4)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(title)
+                Text(event.title)
                     .font(.subheadline.weight(.bold))
-                Text(note)
+                Text(event.note)
                     .font(.caption)
                     .foregroundStyle(isSelected ? Color.white.opacity(0.64) : AppTheme.muted)
             }
@@ -129,5 +130,5 @@ struct TodayView: View {
 }
 
 #Preview {
-    TodayView()
+    TodayView(store: DemoAppStore())
 }

@@ -1,8 +1,17 @@
+import FocusTimelineCore
 import SwiftUI
 
 struct ZenModeView: View {
-    let taskTitle: String?
+    let onComplete: () -> Void
+    let onClose: () -> Void
     @Environment(\.dismiss) private var dismiss
+    @State private var session: ZenSession
+
+    init(initialSession: ZenSession, onComplete: @escaping () -> Void, onClose: @escaping () -> Void) {
+        self.onComplete = onComplete
+        self.onClose = onClose
+        _session = State(initialValue: initialSession)
+    }
 
     var body: some View {
         VStack {
@@ -17,22 +26,22 @@ struct ZenModeView: View {
             Spacer()
 
             VStack(spacing: 18) {
-                Text(taskTitle == nil ? "短句" : "当前任务")
+                Text(session.taskTitle == nil ? "短句" : "当前任务")
                     .font(.caption.weight(.bold))
                     .textCase(.uppercase)
                     .foregroundStyle(Color.white.opacity(0.62))
 
-                Text("25:00")
+                Text(session.displayTime)
                     .font(.system(size: 74, weight: .medium, design: .rounded))
                     .monospacedDigit()
 
-                Text(taskTitle ?? "把注意力放回此刻。")
+                Text(session.taskTitle ?? "把注意力放回此刻。")
                     .font(.title3.weight(.medium))
                     .multilineTextAlignment(.center)
                     .foregroundStyle(Color.white.opacity(0.86))
                     .frame(maxWidth: 280)
 
-                Text("下一次站立：专注结束后 2 分钟")
+                Text(session.isComplete ? "完成后站立 2 分钟" : "下一次站立：专注结束后 2 分钟")
                     .font(.footnote)
                     .foregroundStyle(Color.white.opacity(0.56))
             }
@@ -40,9 +49,21 @@ struct ZenModeView: View {
             Spacer()
 
             HStack(spacing: 10) {
-                Button("暂停") {}
+                Button(session.isRunning ? "暂停" : "继续") {
+                    if session.isRunning {
+                        session.pause()
+                    } else {
+                        session.resume()
+                    }
+                }
                     .buttonStyle(ZenButtonStyle())
-                Button("结束") {
+
+                Button(session.isComplete ? "完成" : "结束") {
+                    if session.isComplete {
+                        onComplete()
+                    } else {
+                        onClose()
+                    }
                     dismiss()
                 }
                 .buttonStyle(ZenButtonStyle())
@@ -52,6 +73,9 @@ struct ZenModeView: View {
         .padding(20)
         .foregroundStyle(Color.white)
         .background(AppTheme.zenGradient.ignoresSafeArea())
+        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
+            session.tick(seconds: 1)
+        }
     }
 }
 
@@ -70,5 +94,9 @@ private struct ZenButtonStyle: ButtonStyle {
 }
 
 #Preview {
-    ZenModeView(taskTitle: "写作提纲")
+    ZenModeView(
+        initialSession: ZenSession(taskTitle: "写作提纲", durationMinutes: 25),
+        onComplete: {},
+        onClose: {}
+    )
 }

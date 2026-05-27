@@ -1,6 +1,10 @@
+import FocusTimelineCore
 import SwiftUI
 
 struct RecallView: View {
+    @ObservedObject var store: DemoAppStore
+    @State private var note = "今天下午的写作提纲比预期顺。读书只推进了 20 页，但晚上保持了空档。"
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -14,24 +18,32 @@ struct RecallView: View {
                     }
 
                     VStack(spacing: 10) {
-                        recallEvent("10:30", "Focus 25m", "写作提纲 completed")
-                        recallEvent("16:20", "读书 20 页", "Book progress: 50 / 1000")
-                        recallEvent("18:00", "站立休息", "2 分钟 completed")
+                        ForEach(store.state.todayEvents) { event in
+                            recallEvent(event.timeLabel, event.title, event.note)
+                        }
                     }
 
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("今天下午的")
-                            + Text(" 写作提纲 ")
-                            .foregroundStyle(AppTheme.ink)
-                            .fontWeight(.bold)
-                            + Text("比预期顺。读书只推进了")
-                            + Text(" 20 页 ")
-                            .foregroundStyle(AppTheme.ink)
-                            .fontWeight(.bold)
-                            + Text("，但晚上保持了空档。")
+                    if !store.state.completedTodayTitles.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("可引用")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(AppTheme.muted)
+                            HStack {
+                                ForEach(store.state.completedTodayTitles, id: \.self) { title in
+                                    Button(title) {
+                                        note += " \(title)"
+                                    }
+                                    .buttonStyle(CapsuleButtonStyle())
+                                }
+                            }
+                        }
                     }
-                    .font(.body)
-                    .lineSpacing(5)
+
+                    TextEditor(text: $note)
+                        .font(.body)
+                        .lineSpacing(5)
+                        .scrollContentBackground(.hidden)
+                        .frame(minHeight: 180)
                     .padding(18)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(.white.opacity(0.82), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
@@ -66,5 +78,5 @@ struct RecallView: View {
 }
 
 #Preview {
-    RecallView()
+    RecallView(store: DemoAppStore())
 }

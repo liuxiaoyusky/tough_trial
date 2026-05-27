@@ -312,6 +312,65 @@ func checkInboxMessageWrapsAISuggestions() {
     expect(message.confirmed().isActionable, "confirmed inbox message should become actionable")
 }
 
+func checkInteractiveDemoFiltersTasksAndSelectsFocus() {
+    var state = InteractiveDemoState.sample()
+
+    expect(state.filteredTasks(matching: "跑").map(\.title) == ["本周跑 5 次 3 公里"], "task search should filter by Chinese title")
+
+    state.selectFocus(taskID: InteractiveDemoState.SampleIDs.readingTask)
+    state.selectDuration(minutes: 45)
+
+    expect(state.focusCandidate?.title == "读完这本书", "selecting a task should update the focus candidate")
+    expect(state.selectedDurationMinutes == 45, "duration buttons should update the selected focus duration")
+}
+
+func checkCompletingTaskAddsRecordToTodayWhenMissing() {
+    var state = InteractiveDemoState.sample()
+
+    state.selectFocus(taskID: InteractiveDemoState.SampleIDs.runningTask)
+    state.completeFocusCandidate(atLabel: "刚刚")
+
+    expect(state.completedTodayTitles.contains("本周跑 5 次 3 公里"), "completed task should be recorded")
+    expect(state.todayEvents.contains { $0.title == "本周跑 5 次 3 公里" && $0.timeLabel == "刚刚" }, "completed off-today task should be appended to today timeline")
+}
+
+func checkAIPlanningMovesBacklogIntoTimelineAndInitializesDuration() {
+    var state = InteractiveDemoState.sample()
+
+    let originalPlanCount = state.planEvents.count
+    state.applyAIPlanning()
+
+    expect(state.planEvents.count == originalPlanCount + 1, "AI planning should add one feasible backlog task to timeline")
+    expect(state.planEvents.contains { $0.title == "学 SwiftUI" && $0.timeLabel == "17:10" }, "AI planning should place the chosen task at a concrete time")
+    expect(state.backlogTasks.map(\.title) == ["整理相册"], "AI planning should keep tasks that do not fit in backlog")
+    expect(state.planEvents.allSatisfy { $0.estimatedMinutes != nil }, "AI planning should initialize durations for planned tasks")
+}
+
+func checkManualPlanMovePlacesBacklogTaskIntoTimeline() {
+    var state = InteractiveDemoState.sample()
+
+    state.moveBacklogTaskToTimeline(taskID: InteractiveDemoState.SampleIDs.photosTask, timeLabel: "18:40")
+
+    expect(state.planEvents.contains { $0.title == "整理相册" && $0.timeLabel == "18:40" }, "manual planning should place the chosen backlog task into timeline")
+    expect(!state.backlogTasks.contains { $0.id == InteractiveDemoState.SampleIDs.photosTask }, "manual planning should remove the chosen task from backlog")
+}
+
+func checkZenSessionTicksPausesAndResumes() {
+    var session = ZenSession(taskTitle: "写作提纲", durationMinutes: 25)
+
+    session.tick(seconds: 30)
+    expect(session.remainingSeconds == 1_470, "zen timer should count down while running")
+
+    session.pause()
+    session.tick(seconds: 30)
+    expect(session.remainingSeconds == 1_470, "zen timer should not tick while paused")
+
+    session.resume()
+    session.tick(seconds: 1_500)
+    expect(session.remainingSeconds == 0, "zen timer should clamp at zero")
+    expect(session.isComplete, "zen session should mark completion at zero")
+}
+
 checkCriticalTaskUsesAlarmKitWithLocalNotificationFallback()
 checkCriticalTaskFallsBackWhenAlarmKitUnavailable()
 checkMediumTaskUsesSoundNotificationAndVibration()
@@ -330,5 +389,10 @@ checkCriticalTaskStartMapsToAlarmPolicy()
 checkAIDraftRequiresConfirmationBeforeTaskCreation()
 checkMemorySuggestionRequiresConfirmationBeforeSaving()
 checkInboxMessageWrapsAISuggestions()
+checkInteractiveDemoFiltersTasksAndSelectsFocus()
+checkCompletingTaskAddsRecordToTodayWhenMissing()
+checkAIPlanningMovesBacklogIntoTimelineAndInitializesDuration()
+checkManualPlanMovePlacesBacklogTaskIntoTimeline()
+checkZenSessionTicksPausesAndResumes()
 
 print("FocusTimelineCoreChecks passed")
