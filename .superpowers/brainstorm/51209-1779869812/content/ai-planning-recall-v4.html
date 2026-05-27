@@ -1,0 +1,307 @@
+<style>
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+  }
+  .panel {
+    border: 1px solid rgba(23,27,32,.1);
+    border-radius: 10px;
+    background: #fff;
+    overflow: hidden;
+  }
+  .iphone {
+    width: min(100%, 286px);
+    aspect-ratio: 9 / 19.5;
+    margin: 18px auto 12px;
+    border-radius: 34px;
+    border: 7px solid #101115;
+    background: #fbfaf7;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+    position: relative;
+    color: #171b20;
+  }
+  .screen {
+    height: 100%;
+    padding: 18px 16px 12px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(180deg, rgba(217,229,212,.58), transparent 30%), #fbfaf7;
+  }
+  .island {
+    width: 78px;
+    height: 20px;
+    border-radius: 999px;
+    background: #101115;
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  .status {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 18px;
+    font-size: 11px;
+    font-weight: 760;
+  }
+  .title {
+    margin-top: 16px;
+    font-size: 27px;
+    font-weight: 850;
+    line-height: 1.02;
+  }
+  .subtitle {
+    margin-top: 6px;
+    font-size: 11px;
+    color: #6f7782;
+    line-height: 1.35;
+  }
+  .sheet {
+    margin-top: 16px;
+    border-radius: 24px;
+    padding: 15px;
+    background: #1f242b;
+    color: #fff8ec;
+    box-shadow: 0 18px 42px rgba(31,36,43,.18);
+  }
+  .sheet.light {
+    background: rgba(255,255,255,.78);
+    color: #171b20;
+    border: 1px solid rgba(23,27,32,.08);
+    box-shadow: none;
+  }
+  .micro {
+    font-size: 10px;
+    font-weight: 820;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    opacity: .66;
+  }
+  .sheet-title {
+    margin-top: 7px;
+    font-size: 21px;
+    font-weight: 850;
+    line-height: 1.08;
+  }
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 11px;
+  }
+  .chip {
+    border-radius: 999px;
+    padding: 6px 8px;
+    font-size: 9px;
+    font-weight: 760;
+    background: rgba(255,255,255,.1);
+    color: inherit;
+    white-space: nowrap;
+  }
+  .light .chip {
+    background: #eef1e8;
+    color: #3d4b3e;
+  }
+  .draft-line {
+    display: grid;
+    grid-template-columns: 42px 1fr;
+    gap: 8px;
+    align-items: start;
+    margin-top: 10px;
+    padding: 9px;
+    border-radius: 14px;
+    background: rgba(255,255,255,.08);
+    font-size: 10px;
+  }
+  .light .draft-line {
+    background: #f3f2ec;
+  }
+  .actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 12px;
+  }
+  .button {
+    flex: 1;
+    border-radius: 999px;
+    padding: 8px 9px;
+    font-size: 10px;
+    font-weight: 820;
+    text-align: center;
+    background: #fff8ec;
+    color: #1f242b;
+  }
+  .button.secondary {
+    background: rgba(255,255,255,.1);
+    color: #fff8ec;
+  }
+  .light .button {
+    background: #1f242b;
+    color: #fff8ec;
+  }
+  .light .button.secondary {
+    background: #eef1e8;
+    color: #3d4b3e;
+  }
+  .timeline {
+    margin-top: 15px;
+    display: grid;
+    gap: 8px;
+  }
+  .event {
+    display: grid;
+    grid-template-columns: 42px 1fr;
+    gap: 8px;
+    padding: 10px;
+    border-radius: 15px;
+    background: rgba(255,255,255,.7);
+    border: 1px solid rgba(23,27,32,.08);
+    font-size: 10px;
+  }
+  .event strong {
+    display: block;
+    margin-bottom: 2px;
+  }
+  .event span {
+    color: #6f7782;
+    font-weight: 760;
+  }
+  .writing {
+    margin-top: 14px;
+    border-radius: 22px;
+    min-height: 148px;
+    padding: 14px;
+    background: #fff;
+    border: 1px solid rgba(23,27,32,.08);
+    font-size: 11px;
+    line-height: 1.45;
+    color: #343b43;
+  }
+  .quote {
+    display: inline-block;
+    border-radius: 999px;
+    padding: 5px 8px;
+    background: #eef1e8;
+    color: #3d4b3e;
+    font-size: 9px;
+    font-weight: 780;
+    margin: 0 3px;
+  }
+  .nav {
+    margin-top: auto;
+    height: 48px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.78);
+    border: 1px solid rgba(23,27,32,.08);
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    align-items: center;
+    font-size: 9px;
+    color: #77808b;
+    text-align: center;
+  }
+  .on { color:#1f2933;font-weight:850; }
+  .caption {
+    padding: 0 18px 18px;
+  }
+  .caption h3 {
+    margin: 0 0 6px;
+    font-size: 16px;
+  }
+  .caption p {
+    margin: 0;
+    color: #596174;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  @media (max-width: 900px) {
+    .grid { grid-template-columns: 1fr; }
+    .iphone { max-width: 276px; }
+  }
+</style>
+
+<h2>Memory / AI Planning / Recall 的同一套语言</h2>
+<p class="subtitle">这三个功能都围绕时间线：Memory 提供上下文，AI Planning 生成可确认时间线草稿，Recall 写作时引用当天记录。</p>
+
+<div class="grid">
+  <div class="panel">
+    <div class="iphone">
+      <div class="screen">
+        <div class="island"></div>
+        <div class="status"><span>9:42</span><span>Memory</span></div>
+        <div class="title">Private<br>memory</div>
+        <div class="subtitle">AI 只能提出 memory，用户确认后才保存。</div>
+        <div class="sheet light">
+          <div class="micro">Suggested memory</div>
+          <div class="sheet-title">You usually leave for work around 10:20.</div>
+          <div class="chips">
+            <span class="chip">commute 28m</span>
+            <span class="chip">weekday</span>
+            <span class="chip">used for planning</span>
+          </div>
+          <div class="actions"><div class="button">Save</div><div class="button secondary">Dismiss</div></div>
+        </div>
+        <div class="timeline">
+          <div class="event"><span>source</span><div><strong>Calendar + repeated tasks</strong>3 similar mornings found</div></div>
+          <div class="event"><span>scope</span><div><strong>Only planning</strong>Not shown in recall unless referenced</div></div>
+        </div>
+        <div class="nav"><span>Today</span><span>Tasks</span><span class="on">Plan</span><span>Recall</span></div>
+      </div>
+    </div>
+    <div class="caption">
+      <h3>Memory</h3>
+      <p>记录作息、地点、通勤、工作时间等偏好。v1 不自动学习写入，必须用户确认。</p>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="iphone">
+      <div class="screen">
+        <div class="island"></div>
+        <div class="status"><span>9:42</span><span>Plan Saturday</span></div>
+        <div class="title">Draft<br>timeline</div>
+        <div class="subtitle">生成未来某一天的可编辑时间线草稿。</div>
+        <div class="sheet">
+          <div class="micro">AI planning draft</div>
+          <div class="sheet-title">Saturday has room for a long run.</div>
+          <div class="draft-line"><span>09:30</span><div><strong>Long run</strong><br>counts toward 30-day goal</div></div>
+          <div class="draft-line"><span>15:00</span><div><strong>Read 40 pages</strong><br>keeps evening open</div></div>
+          <div class="draft-line"><span>20:30</span><div><strong>Recall</strong><br>auto-created reflection slot</div></div>
+          <div class="actions"><div class="button">Apply</div><div class="button secondary">Edit</div></div>
+        </div>
+        <div class="nav"><span>Today</span><span>Tasks</span><span class="on">Plan</span><span>Recall</span></div>
+      </div>
+    </div>
+    <div class="caption">
+      <h3>AI Planning</h3>
+      <p>“计划明天”和“更新周六”都是生成草稿时间线。用户确认后才写入 app 和 Apple Calendar。</p>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="iphone">
+      <div class="screen">
+        <div class="island"></div>
+        <div class="status"><span>21:42</span><span>Recall</span></div>
+        <div class="title">Recall<br>today</div>
+        <div class="subtitle">写随笔时可引用当天完成记录并跳转。</div>
+        <div class="timeline">
+          <div class="event"><span>10:30</span><div><strong>Focus 25m</strong>写作提纲 completed</div></div>
+          <div class="event"><span>16:20</span><div><strong>Read 20 pages</strong>Book progress: 50 / 1000</div></div>
+          <div class="event"><span>18:00</span><div><strong>Stand break</strong>2m completed</div></div>
+        </div>
+        <div class="writing">
+          今天下午的 <span class="quote">写作提纲</span> 比预期顺。读书只推进了 <span class="quote">20 pages</span>，但晚上保持了空档。
+        </div>
+        <div class="nav"><span>Today</span><span>Tasks</span><span>Plan</span><span class="on">Recall</span></div>
+      </div>
+    </div>
+    <div class="caption">
+      <h3>Recall</h3>
+      <p>不是自动总结优先，而是“带引用的写作”。引用 chip 可跳回原任务、专注块或进度记录。</p>
+    </div>
+  </div>
+</div>

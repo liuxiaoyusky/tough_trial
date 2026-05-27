@@ -1,0 +1,307 @@
+<style>
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+  }
+  .option {
+    border: 1px solid rgba(23,27,32,.1);
+    border-radius: 10px;
+    background: #fff;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+  }
+  .option:hover {
+    transform: translateY(-2px);
+    border-color: rgba(73,111,188,.48);
+    box-shadow: 0 18px 40px rgba(22,27,35,.13);
+  }
+  .option.selected {
+    border-color: #496fbc;
+    box-shadow: 0 0 0 3px rgba(73,111,188,.16), 0 18px 40px rgba(22,27,35,.13);
+  }
+  .phone {
+    width: min(100%, 286px);
+    aspect-ratio: 9 / 19.5;
+    margin: 18px auto 12px;
+    border-radius: 34px;
+    border: 7px solid #101115;
+    background: #fbfaf7;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", sans-serif;
+    position: relative;
+    color: #171b20;
+  }
+  .screen {
+    height: 100%;
+    padding: 18px 16px 12px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(180deg, rgba(217,229,212,.68), transparent 30%), #fbfaf7;
+  }
+  .island {
+    width: 78px;
+    height: 20px;
+    border-radius: 999px;
+    background: #101115;
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  .status, .title-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    gap: 12px;
+  }
+  .status {
+    margin-top: 18px;
+    font-size: 11px;
+    font-weight: 760;
+  }
+  .title-row { margin-top: 18px; }
+  .title {
+    font-size: 29px;
+    font-weight: 850;
+    line-height: 1;
+  }
+  .chip {
+    border-radius: 999px;
+    padding: 7px 9px;
+    font-size: 10px;
+    font-weight: 760;
+    background: rgba(255,255,255,.76);
+    border: 1px solid rgba(23,27,32,.08);
+    white-space: nowrap;
+  }
+  .main {
+    margin-top: 18px;
+    border-radius: 26px;
+    padding: 17px;
+    background: #1f242b;
+    color: #fff8ec;
+    box-shadow: 0 18px 42px rgba(31,36,43,.18);
+  }
+  .main.light {
+    background: rgba(255,255,255,.78);
+    color: #171b20;
+    border: 1px solid rgba(23,27,32,.08);
+    box-shadow: none;
+  }
+  .small {
+    font-size: 10px;
+    font-weight: 820;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    opacity: .62;
+  }
+  .main-title {
+    margin-top: 7px;
+    font-size: 23px;
+    font-weight: 850;
+    line-height: 1.08;
+  }
+  .main-note {
+    margin-top: 7px;
+    font-size: 11px;
+    line-height: 1.38;
+    color: rgba(255,248,236,.68);
+  }
+  .light .main-note { color: #707983; }
+  .slot-list {
+    margin-top: 14px;
+    display: grid;
+    gap: 8px;
+  }
+  .slot {
+    display: grid;
+    grid-template-columns: 42px 1fr;
+    gap: 8px;
+    padding: 9px;
+    border-radius: 14px;
+    background: rgba(255,255,255,.08);
+    font-size: 10px;
+  }
+  .light .slot {
+    background: #f1f0ea;
+  }
+  .calendar-row {
+    display: grid;
+    grid-template-columns: 36px 1fr;
+    gap: 8px;
+    margin-top: 10px;
+    font-size: 10px;
+  }
+  .bar {
+    height: 18px;
+    border-radius: 999px;
+    background: #eef1e8;
+    overflow: hidden;
+    margin-top: 2px;
+  }
+  .bar.busy { background: #dfe8f6; }
+  .bar.plan { background: linear-gradient(90deg,#d9e5d4,#e3b99e); }
+  .actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 13px;
+  }
+  .btn {
+    flex: 1;
+    border-radius: 999px;
+    padding: 9px 10px;
+    font-size: 11px;
+    font-weight: 820;
+    text-align: center;
+    background: #fff8ec;
+    color: #1f242b;
+  }
+  .light .btn, .btn.dark {
+    background: #1f242b;
+    color: #fff8ec;
+  }
+  .btn.secondary {
+    background: rgba(255,255,255,.1);
+    color: #fff8ec;
+  }
+  .light .btn.secondary {
+    background: #eef1e8;
+    color: #3d4b3e;
+  }
+  .extra-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+  }
+  .extra {
+    flex: 1;
+    border-radius: 18px;
+    padding: 11px;
+    background: rgba(255,255,255,.76);
+    border: 1px solid rgba(23,27,32,.08);
+    font-size: 10px;
+    min-height: 58px;
+  }
+  .extra strong {
+    display: block;
+    font-size: 12px;
+    margin-bottom: 4px;
+  }
+  .nav {
+    margin-top: auto;
+    height: 48px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.78);
+    border: 1px solid rgba(23,27,32,.08);
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    align-items: center;
+    font-size: 9px;
+    color: #77808b;
+    text-align: center;
+  }
+  .on { color:#1f2933;font-weight:850; }
+  .caption {
+    padding: 0 18px 18px;
+  }
+  .caption h3 {
+    margin: 0 0 6px;
+    font-size: 16px;
+  }
+  .caption p {
+    margin: 0;
+    color: #596174;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  @media (max-width: 900px) {
+    .grid { grid-template-columns: 1fr; }
+    .phone { max-width: 276px; }
+  }
+</style>
+
+<h2>Plan 主规划区：三种低密度方案</h2>
+<p class="subtitle">都保留两个附加入口：AI 建议、夜间酝酿。差别只在主功能如何呈现“根据既定行程规划时间”。</p>
+
+<div class="grid">
+  <div class="option" data-choice="draft-first" onclick="toggleSelect(this)">
+    <div class="phone">
+      <div class="screen">
+        <div class="island"></div>
+        <div class="status"><span>9:42</span><span>周六</span></div>
+        <div class="title-row"><div class="title">计划</div><div class="chip">草稿</div></div>
+        <div class="main">
+          <div class="small">建议行程</div>
+          <div class="main-title">上午放长跑，下午留空。</div>
+          <div class="main-note">已避开午餐和 16:00 约会。</div>
+          <div class="slot-list">
+            <div class="slot"><span>09:30</span><div><strong>长跑</strong><br>计入 30 天目标</div></div>
+            <div class="slot"><span>15:00</span><div><strong>读书</strong><br>40 分钟即可</div></div>
+          </div>
+          <div class="actions"><div class="btn">加入周六</div><div class="btn secondary">编辑</div></div>
+        </div>
+        <div class="extra-row"><div class="extra"><strong>AI 建议</strong>1 条</div><div class="extra"><strong>夜间酝酿</strong>明早推送</div></div>
+        <div class="nav"><span>今天</span><span>任务</span><span class="on">计划</span><span>回想</span></div>
+      </div>
+    </div>
+    <div class="caption">
+      <h3>A. 草稿优先</h3>
+      <p>推荐。主卡直接给出最重要的计划草稿，用户可以一键加入或编辑。</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="open-slots" onclick="toggleSelect(this)">
+    <div class="phone">
+      <div class="screen">
+        <div class="island"></div>
+        <div class="status"><span>9:42</span><span>周六</span></div>
+        <div class="title-row"><div class="title">计划</div><div class="chip">空档</div></div>
+        <div class="main light">
+          <div class="small">可用时间</div>
+          <div class="main-title">周六有 2 个好空档。</div>
+          <div class="main-note">先展示空档，再建议放入哪些任务。</div>
+          <div class="slot-list">
+            <div class="slot"><span>09:00</span><div><strong>2 小时 20 分</strong><br>适合长跑</div></div>
+            <div class="slot"><span>15:00</span><div><strong>1 小时</strong><br>适合读书</div></div>
+          </div>
+          <div class="actions"><div class="btn">生成安排</div><div class="btn secondary">只看空档</div></div>
+        </div>
+        <div class="extra-row"><div class="extra"><strong>AI 建议</strong>1 条</div><div class="extra"><strong>夜间酝酿</strong>明早推送</div></div>
+        <div class="nav"><span>今天</span><span>任务</span><span class="on">计划</span><span>回想</span></div>
+      </div>
+    </div>
+    <div class="caption">
+      <h3>B. 空档优先</h3>
+      <p>更透明、压力小。先让用户看到可用时间，再决定是否让 AI 填任务。</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="day-bars" onclick="toggleSelect(this)">
+    <div class="phone">
+      <div class="screen">
+        <div class="island"></div>
+        <div class="status"><span>9:42</span><span>周六</span></div>
+        <div class="title-row"><div class="title">计划</div><div class="chip">全天</div></div>
+        <div class="main light">
+          <div class="small">全天视图</div>
+          <div class="main-title">把新任务放进一天。</div>
+          <div class="main-note">适合“我刚加了周六任务，一键更新周六”。</div>
+          <div class="calendar-row"><span>09</span><div class="bar plan"></div></div>
+          <div class="calendar-row"><span>12</span><div class="bar busy"></div></div>
+          <div class="calendar-row"><span>15</span><div class="bar plan"></div></div>
+          <div class="calendar-row"><span>18</span><div class="bar"></div></div>
+          <div class="actions"><div class="btn dark">更新周六</div><div class="btn secondary">调整</div></div>
+        </div>
+        <div class="extra-row"><div class="extra"><strong>AI 建议</strong>1 条</div><div class="extra"><strong>夜间酝酿</strong>明早推送</div></div>
+        <div class="nav"><span>今天</span><span>任务</span><span class="on">计划</span><span>回想</span></div>
+      </div>
+    </div>
+    <div class="caption">
+      <h3>C. 全天条</h3>
+      <p>最像日历规划器。适合重排某一天，但视觉抽象，需要更多交互细节。</p>
+    </div>
+  </div>
+</div>

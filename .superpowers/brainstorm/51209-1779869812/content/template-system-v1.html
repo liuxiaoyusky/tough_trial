@@ -1,0 +1,332 @@
+<style>
+  :root {
+    --ink: #171b20;
+    --muted: #707983;
+    --paper: #fbfaf7;
+    --line: rgba(23,27,32,.09);
+    --sage: #d9e5d4;
+    --blue: #496fbc;
+    --copper: #e3b99e;
+    --night: #1f242b;
+  }
+  .template-grid {
+    display: grid;
+    grid-template-columns: minmax(300px, 360px) 1fr;
+    gap: 28px;
+    align-items: start;
+  }
+  .phone {
+    width: min(100%, 340px);
+    aspect-ratio: 9 / 19.5;
+    border-radius: 38px;
+    border: 8px solid #101115;
+    background: var(--paper);
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", sans-serif;
+    position: relative;
+    color: var(--ink);
+    box-shadow: 0 24px 70px rgba(17,20,24,.22);
+  }
+  .screen {
+    height: 100%;
+    padding: 18px 17px 14px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(180deg, rgba(217,229,212,.68), transparent 31%), var(--paper);
+  }
+  .island {
+    width: 82px;
+    height: 21px;
+    border-radius: 999px;
+    background: #101115;
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  .status, .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    gap: 12px;
+  }
+  .status {
+    margin-top: 18px;
+    font-size: 11px;
+    font-weight: 760;
+  }
+  .header { margin-top: 18px; }
+  .title {
+    font-size: 31px;
+    font-weight: 850;
+    line-height: 1;
+  }
+  .sub {
+    margin-top: 5px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .icon-button {
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.76);
+    border: 1px solid var(--line);
+    display: grid;
+    place-items: center;
+    font-size: 15px;
+    position: relative;
+  }
+  .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #c47b58;
+    position: absolute;
+    top: 7px;
+    right: 7px;
+  }
+  .hero {
+    margin-top: 18px;
+    border-radius: 26px;
+    padding: 17px;
+    min-height: 138px;
+    box-sizing: border-box;
+    background: radial-gradient(circle at 82% 12%, rgba(255,255,255,.36), transparent 26%),
+      linear-gradient(142deg, var(--sage), #f0e8d8 52%, var(--copper));
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    box-shadow: 0 18px 42px rgba(94,111,88,.2);
+  }
+  .eyebrow {
+    font-size: 10px;
+    font-weight: 820;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    opacity: .62;
+  }
+  .hero-title {
+    margin-top: 7px;
+    font-size: 25px;
+    font-weight: 850;
+    line-height: 1.05;
+  }
+  .hero-note {
+    margin-top: 6px;
+    font-size: 11px;
+    line-height: 1.35;
+    color: rgba(29,40,33,.72);
+  }
+  .timeline {
+    margin-top: 18px;
+    position: relative;
+    padding-left: 22px;
+  }
+  .timeline::before {
+    content: "";
+    position: absolute;
+    left: 7px;
+    top: 8px;
+    bottom: 8px;
+    width: 2px;
+    border-radius: 999px;
+    background: linear-gradient(#9fbea7, var(--blue) 48%, #c47b58);
+  }
+  .event {
+    position: relative;
+    display: grid;
+    grid-template-columns: 45px 1fr;
+    gap: 9px;
+    align-items: start;
+    margin-bottom: 8px;
+    font-size: 10px;
+  }
+  .event::before {
+    content: "";
+    position: absolute;
+    left: -18px;
+    top: 17px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #9fbea7;
+    box-shadow: 0 0 0 4px var(--paper);
+  }
+  .time {
+    color: var(--muted);
+    font-weight: 760;
+    padding-top: 10px;
+  }
+  .time.unknown {
+    color: transparent;
+    text-shadow: 0 0 5px rgba(111,119,130,.82);
+  }
+  .event-card {
+    border-radius: 17px;
+    background: rgba(255,255,255,.74);
+    border: 1px solid var(--line);
+    padding: 10px;
+  }
+  .event-card.active {
+    background: var(--night);
+    color: #fff8ec;
+  }
+  .event-title {
+    font-weight: 840;
+    font-size: 11px;
+    line-height: 1.24;
+  }
+  .event-note {
+    margin-top: 3px;
+    color: var(--muted);
+    line-height: 1.25;
+  }
+  .active .event-note {
+    color: rgba(255,248,236,.66);
+  }
+  .main-button {
+    margin-top: auto;
+    border-radius: 999px;
+    padding: 14px 16px;
+    text-align: center;
+    background: var(--night);
+    color: #fff8ec;
+    font-size: 13px;
+    font-weight: 860;
+    box-shadow: 0 14px 34px rgba(31,36,43,.18);
+  }
+  .nav {
+    margin-top: auto;
+    height: 49px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.78);
+    border: 1px solid var(--line);
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    align-items: center;
+    font-size: 9px;
+    color: #77808b;
+    text-align: center;
+  }
+  .on {
+    color: #1f2933;
+    font-weight: 850;
+  }
+  .rules {
+    display: grid;
+    gap: 12px;
+  }
+  .rule {
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: #fff;
+    padding: 13px;
+  }
+  .rule h3 {
+    margin: 0 0 6px;
+    font-size: 16px;
+  }
+  .rule p {
+    margin: 0;
+    color: #596174;
+    line-height: 1.5;
+  }
+  .token-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .token {
+    border-radius: 999px;
+    padding: 7px 10px;
+    font-size: 11px;
+    font-weight: 760;
+    background: #f1f0ea;
+  }
+  .token.sage { background: var(--sage); }
+  .token.blue { background: #dfe8f6; }
+  .token.copper { background: #f0d8c8; }
+  .token.night { background: var(--night); color: #fff8ec; }
+  @media (max-width: 900px) {
+    .template-grid { grid-template-columns: 1fr; }
+    .phone { margin: 0 auto; }
+  }
+</style>
+
+<h2>App Template v1</h2>
+<p class="subtitle">统一模板：Today / Tasks / Plan / Zen 共用的视觉语言和交互规则。后续页面都按这个模板扩展。</p>
+
+<div class="template-grid">
+  <div class="phone">
+    <div class="screen">
+      <div class="island"></div>
+      <div class="status"><span>9:42</span><span>78%</span></div>
+      <div class="header">
+        <div>
+          <div class="title">页面标题</div>
+          <div class="sub">日期、状态或上下文</div>
+        </div>
+        <div class="icon-button">✉<span class="dot"></span></div>
+      </div>
+
+      <div class="hero">
+        <div>
+          <div class="eyebrow">主动作状态</div>
+          <div class="hero-title">当前最重要的事</div>
+          <div class="hero-note">只解释用户下一步需要知道的内容。</div>
+        </div>
+      </div>
+
+      <div class="timeline">
+        <div class="event">
+          <div class="time">10:30</div>
+          <div class="event-card">
+            <div class="event-title">已定时间任务</div>
+            <div class="event-note">清楚、短、可点选</div>
+          </div>
+        </div>
+        <div class="event">
+          <div class="time unknown">??:??</div>
+          <div class="event-card active">
+            <div class="event-title">未定时间 / 当前候选</div>
+            <div class="event-note">可拖拽、可重排、可进入专注候选</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="nav"><span class="on">今天</span><span>任务</span><span>计划</span><span>回想</span></div>
+    </div>
+  </div>
+
+  <div class="rules">
+    <div class="rule">
+      <h3>页面骨架</h3>
+      <p>状态栏、标题区、右上角可选 Inbox、一个主区域、时间线/list 内容区、底部导航或主按钮。单屏只突出一个主动作。</p>
+    </div>
+    <div class="rule">
+      <h3>时间线语法</h3>
+      <p>Today 显示当天发生和将发生的事；Plan 显示未来日期草稿。未规划时间用问号或模糊时间。任务可拖入、拖出、重排，也可并排。</p>
+    </div>
+    <div class="rule">
+      <h3>AI 规则</h3>
+      <p>AI 只生成候选、草稿、建议。任何 memory、计划、拆解、日历写入，都必须用户确认后才保存。</p>
+    </div>
+    <div class="rule">
+      <h3>中文文案</h3>
+      <p>默认中文优先。标题 2-4 字，按钮 2-4 字，说明一句话以内。不要把 AI 推理过程直接堆在主界面。</p>
+    </div>
+    <div class="rule">
+      <h3>主题色</h3>
+      <p>主题随时间/状态切换：日常清爽，专注更沉浸，夜间更安静。</p>
+      <div class="token-row">
+        <span class="token sage">晨间绿</span>
+        <span class="token blue">午后蓝</span>
+        <span class="token copper">傍晚铜</span>
+        <span class="token night">夜间暗</span>
+      </div>
+    </div>
+  </div>
+</div>

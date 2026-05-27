@@ -1,0 +1,312 @@
+<style>
+  .stage {
+    display: grid;
+    grid-template-columns: minmax(320px, 430px) 1fr;
+    gap: 28px;
+    align-items: start;
+  }
+  .phone {
+    width: min(100%, 340px);
+    aspect-ratio: 9 / 19.5;
+    margin: 0 auto;
+    border-radius: 38px;
+    border: 8px solid #101115;
+    background: #fbfaf7;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", sans-serif;
+    position: relative;
+    color: #171b20;
+    box-shadow: 0 24px 70px rgba(17,20,24,.22);
+  }
+  .screen {
+    height: 100%;
+    padding: 18px 17px 14px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(180deg, rgba(217,229,212,.68), transparent 31%), #fbfaf7;
+  }
+  .island {
+    width: 82px;
+    height: 21px;
+    border-radius: 999px;
+    background: #101115;
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  .status, .header, .top-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    gap: 12px;
+  }
+  .status {
+    margin-top: 18px;
+    font-size: 11px;
+    font-weight: 760;
+  }
+  .header { margin-top: 18px; }
+  .title {
+    font-size: 31px;
+    font-weight: 850;
+    line-height: 1;
+  }
+  .sub {
+    font-size: 11px;
+    color: #6f7782;
+    margin-top: 5px;
+  }
+  .inbox {
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.76);
+    border: 1px solid rgba(23,27,32,.08);
+    display: grid;
+    place-items: center;
+    font-size: 16px;
+    position: relative;
+  }
+  .dot {
+    position: absolute;
+    right: 7px;
+    top: 7px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #c47b58;
+  }
+  .timeline {
+    margin-top: 22px;
+    position: relative;
+    padding-left: 22px;
+  }
+  .timeline::before {
+    content: "";
+    position: absolute;
+    left: 7px;
+    top: 8px;
+    bottom: 8px;
+    width: 2px;
+    border-radius: 999px;
+    background: linear-gradient(#9fbea7, #496fbc 48%, #c47b58);
+  }
+  .event {
+    position: relative;
+    display: grid;
+    grid-template-columns: 45px 1fr;
+    gap: 9px;
+    align-items: start;
+    padding: 10px 10px 10px 0;
+    margin-bottom: 8px;
+    font-size: 10px;
+  }
+  .event::before {
+    content: "";
+    position: absolute;
+    left: -18px;
+    top: 17px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #9fbea7;
+    box-shadow: 0 0 0 4px #fbfaf7;
+  }
+  .time {
+    color: #6f7782;
+    font-weight: 760;
+  }
+  .time.uncertain {
+    color: transparent;
+    text-shadow: 0 0 5px rgba(111,119,130,.82);
+  }
+  .event-card {
+    border-radius: 17px;
+    background: rgba(255,255,255,.74);
+    border: 1px solid rgba(23,27,32,.08);
+    padding: 10px;
+  }
+  .event-title {
+    font-weight: 840;
+    font-size: 11px;
+    line-height: 1.24;
+  }
+  .event-note {
+    margin-top: 3px;
+    color: #6f7782;
+    line-height: 1.25;
+  }
+  .parallel {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .parallel .event-card {
+    padding: 9px;
+  }
+  .backlog {
+    margin-top: 10px;
+    border-top: 1px solid rgba(23,27,32,.08);
+    padding-top: 12px;
+  }
+  .backlog-title {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: #6f7782;
+    font-weight: 780;
+    margin-bottom: 8px;
+  }
+  .task-chip {
+    border-radius: 15px;
+    padding: 10px;
+    background: #fff;
+    border: 1px dashed rgba(23,27,32,.18);
+    font-size: 10px;
+    margin-bottom: 7px;
+  }
+  .task-chip strong {
+    display: block;
+    font-size: 11px;
+    margin-bottom: 3px;
+  }
+  .plan-button {
+    margin-top: auto;
+    border-radius: 999px;
+    padding: 14px 16px;
+    text-align: center;
+    background: #1f242b;
+    color: #fff8ec;
+    font-size: 13px;
+    font-weight: 860;
+    box-shadow: 0 14px 34px rgba(31,36,43,.18);
+  }
+  .popover {
+    position: absolute;
+    right: 18px;
+    top: 112px;
+    width: 218px;
+    border-radius: 24px;
+    padding: 14px;
+    background: rgba(31,36,43,.96);
+    color: #fff8ec;
+    box-shadow: 0 24px 54px rgba(17,20,24,.32);
+    border: 1px solid rgba(255,255,255,.1);
+  }
+  .popover h4 {
+    margin: 4px 0 8px;
+    font-size: 16px;
+  }
+  .popover p {
+    margin: 0 0 10px;
+    color: rgba(255,248,236,.7);
+    font-size: 10px;
+    line-height: 1.38;
+  }
+  .popover-row {
+    border-radius: 15px;
+    padding: 10px;
+    background: rgba(255,255,255,.08);
+    font-size: 10px;
+    margin-top: 7px;
+  }
+  .notes h3 {
+    margin: 0 0 10px;
+    font-size: 20px;
+  }
+  .notes p {
+    margin: 0 0 12px;
+    color: #596174;
+    line-height: 1.55;
+  }
+  .rule {
+    border-radius: 10px;
+    border: 1px solid rgba(23,27,32,.1);
+    padding: 12px;
+    margin-bottom: 10px;
+    background: #fff;
+  }
+  .rule strong {
+    display: block;
+    margin-bottom: 4px;
+  }
+  @media (max-width: 880px) {
+    .stage { grid-template-columns: 1fr; }
+    .phone { max-width: 330px; }
+  }
+</style>
+
+<h2>Layout 03 · 计划时间线</h2>
+<p class="subtitle">计划页改为 Today 同款时间线。未规划时间显示问号或模糊时间；底部只保留“AI 规划”按钮；AI 建议和夜间酝酿收进右上角 inbox。</p>
+
+<div class="stage">
+  <div class="phone">
+    <div class="screen">
+      <div class="island"></div>
+      <div class="status"><span>9:42</span><span>周六</span></div>
+      <div class="header">
+        <div>
+          <div class="title">计划</div>
+          <div class="sub">5月30日 · 时间线草稿</div>
+        </div>
+        <div class="inbox">✉<span class="dot"></span></div>
+      </div>
+
+      <div class="timeline">
+        <div class="event">
+          <div class="time">09:30</div>
+          <div class="event-card">
+            <div class="event-title">长跑</div>
+            <div class="event-note">AI 排入 · 预计 55 分钟</div>
+          </div>
+        </div>
+        <div class="event">
+          <div class="time uncertain">??:??</div>
+          <div class="event-card">
+            <div class="event-title">读书 40 页</div>
+            <div class="event-note">未定时间 · 可拖入合适空档</div>
+          </div>
+        </div>
+        <div class="event">
+          <div class="time">15:00</div>
+          <div class="parallel">
+            <div class="event-card">
+              <div class="event-title">回邮件</div>
+              <div class="event-note">25 分钟</div>
+            </div>
+            <div class="event-card">
+              <div class="event-title">整理资料</div>
+              <div class="event-note">可并行</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="backlog">
+        <div class="backlog-title"><span>今天可能放不下</span><span>拖入时间线</span></div>
+        <div class="task-chip"><strong>学 SwiftUI</strong>建议拆小后再安排</div>
+        <div class="task-chip"><strong>整理相册</strong>低优先级 · 可改天</div>
+      </div>
+
+      <div class="plan-button">AI 规划</div>
+
+      <div class="popover">
+        <div style="font-size:10px;font-weight:820;opacity:.66">MESSAGE INBOX</div>
+        <h4>2 条待处理</h4>
+        <p>AI 建议和夜间酝酿不占主视图，点击后弹出处理。</p>
+        <div class="popover-row"><strong>AI 建议</strong><br>周六适合安排长跑</div>
+        <div class="popover-row"><strong>夜间酝酿</strong><br>“学 SwiftUI”建议拆成 3 步</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <h3>交互含义</h3>
+    <p>Plan 是未来日期的时间线编辑器。AI 规划后，任务会按优先级、预计时长和 memory 被排入时间线；没有时长的任务会被初始化一个建议时长。</p>
+    <div class="rule"><strong>主动作</strong>底部只保留“AI 规划”。规划后通过动画把任务放入时间线，并把放不下的任务留在底部。</div>
+    <div class="rule"><strong>手动控制</strong>用户可以拖拽任务进入时间线、移除时间线、重排顺序；允许任务并排放置。</div>
+    <div class="rule"><strong>消息入口</strong>AI 建议和夜间酝酿进入右上角 message inbox，点击后以 pop-out window 展示和处理。</div>
+  </div>
+</div>

@@ -1,0 +1,185 @@
+<style>
+  .phone {
+    width: min(100%, 340px);
+    aspect-ratio: 9 / 19.5;
+    margin: 0 auto;
+    border-radius: 38px;
+    border: 8px solid #101115;
+    background: #fbfaf7;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", sans-serif;
+    position: relative;
+    color: #171b20;
+    box-shadow: 0 24px 70px rgba(17,20,24,.22);
+  }
+  .screen {
+    height: 100%;
+    padding: 18px 17px 14px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(180deg, rgba(217,229,212,.68), transparent 30%), #fbfaf7;
+  }
+  .island {
+    width: 82px;
+    height: 21px;
+    border-radius: 999px;
+    background: #101115;
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  .status, .title-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    gap: 12px;
+  }
+  .status {
+    margin-top: 18px;
+    font-size: 11px;
+    font-weight: 760;
+  }
+  .title-row { margin-top: 18px; }
+  .title {
+    font-size: 31px;
+    font-weight: 850;
+    line-height: 1;
+  }
+  .chip {
+    border-radius: 999px;
+    padding: 7px 9px;
+    font-size: 10px;
+    font-weight: 760;
+    background: rgba(255,255,255,.76);
+    border: 1px solid rgba(23,27,32,.08);
+    white-space: nowrap;
+  }
+  .main {
+    margin-top: 18px;
+    border-radius: 26px;
+    padding: 17px;
+    background: #1f242b;
+    color: #fff8ec;
+    box-shadow: 0 18px 42px rgba(31,36,43,.18);
+  }
+  .small {
+    font-size: 10px;
+    font-weight: 820;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    opacity: .62;
+  }
+  .main-title {
+    margin-top: 7px;
+    font-size: 24px;
+    font-weight: 850;
+    line-height: 1.08;
+  }
+  .main-note {
+    margin-top: 7px;
+    font-size: 11px;
+    line-height: 1.4;
+    color: rgba(255,248,236,.68);
+  }
+  .timeline {
+    margin-top: 13px;
+    display: grid;
+    gap: 7px;
+  }
+  .slot {
+    display: grid;
+    grid-template-columns: 42px 1fr;
+    gap: 8px;
+    align-items: start;
+    padding: 9px;
+    border-radius: 14px;
+    background: rgba(255,255,255,.08);
+    font-size: 10px;
+  }
+  .actions, .extras {
+    display: flex;
+    gap: 8px;
+  }
+  .actions { margin-top: 13px; }
+  .btn {
+    flex: 1;
+    border-radius: 999px;
+    padding: 9px 10px;
+    font-size: 11px;
+    font-weight: 820;
+    text-align: center;
+    background: #fff8ec;
+    color: #1f242b;
+  }
+  .btn.secondary {
+    background: rgba(255,255,255,.1);
+    color: #fff8ec;
+  }
+  .extras {
+    margin-top: 14px;
+  }
+  .extra {
+    flex: 1;
+    border-radius: 20px;
+    padding: 13px;
+    background: rgba(255,255,255,.76);
+    border: 1px solid rgba(23,27,32,.08);
+    min-height: 80px;
+    box-sizing: border-box;
+  }
+  .extra strong {
+    display: block;
+    font-size: 13px;
+    margin-bottom: 5px;
+  }
+  .extra span {
+    color: #707983;
+    font-size: 10px;
+    line-height: 1.3;
+  }
+  .nav {
+    margin-top: auto;
+    height: 49px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.78);
+    border: 1px solid rgba(23,27,32,.08);
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    align-items: center;
+    font-size: 9px;
+    color: #77808b;
+    text-align: center;
+  }
+  .on { color: #1f2933; font-weight: 850; }
+</style>
+
+<h2>Layout 03 · 计划</h2>
+<p class="subtitle">计划页基本盘不变：AI 根据当天既定行程规划时间。AI 建议和夜间酝酿是两个附加入口，不抢主功能。</p>
+
+<div class="phone">
+  <div class="screen">
+    <div class="island"></div>
+    <div class="status"><span>9:42</span><span>周六</span></div>
+    <div class="title-row">
+      <div class="title">计划</div>
+      <div class="chip">草稿</div>
+    </div>
+    <div class="main">
+      <div class="small">按既定行程规划</div>
+      <div class="main-title">周六上午适合安排长跑。</div>
+      <div class="main-note">已避开 12:00 午餐和 16:00 约会，保留一个下午空档。</div>
+      <div class="timeline">
+        <div class="slot"><span>09:30</span><div><strong>长跑</strong><br>计入 30 天目标</div></div>
+        <div class="slot"><span>15:00</span><div><strong>读书 40 分钟</strong><br>不压缩晚间时间</div></div>
+      </div>
+      <div class="actions"><div class="btn">加入周六</div><div class="btn secondary">编辑</div></div>
+    </div>
+    <div class="extras">
+      <div class="extra"><strong>AI 建议</strong><span>提出一条最值得处理的任务建议</span></div>
+      <div class="extra"><strong>夜间酝酿</strong><span>晚上分析停滞任务，明早推送拆解</span></div>
+    </div>
+    <div class="nav"><span>今天</span><span>任务</span><span class="on">计划</span><span>回想</span></div>
+  </div>
+</div>
