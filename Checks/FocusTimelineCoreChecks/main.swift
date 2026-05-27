@@ -100,6 +100,77 @@ func checkFrequencyTaskCountsCompletionsInPeriod() {
     expect(task.status == .active, "frequency task should remain active before target count")
 }
 
+func checkPlanningDraftKeepsUnknownTimesAndUnplacedTasks() {
+    let targetDate = Date(timeIntervalSince1970: 1_780_000_000)
+    let fixedEvent = TimelineEvent(
+        id: UUID(uuidString: "00000000-0000-0000-0000-000000000101")!,
+        date: targetDate,
+        time: .fixed(hour: 12, minute: 0),
+        title: "午餐",
+        linkedTaskID: nil,
+        source: .calendar,
+        parallelGroupID: nil
+    )
+    let uncertainEvent = TimelineEvent(
+        id: UUID(uuidString: "00000000-0000-0000-0000-000000000102")!,
+        date: targetDate,
+        time: .unknown,
+        title: "读书 40 页",
+        linkedTaskID: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!,
+        source: .aiPlanning,
+        parallelGroupID: nil
+    )
+    let unplaced = TaskItem.oneTime(
+        id: UUID(uuidString: "00000000-0000-0000-0000-000000000103")!,
+        title: "整理相册",
+        priority: .none
+    )
+
+    let draft = PlanningDraft(
+        targetDate: targetDate,
+        fixedEvents: [fixedEvent],
+        plannedEvents: [uncertainEvent],
+        unplacedTasks: [unplaced]
+    )
+
+    expect(draft.fixedEvents.count == 1, "planning draft should keep fixed events")
+    expect(draft.plannedEvents.first?.time == .unknown, "planning draft should allow unknown times")
+    expect(draft.unplacedTasks.first?.title == "整理相册", "planning draft should keep tasks that do not fit")
+}
+
+func checkTimelineSupportsParallelEvents() {
+    let targetDate = Date(timeIntervalSince1970: 1_780_000_000)
+    let groupID = UUID(uuidString: "00000000-0000-0000-0000-000000000201")!
+    let email = TimelineEvent(
+        id: UUID(uuidString: "00000000-0000-0000-0000-000000000202")!,
+        date: targetDate,
+        time: .fixed(hour: 15, minute: 0),
+        title: "回邮件",
+        linkedTaskID: nil,
+        source: .manual,
+        parallelGroupID: groupID
+    )
+    let organize = TimelineEvent(
+        id: UUID(uuidString: "00000000-0000-0000-0000-000000000203")!,
+        date: targetDate,
+        time: .fixed(hour: 15, minute: 0),
+        title: "整理资料",
+        linkedTaskID: nil,
+        source: .manual,
+        parallelGroupID: groupID
+    )
+
+    let draft = PlanningDraft(
+        targetDate: targetDate,
+        fixedEvents: [],
+        plannedEvents: [email, organize],
+        unplacedTasks: []
+    )
+
+    let parallelEvents = draft.parallelEvents(in: groupID)
+    expect(parallelEvents.map(\.title) == ["回邮件", "整理资料"], "planning draft should return parallel events in timeline order")
+}
+
 checkCriticalTaskUsesAlarmKitWithLocalNotificationFallback()
 checkCriticalTaskFallsBackWhenAlarmKitUnavailable()
 checkMediumTaskUsesSoundNotificationAndVibration()
@@ -108,5 +179,7 @@ checkNoPriorityTaskDoesNotNotify()
 checkOneTimeTaskCompletesOnce()
 checkCumulativeTaskAddsProgressTowardTotal()
 checkFrequencyTaskCountsCompletionsInPeriod()
+checkPlanningDraftKeepsUnknownTimesAndUnplacedTasks()
+checkTimelineSupportsParallelEvents()
 
 print("FocusTimelineCoreChecks passed")
