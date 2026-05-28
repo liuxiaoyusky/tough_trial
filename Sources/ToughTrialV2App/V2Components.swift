@@ -34,24 +34,6 @@ struct V2SegmentedPicker: View {
     }
 }
 
-struct V2FloatingPlusButton: View {
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: "plus")
-                .font(.system(size: 22, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(width: 58, height: 58)
-                .background(V2Theme.blue)
-                .clipShape(Circle())
-                .shadow(color: V2Theme.blue.opacity(0.25), radius: 14, y: 6)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("新增")
-    }
-}
-
 struct V2Panel<Content: View>: View {
     let padding: CGFloat
     @ViewBuilder let content: () -> Content

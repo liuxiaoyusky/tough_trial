@@ -195,6 +195,26 @@ func checkRecallReferenceAndFullscreen() {
     require(state.appliedRecallText.contains("偏离"), "Applying recall should persist draft text")
 }
 
+func checkRecallDatesAreIsolated() {
+    var state = V2PrototypeState.sample()
+
+    state.setRecallDraft("今天事实", for: "今天")
+    state.setRecallDraft("昨天事实", for: "昨天")
+    state.insertRecallReference(V2PrototypeState.recallDeviationID, for: "昨天")
+    state.applyRecallDraft(for: "昨天")
+
+    require(state.recallDraft(for: "今天") == "今天事实", "Today recall draft should remain isolated")
+    requireContains(state.recallDraft(for: "昨天"), "昨天事实", "Yesterday recall draft should keep its own text")
+    requireContains(state.recallDraft(for: "昨天"), "偏离", "Yesterday recall draft should receive selected evidence")
+    require(state.selectedRecallReferenceIDs(for: "今天").isEmpty, "Today selected references should remain isolated")
+    require(
+        state.selectedRecallReferenceIDs(for: "昨天") == [V2PrototypeState.recallDeviationID],
+        "Yesterday selected references should be tracked separately"
+    )
+    requireContains(state.appliedRecallText(for: "昨天"), "偏离", "Applying yesterday recall should persist yesterday text")
+    require(state.appliedRecallText(for: "今天").isEmpty, "Applying yesterday recall should not persist today text")
+}
+
 checkActiveSessionLifecycle()
 checkCompletingTimelineItemCompletesLinkedTask()
 checkInvalidSessionTaskIDDoesNotMutate()
@@ -205,5 +225,6 @@ checkPlanPromptDraftIsolation()
 checkAcceptPlanDraft()
 checkSaveThenAcceptPlanDraftDoesNotDuplicate()
 checkRecallReferenceAndFullscreen()
+checkRecallDatesAreIsolated()
 
 print("ToughTrialV2Checks passed")

@@ -48,6 +48,9 @@ struct V2RecallView: View {
             .padding(.bottom, 16)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .animation(.easeInOut(duration: 0.2), value: store.state.isRecallFullscreen)
+            .onChange(of: selectedDate) { _, _ in
+                saveStatus = ""
+            }
             .v2ScreenBackground()
         }
     }
@@ -97,8 +100,8 @@ struct V2RecallView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(.clear)
 
-                if store.state.recallDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Text("写下今天真正发生了什么...")
+                if currentRecallDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text("写下\(selectedDate)真正发生了什么...")
                         .font(.system(size: 20, weight: .regular, design: .serif))
                         .foregroundStyle(V2Theme.tertiary)
                         .padding(.top, 1)
@@ -132,9 +135,9 @@ struct V2RecallView: View {
                     ForEach(filteredReferences, id: \.id) { reference in
                         RecallReferenceRow(
                             reference: reference,
-                            isSelected: store.state.selectedRecallReferenceIDs.contains(reference.id)
+                            isSelected: store.state.selectedRecallReferenceIDs(for: selectedDate).contains(reference.id)
                         ) {
-                            store.state.insertRecallReference(reference.id)
+                            store.state.insertRecallReference(reference.id, for: selectedDate)
                             saveStatus = ""
                         }
                     }
@@ -172,14 +175,14 @@ struct V2RecallView: View {
 
     private var bottomActions: some View {
         HStack(spacing: 10) {
-            Button {
-                if store.state.isRecallFullscreen {
+            if store.state.isRecallFullscreen {
+                Button {
                     store.state.toggleRecallFullscreen()
+                } label: {
+                    Label("引用", systemImage: "quote.opening")
                 }
-            } label: {
-                Label("引用", systemImage: "quote.opening")
+                .buttonStyle(RecallActionButtonStyle(isPrimary: false))
             }
-            .buttonStyle(RecallActionButtonStyle(isPrimary: false))
 
             Button {
                 organizeDraft()
@@ -189,7 +192,7 @@ struct V2RecallView: View {
             .buttonStyle(RecallActionButtonStyle(isPrimary: false))
 
             Button {
-                store.state.applyRecallDraft()
+                store.state.applyRecallDraft(for: selectedDate)
                 saveStatus = "已保存"
             } label: {
                 Label("保存", systemImage: "checkmark")
@@ -234,9 +237,9 @@ struct V2RecallView: View {
 
     private var recallDraftBinding: Binding<String> {
         Binding(
-            get: { store.state.recallDraft },
+            get: { store.state.recallDraft(for: selectedDate) },
             set: {
-                store.state.recallDraft = $0
+                store.state.setRecallDraft($0, for: selectedDate)
                 saveStatus = ""
             }
         )
@@ -247,15 +250,19 @@ struct V2RecallView: View {
     }
 
     private func organizeDraft() {
-        let trimmed = store.state.recallDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = currentRecallDraft.trimmingCharacters(in: .whitespacesAndNewlines)
 
         if trimmed.isEmpty {
-            store.state.recallDraft = "今天真正发生的是："
+            store.state.setRecallDraft("\(selectedDate)真正发生的是：", for: selectedDate)
         } else if !trimmed.contains("整理：") {
-            store.state.recallDraft += "\n\n整理：事实先保留，下一步再判断原因。"
+            store.state.setRecallDraft("\(currentRecallDraft)\n\n整理：事实先保留，下一步再判断原因。", for: selectedDate)
         }
 
         saveStatus = "已整理"
+    }
+
+    private var currentRecallDraft: String {
+        store.state.recallDraft(for: selectedDate)
     }
 }
 

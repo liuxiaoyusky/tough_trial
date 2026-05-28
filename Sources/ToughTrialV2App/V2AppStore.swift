@@ -11,6 +11,11 @@ final class V2AppStore: ObservableObject {
     func closePlanAgent() { isPlanPresented = false }
 
     func startZen(taskID: String?, title: String) {
+        if let taskID, let existingSession = state.activeSessions.first(where: { $0.taskID == taskID }) {
+            zenSession = existingSession
+            return
+        }
+
         guard state.startSession(taskID: taskID, title: title, startedAtLabel: "现在") else { return }
         zenSession = state.activeSessions.last
     }

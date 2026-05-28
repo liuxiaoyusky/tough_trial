@@ -28,31 +28,34 @@ struct V2TasksView: View {
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
-            VStack(alignment: .leading, spacing: 18) {
-                header
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 18) {
+                    header
 
-                switch lens {
-                case .structure:
-                    V2StructureLensView(tasks: rootTasks)
-                case .time:
-                    V2TimeLensView(
-                        scale: $timeScale,
-                        timelineItems: store.state.timelineItems,
-                        tasks: allTasks
-                    )
-                case .fishbone:
-                    V2FishboneLensView(
-                        goals: goals,
-                        visibleGoalIDs: activeGoalIDs,
-                        timelineItems: store.state.timelineItems,
-                        tasks: allTasks,
-                        onToggleGoal: toggleGoal
-                    )
+                    switch lens {
+                    case .structure:
+                        V2StructureLensView(tasks: rootTasks)
+                    case .time:
+                        V2TimeLensView(
+                            scale: $timeScale,
+                            timelineItems: store.state.timelineItems,
+                            tasks: allTasks
+                        )
+                    case .fishbone:
+                        V2FishboneLensView(
+                            goals: goals,
+                            visibleGoalIDs: activeGoalIDs,
+                            timelineItems: store.state.timelineItems,
+                            tasks: allTasks,
+                            onToggleGoal: toggleGoal
+                        )
+                    }
                 }
+                .padding(.horizontal, 18)
+                .padding(.top, 18)
+                .padding(.bottom, 112)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 18)
-            .padding(.bottom, 92)
 
             VStack(alignment: .trailing, spacing: 10) {
                 if showsCaptureAffordance {
@@ -212,7 +215,7 @@ private struct V2StructureLensView: View {
                 }
             }
             .tabViewStyle(.page(indexDisplayMode: .automatic))
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, minHeight: 470)
         }
     }
 }

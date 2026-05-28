@@ -320,34 +320,37 @@ private struct V2TodayTimelineRow: View {
                 .padding(.top, 1)
 
             HStack(alignment: .center, spacing: 12) {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 8) {
-                        Text(item.title)
-                            .font(.system(size: isSelected ? 18 : 16, weight: .semibold))
-                            .foregroundStyle(item.isDone ? V2Theme.tertiary : V2Theme.ink)
-                            .strikethrough(item.isDone, color: V2Theme.tertiary)
+                Button(action: onSelect) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 8) {
+                            Text(item.title)
+                                .font(.system(size: isSelected ? 18 : 16, weight: .semibold))
+                                .foregroundStyle(item.isDone ? V2Theme.tertiary : V2Theme.ink)
+                                .strikethrough(item.isDone, color: V2Theme.tertiary)
+                                .lineLimit(2)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            if isActive {
+                                Text("现在")
+                                    .font(.caption2.weight(.bold))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 7)
+                                    .padding(.vertical, 3)
+                                    .background(V2Theme.mint)
+                                    .clipShape(Capsule())
+                            }
+                        }
+
+                        Text(item.detail)
+                            .font(.footnote)
+                            .foregroundStyle(item.isDone ? V2Theme.tertiary : V2Theme.secondary)
                             .lineLimit(2)
                             .fixedSize(horizontal: false, vertical: true)
-
-                        if isActive {
-                            Text("现在")
-                                .font(.caption2.weight(.bold))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 7)
-                                .padding(.vertical, 3)
-                                .background(V2Theme.mint)
-                                .clipShape(Capsule())
-                        }
                     }
-
-                    Text(item.detail)
-                        .font(.footnote)
-                        .foregroundStyle(item.isDone ? V2Theme.tertiary : V2Theme.secondary)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
                 }
-
-                Spacer(minLength: 8)
+                .buttonStyle(.plain)
 
                 HStack(spacing: 6) {
                     if !item.isDone && !isActive {
@@ -363,8 +366,6 @@ private struct V2TodayTimelineRow: View {
             .padding(.horizontal, 12)
             .background(isSelected ? V2Theme.blue.opacity(0.08) : Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .contentShape(Rectangle())
-            .onTapGesture(perform: onSelect)
             .opacity(item.taskID == nil ? 0.72 : 1)
         }
         .padding(.bottom, isLast ? 0 : 8)

@@ -152,16 +152,52 @@ public extension V2PrototypeState {
         currentPlanDraft = nil
     }
 
+    func recallDraft(for date: String) -> String {
+        recallDraftsByDate[date] ?? (date == "今天" ? recallDraft : "")
+    }
+
+    mutating func setRecallDraft(_ draft: String, for date: String) {
+        recallDraftsByDate[date] = draft
+        if date == "今天" {
+            recallDraft = draft
+        }
+    }
+
+    func selectedRecallReferenceIDs(for date: String) -> [String] {
+        selectedRecallReferenceIDsByDate[date] ?? (date == "今天" ? selectedRecallReferenceIDs : [])
+    }
+
+    func appliedRecallText(for date: String) -> String {
+        appliedRecallTextsByDate[date] ?? (date == "今天" ? appliedRecallText : "")
+    }
+
     mutating func insertRecallReference(_ id: String) {
+        insertRecallReference(id, for: "今天")
+    }
+
+    mutating func insertRecallReference(_ id: String, for date: String) {
         guard let reference = recallReferences.first(where: { $0.id == id }) else { return }
-        if !selectedRecallReferenceIDs.contains(id) {
-            selectedRecallReferenceIDs.append(id)
-            appendRecallEvidence(reference)
+        var selectedIDs = selectedRecallReferenceIDs(for: date)
+        if !selectedIDs.contains(id) {
+            selectedIDs.append(id)
+            selectedRecallReferenceIDsByDate[date] = selectedIDs
+            if date == "今天" {
+                selectedRecallReferenceIDs = selectedIDs
+            }
+            appendRecallEvidence(reference, for: date)
         }
     }
 
     mutating func applyRecallDraft() {
-        appliedRecallText = recallDraft
+        applyRecallDraft(for: "今天")
+    }
+
+    mutating func applyRecallDraft(for date: String) {
+        let draft = recallDraft(for: date)
+        appliedRecallTextsByDate[date] = draft
+        if date == "今天" {
+            appliedRecallText = draft
+        }
     }
 
     mutating func toggleRecallFullscreen() {
@@ -184,12 +220,13 @@ private extension V2PrototypeState {
         }
     }
 
-    mutating func appendRecallEvidence(_ reference: V2RecallReference) {
+    mutating func appendRecallEvidence(_ reference: V2RecallReference, for date: String) {
         let evidence = "[\(reference.kind.rawValue)] \(reference.title)：\(reference.detail)"
-        if recallDraft.isEmpty {
-            recallDraft = evidence
+        let currentDraft = recallDraft(for: date)
+        if currentDraft.isEmpty {
+            setRecallDraft(evidence, for: date)
         } else {
-            recallDraft += "\n\(evidence)"
+            setRecallDraft("\(currentDraft)\n\(evidence)", for: date)
         }
     }
 }

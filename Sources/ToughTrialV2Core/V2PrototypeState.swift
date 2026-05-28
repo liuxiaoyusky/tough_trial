@@ -17,6 +17,9 @@ public struct V2PrototypeState: Equatable, Sendable {
     public var selectedRecallReferenceIDs: [String]
     public var recallDraft: String
     public var appliedRecallText: String
+    public var recallDraftsByDate: [String: String]
+    public var selectedRecallReferenceIDsByDate: [String: [String]]
+    public var appliedRecallTextsByDate: [String: String]
     public var isRecallFullscreen: Bool
 
     public init(
@@ -31,6 +34,9 @@ public struct V2PrototypeState: Equatable, Sendable {
         selectedRecallReferenceIDs: [String],
         recallDraft: String,
         appliedRecallText: String,
+        recallDraftsByDate: [String: String] = [:],
+        selectedRecallReferenceIDsByDate: [String: [String]] = [:],
+        appliedRecallTextsByDate: [String: String] = [:],
         isRecallFullscreen: Bool
     ) {
         self.tasks = tasks
@@ -44,6 +50,9 @@ public struct V2PrototypeState: Equatable, Sendable {
         self.selectedRecallReferenceIDs = selectedRecallReferenceIDs
         self.recallDraft = recallDraft
         self.appliedRecallText = appliedRecallText
+        self.recallDraftsByDate = recallDraftsByDate
+        self.selectedRecallReferenceIDsByDate = selectedRecallReferenceIDsByDate
+        self.appliedRecallTextsByDate = appliedRecallTextsByDate
         self.isRecallFullscreen = isRecallFullscreen
     }
 
