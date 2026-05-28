@@ -14,27 +14,29 @@ func checkActiveSessionLifecycle() {
     var state = V2PrototypeState.sample()
     let originalTimelineCount = state.timelineItems.count
 
-    state.startSession(
+    let started = state.startSession(
         taskID: V2PrototypeState.writingTaskID,
         title: "写作",
         startedAtLabel: "09:30"
     )
 
-    guard let session = state.activeSession else {
+    require(started, "Starting a valid linked session should succeed")
+
+    guard let session = state.activeSessions.first else {
         fatalError("Expected an active session")
     }
 
     require(session.status == .running, "New sessions should start running")
 
     state.toggleSession(session.id)
-    require(state.activeSession?.status == .paused, "Toggle should pause a running session")
+    require(state.activeSessions.first?.status == .paused, "Toggle should pause a running session")
 
     state.toggleSession(session.id)
-    require(state.activeSession?.status == .running, "Toggle should resume a paused session")
+    require(state.activeSessions.first?.status == .running, "Toggle should resume a paused session")
 
     state.endSession(session.id, totalElapsed: 25, endLabel: "09:55")
 
-    require(state.activeSession == nil, "Ending a session should clear activeSession")
+    require(state.activeSessions.isEmpty, "Ending the only session should clear activeSessions")
     require(
         state.flattenTasks().first { $0.id == V2PrototypeState.writingTaskID }?.spentMinutes == 67,
         "Writing task should accumulate 42 + 25 spent minutes"
@@ -42,6 +44,49 @@ func checkActiveSessionLifecycle() {
     require(state.timelineItems.count == originalTimelineCount + 1, "Ending a session should append a timeline item")
     require(state.timelineItems.last?.isDone == true, "Ended session timeline item should be done")
     requireContains(state.timelineItems.last?.detail ?? "", "25", "Ended session detail should include elapsed minutes")
+}
+
+func checkInvalidSessionTaskIDDoesNotMutate() {
+    var state = V2PrototypeState.sample()
+    let originalSessions = state.activeSessions
+    let originalTasks = state.tasks
+
+    let started = state.startSession(
+        taskID: "missing-task",
+        title: "不存在",
+        startedAtLabel: "10:00"
+    )
+
+    require(!started, "Starting with an invalid linked task ID should fail")
+    require(state.activeSessions == originalSessions, "Invalid task ID should not append a session")
+    require(state.tasks == originalTasks, "Invalid task ID should not mutate tasks")
+}
+
+func checkMultipleActiveSessions() {
+    var state = V2PrototypeState.sample()
+
+    let firstStarted = state.startSession(
+        taskID: V2PrototypeState.writingTaskID,
+        title: "写作",
+        startedAtLabel: "09:30"
+    )
+    let secondStarted = state.startSession(
+        taskID: V2PrototypeState.runningTaskID,
+        title: "跑步",
+        startedAtLabel: "18:30"
+    )
+
+    require(firstStarted && secondStarted, "Starting two valid sessions should succeed")
+    require(state.activeSessions.count == 2, "Two valid starts should leave two active sessions")
+
+    guard let firstID = state.activeSessions.first?.id else {
+        fatalError("Expected first active session")
+    }
+
+    state.endSession(firstID, totalElapsed: 15, endLabel: "09:45")
+
+    require(state.activeSessions.count == 1, "Ending one session should leave the other active")
+    require(state.activeSessions.first?.taskID == V2PrototypeState.runningTaskID, "Ending one session should not remove another")
 }
 
 func checkQuickAddTodayTask() {
@@ -81,6 +126,16 @@ func checkAcceptPlanDraft() {
     require(state.timelineItems.count == originalTimelineCount + 1, "Accepting a plan should append a timeline item")
 }
 
+func checkSaveThenAcceptPlanDraftDoesNotDuplicate() {
+    var state = V2PrototypeState.sample()
+
+    state.sendPlanPrompt("安排下午")
+    state.saveCurrentPlanDraft()
+    state.acceptCurrentPlanDraft()
+
+    require(state.savedPlanDrafts.count == 1, "Save then accept should keep one saved draft")
+}
+
 func checkRecallReferenceAndFullscreen() {
     var state = V2PrototypeState.sample()
     let referenceID = V2PrototypeState.recallDeviationID
@@ -100,9 +155,12 @@ func checkRecallReferenceAndFullscreen() {
 }
 
 checkActiveSessionLifecycle()
+checkInvalidSessionTaskIDDoesNotMutate()
+checkMultipleActiveSessions()
 checkQuickAddTodayTask()
 checkPlanPromptDraftIsolation()
 checkAcceptPlanDraft()
+checkSaveThenAcceptPlanDraftDoesNotDuplicate()
 checkRecallReferenceAndFullscreen()
 
 print("ToughTrialV2Checks passed")
