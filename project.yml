@@ -14,10 +14,10 @@ targets:
     type: application
     platform: iOS
     sources:
-      - path: Sources/ToughTrialApp
+      - path: Sources/ToughTrialV2App
     dependencies:
       - package: FocusTimelineCore
-        product: FocusTimelineCore
+        product: ToughTrialV2Core
     info:
       path: Sources/ToughTrialApp/Info.plist
       properties:
