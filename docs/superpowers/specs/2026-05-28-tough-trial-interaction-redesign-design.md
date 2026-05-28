@@ -72,6 +72,117 @@ replacement, conflict resolution, or empty-slot calculation. Tasks can be
 parallel. How deeply a task is executed is the user's decision; the system only
 helps record what happened.
 
+#### First Information Architecture
+
+`今天` should be built around two major surfaces:
+
+1. **Active task area**
+2. **Today timeline**
+
+There should be no separate top status dashboard. Do not show daily category
+ratios, long-term explanations, or AI recommendations at the top.
+
+##### Active Task Area
+
+The active task area only contains tasks that already have an active or paused
+time-recording session. Unstarted tasks do not appear here.
+
+This area can contain multiple active or paused task items, but only one item
+should be expanded with detailed controls at a time. Other active items remain
+compact.
+
+Each active item should show:
+
+- Task title.
+- Status icon for running or paused.
+- Current session duration.
+- Today's total duration for this task.
+- A combined play/pause control.
+- An end-session control.
+- A `Zen` entry when appropriate.
+
+Status and start/pause behavior should be visually merged. The user should not
+have to parse separate state text and separate controls when an icon can do the
+job.
+
+Ending a session only ends the current time segment. It does not necessarily
+mean the task is complete. Completion is a separate lightweight action on the
+timeline item.
+
+For running tasks, use a two-time display inspired by aTimeLogger-style
+tracking:
+
+- First time: current session duration.
+- Second time: today's total duration for that task.
+
+##### Zen Behavior
+
+Zen is a special full-screen time-recording session, not a separate task model.
+
+- Starting Zen from an active or timeline task links the Zen session to that task.
+- Starting Zen from an empty state may first search for and link a task.
+- The user may also start Zen without linking any task.
+- Manual Zen end or timer completion writes the time segment back to the linked
+  task when one exists.
+- Ordinary play/pause and Zen both contribute to the same task duration model.
+  Zen only changes the interaction surface.
+
+##### Today Timeline
+
+The today task list and execution record should be merged into one modern,
+flowing timeline. This timeline can be vertical, horizontal, or another more
+interesting visual design, but it must emphasize:
+
+- Current time.
+- Current plan.
+- Running tasks.
+- Paused tasks.
+- Completed tasks.
+- Future tasks.
+- Urgent inserted tasks.
+
+The timeline is responsible for selection, starting, Zen entry, and completion
+state. The active task area is responsible for ongoing time recording.
+
+Clicking a timeline task should not automatically move it into the active task
+area. Instead, it should expand lightweight timeline actions such as:
+
+- Start.
+- Zen.
+- Complete.
+- View or edit.
+
+Only `Start` or `Zen` creates an active or paused session item.
+
+Completed tasks should remain visible in the timeline with simple visual changes
+such as strikethrough, lighter color, smaller scale, reduced opacity, or other
+basic status treatment. Running tasks can use color, size, dynamic highlight, or
+position to become more prominent. Future tasks should remain readable without
+competing with the current task.
+
+The timeline may visually emphasize the current time and nearby planned work,
+but it should not judge what the user must do next.
+
+##### Urgent Insert
+
+The urgent insert control should be minimal, similar in spirit to adding a new
+item in iPhone Reminders:
+
+- A clean blue button or floating control.
+- White plus sign.
+- Minimal required fields.
+
+New urgent tasks go directly into today's timeline. Do not require category,
+goal, conflict, replacement, or empty-slot decisions at insertion time.
+
+##### Today Interaction Rule
+
+Use this rule as the design anchor:
+
+> The timeline is for choosing, starting, and completing. The active task area is
+> for recording and switching. Zen is for immersive timing. Completion state stays
+> on the timeline.
+
 ### 任务: Multi-View Task Cognition Layer
 
 `任务` is not just a task list. It helps the user see what tasks exist, how they
