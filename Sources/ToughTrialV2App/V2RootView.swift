@@ -3,28 +3,33 @@ import ToughTrialV2Core
 
 struct V2RootView: View {
     @StateObject private var store = V2AppStore()
+    @State private var selectedTab = V2RootTab.today
 
     var body: some View {
-        TabView {
+        TabView(selection: tabSelection) {
             V2TodayView(store: store)
                 .tabItem {
                     Label("今天", systemImage: "calendar")
                 }
+                .tag(V2RootTab.today)
 
             V2TasksView(store: store)
                 .tabItem {
                     Label("任务", systemImage: "square.stack.3d.up")
                 }
+                .tag(V2RootTab.tasks)
 
-            V2PlanLauncherView(store: store)
+            Color.clear
                 .tabItem {
                     Label("计划", systemImage: "sparkles")
                 }
+                .tag(V2RootTab.plan)
 
             V2RecallView(store: store)
                 .tabItem {
                     Label("回想", systemImage: "clock.arrow.circlepath")
                 }
+                .tag(V2RootTab.recall)
         }
         .tint(V2Theme.blue)
         .fullScreenCover(isPresented: $store.isPlanPresented) {
@@ -41,6 +46,19 @@ struct V2RootView: View {
         }
     }
 
+    private var tabSelection: Binding<V2RootTab> {
+        Binding(
+            get: { selectedTab },
+            set: { newTab in
+                if newTab == .plan {
+                    store.openPlanAgent()
+                } else {
+                    selectedTab = newTab
+                }
+            }
+        )
+    }
+
     private var zenPresentationBinding: Binding<Bool> {
         Binding(
             get: { store.zenSession != nil },
@@ -53,22 +71,9 @@ struct V2RootView: View {
     }
 }
 
-private struct V2PlanLauncherView: View {
-    @ObservedObject var store: V2AppStore
-
-    var body: some View {
-        VStack(spacing: 16) {
-            Text("计划")
-                .font(.title.weight(.semibold))
-                .foregroundStyle(V2Theme.ink)
-
-            Button("打开计划 Agent") {
-                store.openPlanAgent()
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(V2Theme.blue)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .v2ScreenBackground()
-    }
+private enum V2RootTab: Hashable {
+    case today
+    case tasks
+    case plan
+    case recall
 }
