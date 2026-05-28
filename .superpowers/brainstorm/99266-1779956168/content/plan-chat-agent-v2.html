@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tough Trial · 计划 Agent v2</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: #141923;
+      background:
+        radial-gradient(circle at 20% 10%, rgba(75, 111, 243, 0.16), transparent 26%),
+        radial-gradient(circle at 84% 18%, rgba(58, 197, 146, 0.14), transparent 25%),
+        #eef2f8;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+      padding: 22px;
+    }
+
+    .stage {
+      max-width: 1080px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 410px 1fr;
+      gap: 28px;
+      align-items: start;
+    }
+
+    .phone {
+      width: min(100%, 390px);
+      height: 812px;
+      border-radius: 42px;
+      padding: 11px;
+      background: #101620;
+      box-shadow: 0 30px 80px rgba(15, 23, 42, 0.31);
+      position: sticky;
+      top: 22px;
+    }
+
+    .screen {
+      height: 100%;
+      overflow: hidden;
+      border-radius: 32px;
+      background: #f7f9fc;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .status {
+      height: 28px;
+      flex: 0 0 28px;
+      padding: 8px 22px 0;
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    .topbar {
+      flex: 0 0 auto;
+      padding: 10px 16px 12px;
+      display: grid;
+      grid-template-columns: 44px 1fr 44px;
+      gap: 10px;
+      align-items: center;
+      border-bottom: 1px solid rgba(214, 223, 236, 0.72);
+      background: rgba(247, 249, 252, 0.92);
+      backdrop-filter: blur(18px);
+      z-index: 2;
+    }
+
+    .round {
+      width: 44px;
+      height: 44px;
+      border: 0;
+      border-radius: 22px;
+      background: #ffffff;
+      color: #1f2734;
+      font-size: 18px;
+      font-weight: 900;
+      box-shadow: 0 8px 22px rgba(15, 23, 42, 0.07);
+    }
+
+    .title {
+      text-align: center;
+    }
+
+    .title h1 {
+      margin: 0;
+      font-size: 26px;
+      line-height: 1;
+    }
+
+    .title p {
+      margin: 6px 0 0;
+      color: #7c8492;
+      font-size: 12px;
+      font-weight: 760;
+    }
+
+    .chat {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 16px 16px 90px;
+      scrollbar-width: none;
+    }
+
+    .chat::-webkit-scrollbar {
+      display: none;
+    }
+
+    .agent-card {
+      border-radius: 26px;
+      background: linear-gradient(135deg, #151923 0%, #25335a 56%, #4b6ff3 100%);
+      color: white;
+      padding: 18px;
+      margin-bottom: 16px;
+      box-shadow: 0 18px 38px rgba(75, 111, 243, 0.22);
+    }
+
+    .agent-card h2 {
+      margin: 0 0 9px;
+      font-size: 22px;
+    }
+
+    .agent-card p {
+      margin: 0;
+      color: rgba(255, 255, 255, 0.72);
+      font-size: 13px;
+      line-height: 1.5;
+      font-weight: 720;
+    }
+
+    .quick-row {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      margin: 0 0 17px;
+      scrollbar-width: none;
+    }
+
+    .quick-row::-webkit-scrollbar {
+      display: none;
+    }
+
+    .quick {
+      flex: 0 0 auto;
+      border: 0;
+      border-radius: 999px;
+      padding: 9px 12px;
+      background: #ffffff;
+      color: #4d596b;
+      font-size: 12px;
+      font-weight: 850;
+      box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+    }
+
+    .message {
+      display: flex;
+      margin-bottom: 13px;
+    }
+
+    .message.user {
+      justify-content: flex-end;
+    }
+
+    .bubble {
+      max-width: 82%;
+      padding: 12px 14px;
+      border-radius: 20px;
+      font-size: 14px;
+      line-height: 1.45;
+      font-weight: 690;
+    }
+
+    .assistant .bubble {
+      background: #ffffff;
+      border: 1px solid #e1e8f2;
+      color: #222a37;
+      border-bottom-left-radius: 7px;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+    }
+
+    .user .bubble {
+      background: #4b6ff3;
+      color: #ffffff;
+      border-bottom-right-radius: 7px;
+      box-shadow: 0 12px 26px rgba(75, 111, 243, 0.22);
+    }
+
+    .understanding {
+      border-radius: 24px;
+      background: #ffffff;
+      border: 1px solid #e1e8f2;
+      box-shadow: 0 15px 34px rgba(15, 23, 42, 0.08);
+      padding: 14px;
+      margin: 4px 0 13px 0;
+    }
+
+    .understanding h3,
+    .draft h3 {
+      margin: 0 0 12px;
+      font-size: 17px;
+    }
+
+    .judgments {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .judgment {
+      border-radius: 16px;
+      background: #f2f5fa;
+      padding: 10px;
+    }
+
+    .judgment b {
+      display: block;
+      color: #7c8492;
+      font-size: 10px;
+      margin-bottom: 5px;
+    }
+
+    .judgment span {
+      display: block;
+      color: #202938;
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    .draft {
+      border-radius: 26px;
+      background: #ffffff;
+      border: 1px solid #e1e8f2;
+      box-shadow: 0 16px 36px rgba(15, 23, 42, 0.09);
+      padding: 15px;
+      margin-bottom: 14px;
+    }
+
+    .draft-row {
+      display: grid;
+      grid-template-columns: 52px 1fr auto;
+      gap: 10px;
+      align-items: center;
+      min-height: 58px;
+      border-top: 1px solid #edf2f7;
+    }
+
+    .draft-row:first-of-type {
+      border-top: 0;
+    }
+
+    .draft-row b {
+      color: #4b6ff3;
+      font-size: 12px;
+    }
+
+    .draft-row span {
+      font-size: 14px;
+      font-weight: 820;
+    }
+
+    .draft-row em {
+      color: #7c8492;
+      font-size: 11px;
+      font-style: normal;
+      font-weight: 800;
+    }
+
+    .draft-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .draft-actions button {
+      height: 42px;
+      border: 0;
+      border-radius: 21px;
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .draft-actions .primary {
+      color: white;
+      background: #151923;
+    }
+
+    .draft-actions .secondary {
+      color: #263246;
+      background: #edf3ff;
+    }
+
+    .composer {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: 18px;
+      display: grid;
+      grid-template-columns: 42px 1fr 42px;
+      gap: 8px;
+      align-items: center;
+      padding: 7px;
+      border-radius: 28px;
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(18px);
+      border: 1px solid rgba(214, 223, 236, 0.9);
+      box-shadow: 0 18px 34px rgba(15, 23, 42, 0.14);
+      z-index: 5;
+    }
+
+    .composer button {
+      width: 42px;
+      height: 42px;
+      border: 0;
+      border-radius: 21px;
+      color: white;
+      background: #4b6ff3;
+      font-size: 20px;
+      font-weight: 900;
+    }
+
+    .composer .ghost {
+      color: #526174;
+      background: #f1f4f9;
+    }
+
+    .input {
+      color: #7c8492;
+      font-size: 13px;
+      font-weight: 730;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .notes {
+      padding-top: 14px;
+    }
+
+    .notes h1 {
+      margin: 0 0 14px;
+      font-size: 30px;
+      line-height: 1.15;
+    }
+
+    .notes p {
+      margin: 0 0 14px;
+      color: #526174;
+      font-size: 15px;
+      line-height: 1.65;
+    }
+
+    .note-card {
+      padding: 16px 17px;
+      border-radius: 22px;
+      background: rgba(255, 255, 255, 0.76);
+      border: 1px solid rgba(214, 223, 236, 0.92);
+      margin-bottom: 12px;
+    }
+
+    .note-card b {
+      display: block;
+      margin-bottom: 7px;
+    }
+
+    .note-card span {
+      display: block;
+      color: #526174;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    @media (max-width: 860px) {
+      body {
+        padding: 14px;
+      }
+
+      .stage {
+        grid-template-columns: 1fr;
+      }
+
+      .phone {
+        position: static;
+        margin: 0 auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <section class="phone" aria-label="计划聊天 agent">
+      <div class="screen">
+        <div class="status">
+          <span>17:08</span>
+          <span>5G 82%</span>
+        </div>
+
+        <header class="topbar">
+          <button class="round">‹</button>
+          <div class="title">
+            <h1>计划</h1>
+            <p>聊天 Agent · 草案可保存</p>
+          </div>
+          <button class="round">⋯</button>
+        </header>
+
+        <div class="chat">
+          <section class="agent-card">
+            <h2>想怎么安排？</h2>
+            <p>直接说你的意图。我会先理解任务性质，再给出可保存的计划草案。简单输入不会被强制变成表单。</p>
+          </section>
+
+          <div class="quick-row">
+            <button class="quick">明天轻一点</button>
+            <button class="quick">这周跑步</button>
+            <button class="quick">推进论文</button>
+            <button class="quick">整理空闲时间</button>
+          </div>
+
+          <div class="message user">
+            <div class="bubble">这周想跑 10 公里，别安排得太累</div>
+          </div>
+
+          <div class="message assistant">
+            <div class="bubble">我先判断它是周期目标，不是普通一次性任务。需要拆成几次跑步，再放进本周比较合适的时间。</div>
+          </div>
+
+          <section class="understanding">
+            <h3>理解卡</h3>
+            <div class="judgments">
+              <div class="judgment">
+                <b>类型</b>
+                <span>周期目标</span>
+              </div>
+              <div class="judgment">
+                <b>归属</b>
+                <span>身体状态 / 跑步</span>
+              </div>
+              <div class="judgment">
+                <b>需要</b>
+                <span>拆解 + 安排</span>
+              </div>
+              <div class="judgment">
+                <b>强度</b>
+                <span>偏轻</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="draft">
+            <h3>计划草案</h3>
+            <div class="draft-row">
+              <b>周二</b>
+              <span>轻松跑 3km</span>
+              <em>30m</em>
+            </div>
+            <div class="draft-row">
+              <b>周四</b>
+              <span>轻松跑 3km</span>
+              <em>30m</em>
+            </div>
+            <div class="draft-row">
+              <b>周日</b>
+              <span>舒服完成 4km</span>
+              <em>45m</em>
+            </div>
+            <div class="draft-actions">
+              <button class="primary">接受计划</button>
+              <button class="secondary">存为草稿</button>
+            </div>
+          </section>
+
+          <div class="message assistant">
+            <div class="bubble">如果你愿意，我可以把它写入本周计划；也可以先保存草稿，之后继续调整。</div>
+          </div>
+        </div>
+
+        <div class="composer">
+          <button class="ghost">＋</button>
+          <div class="input">继续说：比如“周日不要跑太久”</div>
+          <button>↑</button>
+        </div>
+
+      </div>
+    </section>
+
+    <aside class="notes">
+      <h1>计划页 v2：整个页面就是聊天 Agent</h1>
+      <p>这个版本去掉计划主页的蓝色加号和画布，避免和任务页太像。计划页的主体是一个 Codex 手机端风格的对话工作区：用户说意图，Agent 给理解卡和结构化草案。</p>
+      <div class="note-card">
+        <b>默认输入</b>
+        <span>不要求用户先选择时间、目标或约束。用户直接说“这周想跑 10 公里”即可。</span>
+      </div>
+      <div class="note-card">
+        <b>输出形态</b>
+        <span>聊天只是入口和调整方式；输出必须是可保存、可接受、可继续修改的结构化草案。</span>
+      </div>
+      <div class="note-card">
+        <b>和任务页的关系</b>
+        <span>从任务 item 点 AI 计划也可以进入同一个页面，并带入该任务上下文。计划页本身也可以直接发起新计划。</span>
+      </div>
+    </aside>
+  </main>
+</body>
+</html>

@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tough Trial · 任务页 v2</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: #151923;
+      background: #eef2f8;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+      padding: 22px;
+    }
+
+    .stage {
+      max-width: 1120px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 410px 1fr;
+      gap: 28px;
+      align-items: start;
+    }
+
+    .phone {
+      width: min(100%, 390px);
+      height: 812px;
+      border-radius: 42px;
+      padding: 11px;
+      background: #0f1520;
+      box-shadow: 0 30px 80px rgba(15, 23, 42, 0.32);
+      position: sticky;
+      top: 22px;
+    }
+
+    .screen {
+      position: relative;
+      height: 100%;
+      overflow: hidden;
+      border-radius: 32px;
+      background: linear-gradient(180deg, #f3f6fb 0%, #e9eef7 100%);
+    }
+
+    .status {
+      height: 28px;
+      padding: 8px 22px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .content {
+      height: calc(100% - 28px);
+      overflow: hidden;
+      padding: 12px 16px 82px;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: 44px 1fr 92px;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .round {
+      width: 44px;
+      height: 44px;
+      border: 0;
+      border-radius: 22px;
+      background: rgba(255, 255, 255, 0.82);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 10px 24px rgba(15, 23, 42, 0.08);
+      color: #252b36;
+      font-size: 19px;
+      font-weight: 900;
+    }
+
+    .title {
+      text-align: center;
+      font-size: 30px;
+      font-weight: 900;
+    }
+
+    .more {
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      height: 44px;
+      border-radius: 24px;
+      background: rgba(255, 255, 255, 0.82);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 10px 24px rgba(15, 23, 42, 0.08);
+      font-size: 20px;
+      font-weight: 900;
+    }
+
+    .lens {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      padding: 5px;
+      margin: 0 0 12px;
+      border-radius: 22px;
+      background: rgba(255, 255, 255, 0.58);
+      box-shadow: inset 0 0 0 1px rgba(210, 219, 232, 0.85);
+    }
+
+    .lens button {
+      height: 34px;
+      border: 0;
+      border-radius: 17px;
+      background: transparent;
+      color: #747d8c;
+      font-size: 13px;
+      font-weight: 850;
+    }
+
+    .lens button.active {
+      color: #ffffff;
+      background: #151923;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.18);
+    }
+
+    .panel {
+      display: none;
+      height: calc(100% - 102px);
+      animation: show 160ms ease-out;
+    }
+
+    .panel.active {
+      display: block;
+    }
+
+    @keyframes show {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .structure-shell {
+      height: 100%;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      display: flex;
+      gap: 16px;
+      padding: 2px 6px 18px;
+      scrollbar-width: none;
+    }
+
+    .structure-shell::-webkit-scrollbar {
+      display: none;
+    }
+
+    .map-card {
+      flex: 0 0 96%;
+      height: 100%;
+      scroll-snap-align: center;
+      border-radius: 30px;
+      background: rgba(255, 255, 255, 0.94);
+      border: 1px solid rgba(214, 223, 236, 0.92);
+      box-shadow: 0 20px 44px rgba(15, 23, 42, 0.10);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .card-head {
+      padding: 18px 18px 10px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0.78));
+      position: sticky;
+      top: 0;
+      z-index: 3;
+    }
+
+    .card-head h2 {
+      margin: 0;
+      font-size: 23px;
+      line-height: 1.1;
+    }
+
+    .card-head p {
+      margin: 7px 0 0;
+      color: #7b8493;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .small-chip {
+      white-space: nowrap;
+      padding: 7px 9px;
+      border-radius: 999px;
+      background: #eef4ff;
+      color: #4b6ff3;
+      font-size: 11px;
+      font-weight: 850;
+    }
+
+    .pan-canvas {
+      position: absolute;
+      inset: 76px 0 0;
+      overflow: auto;
+      padding: 18px;
+      scrollbar-width: none;
+      cursor: grab;
+    }
+
+    .pan-canvas::-webkit-scrollbar {
+      display: none;
+    }
+
+    .tree {
+      width: 520px;
+      min-height: 560px;
+      position: relative;
+    }
+
+    .node {
+      position: absolute;
+      min-width: 132px;
+      max-width: 178px;
+      padding: 12px 13px;
+      border-radius: 20px;
+      background: #ffffff;
+      border: 1px solid #e2e8f2;
+      box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+      font-size: 13px;
+      font-weight: 850;
+    }
+
+    .node.goal {
+      min-width: 176px;
+      background: #151923;
+      color: #ffffff;
+      border-color: #151923;
+      font-size: 16px;
+    }
+
+    .node.stage {
+      background: #edf4ff;
+      border-color: #cfe0ff;
+      color: #243354;
+    }
+
+    .node.done {
+      color: #6f7785;
+      background: #f3f6fa;
+      text-decoration: line-through;
+    }
+
+    .node .meta {
+      display: block;
+      margin-top: 6px;
+      color: inherit;
+      opacity: 0.58;
+      font-size: 11px;
+      font-weight: 750;
+      text-decoration: none;
+    }
+
+    .line {
+      position: absolute;
+      height: 2px;
+      background: #cbd7e7;
+      transform-origin: left center;
+    }
+
+    .line.blue {
+      background: #4b6ff3;
+    }
+
+    .line.green {
+      background: #4ac99b;
+    }
+
+    .dots {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 12px;
+      display: flex;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .dots span {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #cbd5e1;
+    }
+
+    .dots span.active {
+      width: 18px;
+      border-radius: 999px;
+      background: #4b6ff3;
+    }
+
+    .time-panel {
+      height: 100%;
+      overflow-y: auto;
+      scrollbar-width: none;
+      padding: 2px 2px 18px;
+    }
+
+    .time-panel::-webkit-scrollbar {
+      display: none;
+    }
+
+    .range {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .range button {
+      height: 32px;
+      border: 0;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.72);
+      color: #737d8c;
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    .range button.active {
+      background: #4b6ff3;
+      color: white;
+    }
+
+    .month-card,
+    .today-list,
+    .axis-card {
+      border-radius: 28px;
+      background: rgba(255, 255, 255, 0.94);
+      border: 1px solid rgba(214, 223, 236, 0.92);
+      box-shadow: 0 18px 38px rgba(15, 23, 42, 0.09);
+      overflow: hidden;
+    }
+
+    .month-head {
+      padding: 18px 20px 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .month-head h2 {
+      margin: 0;
+      font-size: 28px;
+    }
+
+    .month-head span {
+      color: #7b8493;
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    .calendar {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+      padding: 10px 14px 18px;
+    }
+
+    .weekday,
+    .date {
+      height: 41px;
+      display: grid;
+      place-items: center;
+      color: #8b93a1;
+      font-size: 12px;
+      font-weight: 850;
+      position: relative;
+    }
+
+    .date {
+      color: #303846;
+      font-size: 18px;
+      font-weight: 860;
+    }
+
+    .date.muted {
+      color: #aeb5c0;
+    }
+
+    .date.selected {
+      color: white;
+    }
+
+    .date.selected::before {
+      content: "";
+      width: 40px;
+      height: 40px;
+      position: absolute;
+      border-radius: 50%;
+      background: #4b6ff3;
+      z-index: 0;
+      box-shadow: 0 8px 18px rgba(75, 111, 243, 0.32);
+    }
+
+    .date span {
+      position: relative;
+      z-index: 1;
+    }
+
+    .date::after {
+      content: "";
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: #aebfff;
+      position: absolute;
+      bottom: 2px;
+    }
+
+    .today-list {
+      margin-top: 12px;
+      padding: 18px;
+    }
+
+    .today-list h2 {
+      margin: 0 0 12px;
+      font-size: 24px;
+    }
+
+    .task-line {
+      min-height: 52px;
+      display: grid;
+      grid-template-columns: 26px 1fr auto;
+      gap: 12px;
+      align-items: center;
+      border-top: 1px solid #eef2f7;
+      font-size: 17px;
+      font-weight: 760;
+    }
+
+    .task-line:first-of-type {
+      border-top: 0;
+    }
+
+    .task-icon {
+      color: #a0a8b4;
+      font-size: 18px;
+    }
+
+    .task-time {
+      color: #4b6ff3;
+      font-size: 15px;
+      font-weight: 850;
+    }
+
+    .axis-panel {
+      height: 100%;
+      overflow-y: auto;
+      scrollbar-width: none;
+      padding-bottom: 16px;
+    }
+
+    .axis-panel::-webkit-scrollbar {
+      display: none;
+    }
+
+    .filters {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      margin-bottom: 12px;
+    }
+
+    .filter {
+      flex: 0 0 auto;
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.76);
+      border: 1px solid rgba(214, 223, 236, 0.92);
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    .filter input {
+      accent-color: #4b6ff3;
+      vertical-align: -2px;
+    }
+
+    .axis-card {
+      padding: 20px 18px;
+    }
+
+    .axis-card h2 {
+      margin: 0 0 4px;
+      font-size: 23px;
+    }
+
+    .axis-card p {
+      margin: 0 0 20px;
+      color: #7b8493;
+      font-size: 12px;
+      font-weight: 750;
+    }
+
+    .axis {
+      position: relative;
+      min-height: 510px;
+      padding-left: 30px;
+    }
+
+    .axis::before {
+      content: "";
+      position: absolute;
+      left: 15px;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, #4b6ff3, #4ac99b, #f5b84b);
+      opacity: 0.85;
+    }
+
+    .milestone {
+      position: relative;
+      margin: 0 0 24px;
+      padding: 14px;
+      border-radius: 20px;
+      background: #ffffff;
+      border: 1px solid #e2e8f2;
+      box-shadow: 0 12px 22px rgba(15, 23, 42, 0.07);
+    }
+
+    .milestone::before {
+      content: "";
+      position: absolute;
+      left: -24px;
+      top: 20px;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--c);
+      box-shadow: 0 0 0 6px color-mix(in srgb, var(--c) 18%, transparent);
+    }
+
+    .milestone b {
+      display: block;
+      color: var(--c);
+      font-size: 12px;
+      margin-bottom: 6px;
+    }
+
+    .milestone strong {
+      display: block;
+      font-size: 15px;
+      line-height: 1.28;
+    }
+
+    .milestone span {
+      display: block;
+      margin-top: 7px;
+      color: #7b8493;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .add {
+      position: absolute;
+      right: 22px;
+      bottom: 92px;
+      width: 68px;
+      height: 68px;
+      border: 0;
+      border-radius: 34px;
+      color: white;
+      background: #4b6ff3;
+      font-size: 42px;
+      line-height: 0;
+      box-shadow: 0 16px 32px rgba(75, 111, 243, 0.34);
+      z-index: 8;
+    }
+
+    .bottom-nav {
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      bottom: 14px;
+      height: 58px;
+      border-radius: 26px;
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(18px);
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      align-items: center;
+      box-shadow: 0 18px 32px rgba(15, 23, 42, 0.16);
+      z-index: 9;
+    }
+
+    .nav {
+      text-align: center;
+      color: #7b8493;
+      font-size: 11px;
+      font-weight: 850;
+    }
+
+    .nav.active {
+      color: #4b6ff3;
+    }
+
+    .notes {
+      padding-top: 14px;
+    }
+
+    .notes h1 {
+      margin: 0 0 14px;
+      font-size: 30px;
+      line-height: 1.16;
+    }
+
+    .notes p {
+      margin: 0 0 14px;
+      color: #526174;
+      font-size: 15px;
+      line-height: 1.65;
+    }
+
+    .note-card {
+      padding: 16px 17px;
+      border-radius: 22px;
+      background: rgba(255, 255, 255, 0.75);
+      border: 1px solid rgba(214, 223, 236, 0.92);
+      margin-bottom: 12px;
+    }
+
+    .note-card b {
+      display: block;
+      margin-bottom: 7px;
+    }
+
+    .note-card span {
+      display: block;
+      color: #526174;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    @media (max-width: 860px) {
+      body {
+        padding: 14px;
+      }
+
+      .stage {
+        grid-template-columns: 1fr;
+      }
+
+      .phone {
+        margin: 0 auto;
+        position: static;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <section class="phone">
+      <div class="screen">
+        <div class="status">
+          <span>16:36</span>
+          <span>5G 82%</span>
+        </div>
+
+        <div class="content">
+          <div class="topbar">
+            <button class="round">▤</button>
+            <div class="title">任务</div>
+            <div class="more"><span>☷</span><span>···</span></div>
+          </div>
+
+          <div class="lens">
+            <button class="active" data-panel="structure">结构</button>
+            <button data-panel="time">时间</button>
+            <button data-panel="axis">鱼骨</button>
+          </div>
+
+          <section id="structure" class="panel active">
+            <div class="structure-shell">
+              <article class="map-card">
+                <div class="card-head">
+                  <div>
+                    <h2>写作系统</h2>
+                    <p>左右切卡片，卡片内部可上下左右移动</p>
+                  </div>
+                  <span class="small-chip">目标卡片</span>
+                </div>
+                <div class="pan-canvas">
+                  <div class="tree">
+                    <div class="line blue" style="left: 206px; top: 86px; width: 120px; transform: rotate(24deg);"></div>
+                    <div class="line blue" style="left: 206px; top: 86px; width: 120px; transform: rotate(-24deg);"></div>
+                    <div class="line" style="left: 326px; top: 140px; width: 96px; transform: rotate(28deg);"></div>
+                    <div class="line green" style="left: 326px; top: 34px; width: 94px; transform: rotate(-26deg);"></div>
+                    <div class="line" style="left: 84px; top: 130px; width: 118px; transform: rotate(-28deg);"></div>
+                    <div class="line" style="left: 85px; top: 130px; width: 118px; transform: rotate(28deg);"></div>
+
+                    <div class="node goal" style="left: 158px; top: 58px;">稳定文章体系<span class="meta">无限进步路径</span></div>
+                    <div class="node stage" style="left: 318px; top: 0;">选题系统<span class="meta">灵感、资料、判断</span></div>
+                    <div class="node stage" style="left: 318px; top: 130px;">发布系统<span class="meta">编辑、排版、复盘</span></div>
+                    <div class="node" style="left: 410px; top: -46px;">整理选题池<span class="meta">已完成节点</span></div>
+                    <div class="node" style="left: 420px; top: 190px;">发布流程模板<span class="meta">可执行任务</span></div>
+                    <div class="node done" style="left: 0; top: 92px;">改一篇旧文章<span class="meta">昨天 42m</span></div>
+                    <div class="node" style="left: 0; top: 184px;">写作训练<span class="meta">待拆解</span></div>
+                    <div class="node" style="left: 188px; top: 246px;">下一篇文章<span class="meta">从计划加入</span></div>
+                  </div>
+                </div>
+                <div class="dots"><span class="active"></span><span></span><span></span></div>
+              </article>
+
+              <article class="map-card">
+                <div class="card-head">
+                  <div>
+                    <h2>身体状态</h2>
+                    <p>树状结构，不显示百分比</p>
+                  </div>
+                  <span class="small-chip">横向卡片</span>
+                </div>
+                <div class="pan-canvas">
+                  <div class="tree">
+                    <div class="line green" style="left: 206px; top: 86px; width: 128px; transform: rotate(26deg);"></div>
+                    <div class="line green" style="left: 206px; top: 86px; width: 128px; transform: rotate(-26deg);"></div>
+                    <div class="line" style="left: 334px; top: 34px; width: 95px; transform: rotate(-28deg);"></div>
+                    <div class="line" style="left: 334px; top: 138px; width: 95px; transform: rotate(28deg);"></div>
+
+                    <div class="node goal" style="left: 152px; top: 56px;">恢复跑步习惯<span class="meta">长期维护</span></div>
+                    <div class="node stage" style="left: 324px; top: 0;">一周 10km<span class="meta">周期目标</span></div>
+                    <div class="node stage" style="left: 324px; top: 132px;">稳定恢复<span class="meta">不靠意志力</span></div>
+                    <div class="node done" style="left: 420px; top: -48px;">轻松跑 3km<span class="meta">完成</span></div>
+                    <div class="node" style="left: 424px; top: 190px;">周末跑 4km<span class="meta">待安排</span></div>
+                    <div class="node" style="left: 0; top: 102px;">雨天替代方案<span class="meta">待拆解</span></div>
+                  </div>
+                </div>
+                <div class="dots"><span></span><span class="active"></span><span></span></div>
+              </article>
+            </div>
+          </section>
+
+          <section id="time" class="panel">
+            <div class="time-panel">
+              <div class="range">
+                <button>年</button>
+                <button class="active">月</button>
+                <button>周</button>
+                <button>3日</button>
+                <button>日</button>
+              </div>
+
+              <article class="month-card">
+                <div class="month-head">
+                  <h2>五月</h2>
+                  <span>只看时间，不按长期目标分组</span>
+                </div>
+                <div class="calendar">
+                  <div class="weekday">一</div><div class="weekday">二</div><div class="weekday">三</div><div class="weekday">四</div><div class="weekday">五</div><div class="weekday">六</div><div class="weekday">日</div>
+                  <div class="date muted"><span>28</span></div><div class="date muted"><span>29</span></div><div class="date muted"><span>30</span></div><div class="date"><span>1</span></div><div class="date"><span>2</span></div><div class="date"><span>3</span></div><div class="date"><span>4</span></div>
+                  <div class="date"><span>5</span></div><div class="date"><span>6</span></div><div class="date"><span>7</span></div><div class="date"><span>8</span></div><div class="date"><span>9</span></div><div class="date"><span>10</span></div><div class="date"><span>11</span></div>
+                  <div class="date"><span>12</span></div><div class="date"><span>13</span></div><div class="date"><span>14</span></div><div class="date"><span>15</span></div><div class="date"><span>16</span></div><div class="date"><span>17</span></div><div class="date"><span>18</span></div>
+                  <div class="date"><span>19</span></div><div class="date"><span>20</span></div><div class="date"><span>21</span></div><div class="date"><span>22</span></div><div class="date"><span>23</span></div><div class="date"><span>24</span></div><div class="date"><span>25</span></div>
+                  <div class="date"><span>26</span></div><div class="date"><span>27</span></div><div class="date selected"><span>28</span></div><div class="date"><span>29</span></div><div class="date"><span>30</span></div><div class="date"><span>31</span></div><div class="date muted"><span>1</span></div>
+                </div>
+              </article>
+
+              <article class="today-list">
+                <h2>今天</h2>
+                <div class="task-line">
+                  <span class="task-icon">◷</span>
+                  <span>查报销到账</span>
+                  <span class="task-time">09:00</span>
+                </div>
+                <div class="task-line">
+                  <span class="task-icon">↻</span>
+                  <span>做第二天午餐</span>
+                  <span class="task-time">今天</span>
+                </div>
+                <div class="task-line">
+                  <span class="task-icon">↻</span>
+                  <span>练车？</span>
+                  <span class="task-time">今天</span>
+                </div>
+                <div class="task-line">
+                  <span class="task-icon">↻</span>
+                  <span>看闲书 1 小时</span>
+                  <span class="task-time">今天</span>
+                </div>
+              </article>
+            </div>
+          </section>
+
+          <section id="axis" class="panel">
+            <div class="axis-panel">
+              <div class="filters">
+                <label class="filter"><input type="checkbox" checked /> 写作</label>
+                <label class="filter"><input type="checkbox" checked /> 跑步</label>
+                <label class="filter"><input type="checkbox" checked /> 维护</label>
+              </div>
+
+              <article class="axis-card">
+                <h2>完成轴</h2>
+                <p>单时间轴，通过目标 checkbox 增减显示；不同目标用不同颜色。</p>
+                <div class="axis">
+                  <div class="milestone" style="--c: #4b6ff3;">
+                    <b>写作 · 昨天</b>
+                    <strong>修改一篇旧文章</strong>
+                    <span>42m · 作为结构图里的完成节点保留</span>
+                  </div>
+                  <div class="milestone" style="--c: #4ac99b;">
+                    <b>跑步 · 周二</b>
+                    <strong>轻松跑 3km</strong>
+                    <span>身体状态目标下的完成节点</span>
+                  </div>
+                  <div class="milestone" style="--c: #f5b84b;">
+                    <b>维护 · 周一</b>
+                    <strong>处理报销资料</strong>
+                    <span>孤立任务也在同一轴上出现</span>
+                  </div>
+                  <div class="milestone" style="--c: #4b6ff3;">
+                    <b>写作 · 5天前</b>
+                    <strong>整理选题池</strong>
+                    <span>完成节点可回流到结构图</span>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </section>
+        </div>
+
+        <button class="add">+</button>
+
+        <nav class="bottom-nav">
+          <div class="nav">今天</div>
+          <div class="nav active">任务</div>
+          <div class="nav">计划</div>
+          <div class="nav">回想</div>
+        </nav>
+      </div>
+    </section>
+
+    <aside class="notes">
+      <h1>任务页 v2：中心卡片、TickTick 时间、单轴鱼骨</h1>
+      <p>这个版本按你的反馈调整：结构页是一张占满中心的大卡片，左右切换目标卡片；卡片内部是可平移的树状结构，而不是列表。去掉了总任务数、百分比和路径视角。</p>
+      <div class="note-card">
+        <b>结构页</b>
+        <span>主卡片承载目标树。历史完成节点直接沉淀在树里，用划线/浅色表达，不单独做历史页。</span>
+      </div>
+      <div class="note-card">
+        <b>时间页</b>
+        <span>参考 TickTick：年/月/周/3日/日，只按时间组织临时任务和安排，不再按长期目标分组。</span>
+      </div>
+      <div class="note-card">
+        <b>鱼骨页</b>
+        <span>保留“鱼骨”这个理解目标的感觉，但做成单时间轴上的完成任务；checkbox 控制目标显示，不同目标颜色区分。</span>
+      </div>
+      <p>现在先看结构是否对：页面切换是否够轻、结构卡片是否像你想要的任务地图、时间页是否更接近你截图里的感觉。</p>
+    </aside>
+  </main>
+
+  <script>
+    const buttons = document.querySelectorAll(".lens button");
+    const panels = document.querySelectorAll(".panel");
+
+    buttons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const panel = button.dataset.panel;
+        buttons.forEach((item) => item.classList.remove("active"));
+        panels.forEach((item) => item.classList.remove("active"));
+        button.classList.add("active");
+        document.getElementById(panel).classList.add("active");
+      });
+    });
+  </script>
+</body>
+</html>

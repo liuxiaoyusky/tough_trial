@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tough Trial · 回想三版面</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: #151923;
+      background:
+        radial-gradient(circle at 12% 12%, rgba(84, 118, 255, 0.12), transparent 26%),
+        radial-gradient(circle at 88% 18%, rgba(49, 184, 146, 0.10), transparent 24%),
+        #eef2f8;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+      padding: 22px;
+    }
+
+    .intro {
+      max-width: 1220px;
+      margin: 0 auto 18px;
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      align-items: end;
+    }
+
+    .intro h1 {
+      margin: 0 0 8px;
+      font-size: 30px;
+      letter-spacing: 0;
+    }
+
+    .intro p {
+      margin: 0;
+      color: #526174;
+      font-size: 15px;
+      line-height: 1.55;
+      max-width: 720px;
+    }
+
+    .layouts {
+      max-width: 1220px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 20px;
+      align-items: start;
+    }
+
+    .option {
+      min-width: 0;
+    }
+
+    .option-head {
+      min-height: 86px;
+      margin-bottom: 12px;
+    }
+
+    .option-head b {
+      display: block;
+      font-size: 18px;
+      margin-bottom: 6px;
+    }
+
+    .option-head span {
+      display: block;
+      color: #526174;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .phone {
+      width: 100%;
+      max-width: 390px;
+      height: 812px;
+      margin: 0 auto;
+      border-radius: 42px;
+      padding: 11px;
+      background: #101620;
+      box-shadow: 0 30px 80px rgba(15, 23, 42, 0.28);
+    }
+
+    .screen {
+      position: relative;
+      height: 100%;
+      overflow: hidden;
+      border-radius: 32px;
+      background: #f8fafc;
+    }
+
+    .status {
+      height: 28px;
+      padding: 8px 22px 0;
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    .top {
+      height: 66px;
+      display: grid;
+      grid-template-columns: 42px 1fr 42px;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 16px 10px;
+    }
+
+    .round {
+      width: 42px;
+      height: 42px;
+      border: 0;
+      border-radius: 21px;
+      background: rgba(255, 255, 255, 0.76);
+      color: #222a37;
+      font-size: 17px;
+      font-weight: 900;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+    }
+
+    .top-title {
+      text-align: center;
+    }
+
+    .top-title h2 {
+      margin: 0;
+      font-size: 28px;
+      line-height: 1;
+    }
+
+    .top-title p {
+      margin: 5px 0 0;
+      color: #7c8492;
+      font-size: 12px;
+      font-weight: 760;
+    }
+
+    .nav {
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      bottom: 14px;
+      height: 58px;
+      border-radius: 26px;
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(18px);
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      align-items: center;
+      box-shadow: 0 18px 32px rgba(15, 23, 42, 0.14);
+      z-index: 10;
+    }
+
+    .nav div {
+      text-align: center;
+      color: #7b8493;
+      font-size: 11px;
+      font-weight: 850;
+    }
+
+    .nav .active {
+      color: #4b6ff3;
+    }
+
+    /* Option A */
+    .a-screen {
+      background: linear-gradient(180deg, #fbfcff, #eef3f9);
+    }
+
+    .a-paper {
+      position: absolute;
+      inset: 104px 20px 86px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .a-paper-title {
+      display: flex;
+      align-items: start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .a-paper-title h3 {
+      margin: 0;
+      font-size: 26px;
+      line-height: 1.08;
+    }
+
+    .a-paper-title span {
+      display: block;
+      margin-top: 6px;
+      color: #7c8492;
+      font-size: 12px;
+      font-weight: 740;
+    }
+
+    .a-draft {
+      border: 0;
+      border-radius: 999px;
+      color: #ffffff;
+      background: #151923;
+      padding: 9px 11px;
+      font-size: 12px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .a-lines {
+      flex: 1;
+      color: #97a0ae;
+      font-size: 18px;
+      line-height: 1.75;
+      background:
+        repeating-linear-gradient(
+          to bottom,
+          transparent 0,
+          transparent 33px,
+          rgba(203, 213, 225, 0.48) 34px
+        );
+      padding: 2px 2px 20px;
+    }
+
+    .inline {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 8px;
+      border-radius: 999px;
+      color: #4b6ff3;
+      background: #edf3ff;
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    .a-toolbar {
+      height: 54px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding-top: 12px;
+    }
+
+    .a-tool {
+      width: 42px;
+      height: 42px;
+      border: 0;
+      border-radius: 21px;
+      background: #ffffff;
+      color: #506075;
+      font-size: 18px;
+      font-weight: 900;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.07);
+    }
+
+    .a-save {
+      margin-left: auto;
+      height: 42px;
+      border: 0;
+      border-radius: 21px;
+      padding: 0 20px;
+      color: #ffffff;
+      background: #151923;
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .a-pop {
+      position: absolute;
+      left: 20px;
+      right: 20px;
+      bottom: 148px;
+      border-radius: 22px;
+      background: rgba(255, 255, 255, 0.97);
+      border: 1px solid #dfe7f2;
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.14);
+      padding: 12px;
+    }
+
+    .pop-tabs {
+      display: flex;
+      gap: 7px;
+      margin-bottom: 10px;
+    }
+
+    .pop-tabs button {
+      border: 0;
+      border-radius: 999px;
+      padding: 7px 10px;
+      color: #7c8492;
+      background: #f2f5fa;
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    .pop-tabs .active {
+      color: white;
+      background: #4b6ff3;
+    }
+
+    .ref-row {
+      display: flex;
+      gap: 8px;
+      overflow: hidden;
+    }
+
+    .ref {
+      flex: 0 0 auto;
+      min-width: 112px;
+      max-width: 142px;
+      border-radius: 16px;
+      background: #f5f7fb;
+      padding: 10px;
+      color: #263246;
+      font-size: 12px;
+      font-weight: 860;
+    }
+
+    .ref span {
+      display: block;
+      margin-top: 4px;
+      color: #7c8492;
+      font-size: 10px;
+      font-weight: 760;
+    }
+
+    /* Option B */
+    .b-screen {
+      background:
+        linear-gradient(180deg, rgba(250, 252, 255, 0.92), rgba(239, 244, 250, 0.92)),
+        #f6f8fb;
+    }
+
+    .b-date-rail {
+      position: absolute;
+      top: 105px;
+      left: 16px;
+      bottom: 90px;
+      width: 54px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .date-dot {
+      width: 44px;
+      height: 54px;
+      border-radius: 22px;
+      display: grid;
+      place-items: center;
+      background: rgba(255, 255, 255, 0.7);
+      color: #7c8492;
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    .date-dot.active {
+      height: 72px;
+      color: white;
+      background: #151923;
+      box-shadow: 0 14px 28px rgba(15, 23, 42, 0.18);
+    }
+
+    .date-dot span {
+      display: block;
+      text-align: center;
+    }
+
+    .b-main {
+      position: absolute;
+      top: 112px;
+      left: 82px;
+      right: 18px;
+      bottom: 92px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .b-editor {
+      flex: 1;
+      border-radius: 30px;
+      background: #ffffff;
+      border: 1px solid #dfe7f2;
+      box-shadow: 0 18px 44px rgba(15, 23, 42, 0.09);
+      padding: 18px;
+      color: #98a2b1;
+      font-size: 17px;
+      line-height: 1.65;
+      font-weight: 670;
+    }
+
+    .b-editor h3 {
+      margin: 0 0 18px;
+      color: #151923;
+      font-size: 24px;
+    }
+
+    .b-tools {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      height: 56px;
+      padding-top: 12px;
+    }
+
+    .b-tools button {
+      height: 42px;
+      border: 0;
+      border-radius: 21px;
+      background: #ffffff;
+      color: #536177;
+      padding: 0 14px;
+      font-size: 13px;
+      font-weight: 900;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.07);
+    }
+
+    .b-tools .save {
+      margin-left: auto;
+      color: #ffffff;
+      background: #151923;
+    }
+
+    .b-side {
+      position: absolute;
+      right: 18px;
+      top: 166px;
+      width: 180px;
+      border-radius: 22px;
+      background: rgba(255, 255, 255, 0.96);
+      border: 1px solid #dfe7f2;
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.14);
+      padding: 12px;
+    }
+
+    .b-side b {
+      display: block;
+      margin-bottom: 9px;
+      font-size: 13px;
+    }
+
+    .b-side .ref {
+      min-width: 100%;
+      margin-bottom: 8px;
+    }
+
+    /* Option C */
+    .c-screen {
+      background: #f8fafc;
+    }
+
+    .c-feed {
+      position: absolute;
+      top: 106px;
+      left: 18px;
+      right: 18px;
+      bottom: 90px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .c-composer {
+      flex: 1;
+      border-radius: 32px;
+      background:
+        linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+      border: 1px solid #dfe7f2;
+      box-shadow: 0 18px 44px rgba(15, 23, 42, 0.09);
+      padding: 18px;
+      color: #96a0ae;
+      font-size: 18px;
+      line-height: 1.68;
+      font-weight: 670;
+    }
+
+    .c-composer h3 {
+      margin: 0 0 16px;
+      color: #151923;
+      font-size: 24px;
+    }
+
+    .c-stack {
+      height: 145px;
+      border-radius: 28px;
+      background: #151923;
+      color: white;
+      padding: 15px;
+      box-shadow: 0 18px 42px rgba(15, 23, 42, 0.20);
+      overflow: hidden;
+    }
+
+    .c-stack-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .c-stack-head b {
+      font-size: 14px;
+    }
+
+    .c-stack-head span {
+      color: rgba(255, 255, 255, 0.62);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .c-ref-row {
+      display: flex;
+      gap: 8px;
+      overflow: hidden;
+    }
+
+    .c-ref {
+      flex: 0 0 128px;
+      border-radius: 17px;
+      background: rgba(255, 255, 255, 0.10);
+      padding: 10px;
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    .c-ref span {
+      display: block;
+      margin-top: 4px;
+      color: rgba(255, 255, 255, 0.56);
+      font-size: 10px;
+    }
+
+    .c-actions {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      height: 52px;
+    }
+
+    .c-actions button {
+      height: 42px;
+      border: 0;
+      border-radius: 21px;
+      background: #ffffff;
+      color: #536177;
+      padding: 0 14px;
+      font-size: 13px;
+      font-weight: 900;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.07);
+    }
+
+    .c-actions .save {
+      margin-left: auto;
+      color: #ffffff;
+      background: #151923;
+    }
+
+    @media (max-width: 1180px) {
+      .layouts {
+        grid-template-columns: 1fr;
+      }
+
+      .option-head {
+        min-height: auto;
+      }
+    }
+
+    @media (max-width: 520px) {
+      body {
+        padding: 14px;
+      }
+
+      .intro {
+        display: block;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="intro">
+    <div>
+      <h1>回想页三版面</h1>
+      <p>这三版都避免摘要、详情、比例和多层卡片。差别在于证据入口和编辑器关系。</p>
+    </div>
+  </header>
+
+  <main class="layouts">
+    <section class="option">
+      <div class="option-head">
+        <b>A. 纸张编辑器 + 浮动引用</b>
+        <span>最接近纯写作。证据通过引用按钮临时弹出，插入后变成内联引用。</span>
+      </div>
+      <div class="phone">
+        <div class="screen a-screen">
+          <div class="status"><span>10:40</span><span>5G 82%</span></div>
+          <div class="top">
+            <button class="round">‹</button>
+            <div class="top-title"><h2>回想</h2><p>5月29日 · 今天</p></div>
+            <button class="round">⋯</button>
+          </div>
+          <div class="a-paper">
+            <div class="a-paper-title">
+              <div><h3>今日反思</h3><span>需要证据时再引用</span></div>
+              <button class="a-draft">整理草稿</button>
+            </div>
+            <div class="a-lines">
+              今天最值得记录的是……
+              <br />
+              <span class="inline">引用 · 论文 45m</span>
+            </div>
+            <div class="a-toolbar">
+              <button class="a-tool">〝</button>
+              <button class="a-tool">⌕</button>
+              <button class="a-save">保存</button>
+            </div>
+          </div>
+          <div class="a-pop">
+            <div class="pop-tabs">
+              <button class="active">事件</button><button>偏差</button><button>过去</button>
+            </div>
+            <div class="ref-row">
+              <div class="ref">论文 45m<span>今天</span></div>
+              <div class="ref">查报销 8m<span>临时插入</span></div>
+              <div class="ref">Zen 写作<span>25m</span></div>
+            </div>
+          </div>
+          <nav class="nav"><div>今天</div><div>任务</div><div>计划</div><div class="active">回想</div></nav>
+        </div>
+      </div>
+    </section>
+
+    <section class="option">
+      <div class="option-head">
+        <b>B. 日期轨道 + 右侧引用小窗</b>
+        <span>更像日记本。左侧快速切换日期，引用工具以小窗出现，适合频繁回看过去。</span>
+      </div>
+      <div class="phone">
+        <div class="screen b-screen">
+          <div class="status"><span>10:40</span><span>5G 82%</span></div>
+          <div class="top">
+            <button class="round">⛶</button>
+            <div class="top-title"><h2>回想</h2><p>最近几天</p></div>
+            <button class="round">⋯</button>
+          </div>
+          <div class="b-date-rail">
+            <div class="date-dot"><span>27<br />三</span></div>
+            <div class="date-dot"><span>28<br />四</span></div>
+            <div class="date-dot active"><span>29<br />五</span></div>
+            <div class="date-dot"><span>30<br />六</span></div>
+          </div>
+          <div class="b-main">
+            <div class="b-editor">
+              <h3>5月29日</h3>
+              今天最值得记录的是……
+              <br /><br />
+              <span class="inline">计划外 · 查报销</span>
+            </div>
+            <div class="b-tools">
+              <button>引用</button><button>整理草稿</button><button class="save">保存</button>
+            </div>
+          </div>
+          <div class="b-side">
+            <b>引用素材</b>
+            <div class="ref">论文 45m<span>事件</span></div>
+            <div class="ref">跑步未做<span>偏差</span></div>
+          </div>
+          <nav class="nav"><div>今天</div><div>任务</div><div>计划</div><div class="active">回想</div></nav>
+        </div>
+      </div>
+    </section>
+
+    <section class="option">
+      <div class="option-head">
+        <b>C. 编辑器 + 证据胶片</b>
+        <span>证据不是抽屉，而是一条可横滑的胶片。更有触感，但比 A 更占空间。</span>
+      </div>
+      <div class="phone">
+        <div class="screen c-screen">
+          <div class="status"><span>10:40</span><span>5G 82%</span></div>
+          <div class="top">
+            <button class="round">‹</button>
+            <div class="top-title"><h2>回想</h2><p>5月29日 · 今天</p></div>
+            <button class="round">⋯</button>
+          </div>
+          <div class="c-feed">
+            <div class="c-composer">
+              <h3>今日反思</h3>
+              今天最值得记录的是……
+              <br /><br />
+              <span class="inline">引用 · Zen 写作 25m</span>
+            </div>
+            <div class="c-stack">
+              <div class="c-stack-head">
+                <b>证据胶片</b><span>事件 / 偏差 / 过去</span>
+              </div>
+              <div class="c-ref-row">
+                <div class="c-ref">论文 45m<span>事件</span></div>
+                <div class="c-ref">查报销<span>临时插入</span></div>
+                <div class="c-ref">旧文章<span>过去</span></div>
+              </div>
+            </div>
+            <div class="c-actions">
+              <button>整理草稿</button><button>引用</button><button class="save">保存</button>
+            </div>
+          </div>
+          <nav class="nav"><div>今天</div><div>任务</div><div>计划</div><div class="active">回想</div></nav>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

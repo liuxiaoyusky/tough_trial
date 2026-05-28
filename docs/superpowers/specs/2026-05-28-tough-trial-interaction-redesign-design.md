@@ -189,16 +189,125 @@ Use this rule as the design anchor:
 serve long-term direction, what has happened in the past, what may happen next,
 and where the endpoint or next milestone is.
 
-Should include multiple views:
+The working mockup reference is:
 
-- **Goal tree view**: growth area -> long-term goal -> project or stage -> subtask.
-- **Time-scale view**: day, week, month, and year perspectives for past execution
-  and future possible plans.
-- **Fishbone or decomposition view**: a target goal shown with branches such as
-  skills, resources, habits, projects, and executable tasks.
-- **Execution history view**: completed actions and real time spent.
-- **Path view**: current state, completed nodes, active nodes, stalled nodes, and
-  possible next milestones.
+- `.superpowers/brainstorm/99266-1779956168/content/tasks-main-view-v2.html`
+
+The approved direction is one main task map with multiple switchable lenses, not
+several unrelated pages.
+
+#### First Information Architecture
+
+`任务` should be built around three first-version lenses:
+
+1. **结构**
+2. **时间**
+3. **鱼骨**
+
+The earlier standalone `历史` and `路径` lenses are removed for now. Completed
+history should appear as completed nodes inside the structure map or as events
+on the fishbone completion axis. Path-like meaning can still emerge from the
+tree, but it should not be a separate top-level lens.
+
+##### Structure Lens
+
+The structure lens is the default. It should feel like a task map, not a task
+list.
+
+The main screen should show one large card occupying the center of the page. The
+user can horizontally swipe between cards. Each card represents a meaningful
+task context, such as a growth area, long-term goal, project, or maintenance
+group.
+
+Inside each card:
+
+- Content is a tree-like structure, not a vertical list.
+- The card canvas can pan vertically and horizontally.
+- Nodes represent goals, projects, stages, subtasks, and completed tasks.
+- Completed tasks can stay in the tree as light, crossed-out, or otherwise
+  visually softened completion nodes.
+- Individual tasks should be placed somewhere inside the tree, close to the goal
+  or project they serve.
+- Maintenance or isolated tasks may have their own card or a clear maintenance
+  branch, but they should not be forced to attach to a long-term goal.
+
+Avoid these elements in the structure lens:
+
+- A top-level total task count.
+- Percent progress for a long-term goal.
+- Dense list rows as the main content.
+- A separate history list.
+
+Do not show percent progress because these are infinite-improvement paths, not
+finite completion bars. If progress needs to be communicated, use softer signals
+such as recent activity, completed nodes, next visible task, or stalled nodes.
+
+##### Time Lens
+
+The time lens should be closer to TickTick-style time management. It should not
+classify tasks by their long-term goal.
+
+Supported scales:
+
+- Year.
+- Month.
+- Week.
+- Three-day.
+- Day.
+
+This lens is for seeing and temporarily arranging tasks by time. It can include
+manual task addition. It should show tasks, reminders, temporary items, and
+scheduled work by date or time range without making the user think about the
+goal hierarchy.
+
+This lens is different from `计划`: it is a time-based task view inside the task
+system. `计划` is the AI-supported planning workspace for generating or revising
+plans.
+
+##### Fishbone Lens
+
+Keep the fishbone idea, but make it more artistic and simpler than a complex
+diagram. The first version should be a single completion axis.
+
+The fishbone lens should show completed tasks on one time axis:
+
+- One axis only.
+- Completed task nodes appear on the axis.
+- Different goals use different colors.
+- Checkboxes let the user show or hide goals from the axis.
+- Maintenance or isolated completions may appear with their own color or neutral
+  treatment.
+
+This lens answers: "What has actually accumulated over time?" It should avoid
+becoming a full analytics dashboard.
+
+##### Add Button
+
+The add button should be a blue pill or circular control with a white plus sign,
+positioned at the bottom-right of the task page.
+
+The plus control is a lightweight capture control, not the deep planning entry by
+default:
+
+- Tap: quick add in the current page context.
+- Press and hold: voice capture until release.
+- Press, hold, and drag upward: locked continuous voice recording, similar in
+  spirit to Telegram's voice gesture.
+
+Voice recognition should produce an editable draft before durable data is
+written.
+
+Default behavior depends on context:
+
+- In `今天`, quick add creates a today task. If the input includes a time, it can
+  become a today-dated plan point; otherwise it stays as a today task.
+- In `任务`, quick add creates a task or node in the current structure card or
+  current context.
+- In `计划`, quick add creates a task or plan item under the current planning
+  object.
+
+Deep AI planning should be entered from an expanded task item through an
+`AI 计划` button. This keeps fast capture separate from deliberate planning.
 
 Maintenance or isolated tasks should also exist here. They do not need to serve a
 long-term goal, but they still need a place in the system.
@@ -211,6 +320,14 @@ the task surface or a task-related suggestion inbox.
 `计划` arranges a day or a longer time range. It can cover today, a future day,
 the next few days, a week, a month, or a periodic target such as "run 10 km next
 week".
+
+The working mockup reference is:
+
+- `.superpowers/brainstorm/99266-1779956168/content/plan-chat-agent-v2.html`
+
+The approved direction is that `计划` is a standalone chat agent workspace, not a
+calendar-like board and not another task view. Because it opens as its own
+workspace, it should not keep the bottom tab bar visible inside the page.
 
 The default AI interaction should be chat-style and low-friction. A user should
 be able to type a simple request such as:
@@ -240,19 +357,129 @@ The user can accept, edit parts, continue adjusting with a prompt, or switch to
 structured input. Structured input is an optional enhancement for complex
 planning, not the default entry cost.
 
+#### First Information Architecture
+
+`计划` should behave like a Codex-mobile-style planning agent:
+
+- The main page is a conversation workspace.
+- The page has a clear title and back/close control, but no bottom tab bar.
+- The first screen can show a short agent prompt and a few lightweight example
+  prompts.
+- The composer stays at the bottom of the agent workspace.
+- User input is natural language by default.
+- The agent returns an understanding card and structured plan drafts inside the
+  conversation.
+- Plan drafts are artifacts, not just chat text. They can be accepted, saved as
+  drafts, edited, or adjusted through follow-up prompts.
+- Saved drafts can remain pending until the user confirms them.
+
+There should be no blue plus button on the `计划` agent home. The plus gesture is
+for lightweight capture in pages like `今天` and `任务`; planning is driven by the
+agent composer and by `AI 计划` entry points from expanded task items.
+
+#### AI Planning From Expanded Task Items
+
+Deep planning starts from an expanded task item through an `AI 计划` button. It
+does not start from the global plus button by default.
+
+When `AI 计划` starts, the model should make several judgments in parallel:
+
+- Whether the item needs decomposition.
+- Whether the item needs time planning.
+- Whether the item is long-term or short-term.
+- Whether the item fits an existing goal.
+- Whether the item should stay in isolated or maintenance tasks.
+- Whether the item itself is a large goal rather than an executable task.
+- Whether the item is periodic.
+- Whether the item has an external commitment, deadline, or specific time.
+- Whether the item is suitable for today.
+- Whether memory is needed for planning.
+- Whether there are conflicts worth mentioning without forcing resolution.
+
+The interface should not expose this as a form. The first AI planning screen
+should show a lightweight understanding card, for example:
+
+```text
+I understand this as:
+Type: periodic goal
+Belongs to: body / running
+Needs: decomposition + time planning
+Draft: 3km + 3km + 4km this week
+
+[Generate plan draft] [Make ordinary task] [Change goal]
+```
+
+After the user proceeds, AI produces a structured draft:
+
+- Proposed subtasks.
+- Proposed dates or time ranges.
+- Items not arranged.
+- Optional collapsed rationale.
+- Save draft.
+- Accept.
+- Continue adjusting with prompt.
+
+AI planning must support at least two partial modes:
+
+- **Decompose only**: break a large goal into executable tasks without arranging
+  time yet.
+- **Schedule only**: place an already clear task into a day or period without
+  decomposing it.
+
+The model may ask follow-up questions only when essential information is missing.
+When asking, it should ask the smallest useful question instead of opening a
+large structured form.
+
 ### 回想: Evidence-Based Reflection
 
 `回想` is the reflection surface. It is mainly about today, but it may refer to
 past events.
 
-Should include:
+The working mockup reference is:
 
-- Today's real execution records and time spent.
-- References to tasks, focus sessions, inserted urgent tasks, and relevant past events.
-- User-authored reflection.
-- Time-ratio analysis based on task metadata, such as goal tasks, commitment
-  tasks, and maintenance or isolated tasks.
-- Plan-vs-actual reference: what was intended and what actually happened.
+- `.superpowers/brainstorm/99266-1779956168/content/recall-three-layouts-v5.html`
+
+The approved direction is the second layout from that mockup: a diary-like page
+with a date rail and a small reference window.
+
+#### First Information Architecture
+
+`回想` should prioritize writing, not analytics.
+
+The first version should include:
+
+- A date rail for switching between recent days.
+- A fullscreen or immersive-mode button at the top-left.
+- A main reflection editor for the selected date.
+- A compact reference window for inserting evidence into the text.
+- Actions for `引用`, `整理草稿`, and `保存`.
+
+The main editor should contain only one placeholder sentence, such as:
+
+```text
+今天最值得记录的是……
+```
+
+Evidence should not be presented as a large dashboard. It should be available
+through the reference window or writing tools. The default evidence categories
+are:
+
+- **事件**: tasks, focus sessions, Zen sessions, and temporary insertions that
+  actually happened.
+- **偏差**: event-like differences between plan and reality, such as an unexecuted
+  planned task or an unplanned completed task.
+- **过去**: previous events the user wants to refer to.
+
+Do not include time-ratio statistics as default writing references. Those can
+exist elsewhere in the task system or as optional analysis, but `回想` should not
+start with percentages or summary cards.
+
+AI can help only when the user requests it:
+
+- `整理草稿` may generate an editable draft from the selected date and inserted
+  evidence.
+- AI output must not be auto-saved.
+- AI must not automatically modify tasks, plans, or memory.
 
 Should not include:
 
@@ -260,8 +487,7 @@ Should not include:
 - Forced task classification during execution.
 - Automatic conclusions that the user cannot edit or reject.
 - Automatic task or plan mutation.
-
-The analysis is a reference for the user, not a judgment engine.
+- Top summary cards, detail cards, or visible time-ratio dashboards by default.
 
 ## Dreaming: Model-Proactive Suggestion Layer
 
