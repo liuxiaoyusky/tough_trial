@@ -62,6 +62,32 @@ func checkInvalidSessionTaskIDDoesNotMutate() {
     require(state.tasks == originalTasks, "Invalid task ID should not mutate tasks")
 }
 
+func checkDuplicateLinkedSessionDoesNotMutate() {
+    var state = V2PrototypeState.sample()
+
+    let firstStarted = state.startSession(
+        taskID: V2PrototypeState.writingTaskID,
+        title: "写作",
+        startedAtLabel: "09:30"
+    )
+
+    require(firstStarted, "Starting a valid writing session should succeed")
+
+    let timelineAfterFirstStart = state.timelineItems
+    let tasksAfterFirstStart = state.tasks
+
+    let secondStarted = state.startSession(
+        taskID: V2PrototypeState.writingTaskID,
+        title: "写作",
+        startedAtLabel: "09:45"
+    )
+
+    require(!secondStarted, "Starting a duplicate linked writing session should fail")
+    require(state.activeSessions.count == 1, "Duplicate linked session should not append another active session")
+    require(state.timelineItems == timelineAfterFirstStart, "Duplicate linked session should not mutate timeline items")
+    require(state.tasks == tasksAfterFirstStart, "Duplicate linked session should not mutate tasks")
+}
+
 func checkMultipleActiveSessions() {
     var state = V2PrototypeState.sample()
 
@@ -156,6 +182,7 @@ func checkRecallReferenceAndFullscreen() {
 
 checkActiveSessionLifecycle()
 checkInvalidSessionTaskIDDoesNotMutate()
+checkDuplicateLinkedSessionDoesNotMutate()
 checkMultipleActiveSessions()
 checkQuickAddTodayTask()
 checkPlanPromptDraftIsolation()

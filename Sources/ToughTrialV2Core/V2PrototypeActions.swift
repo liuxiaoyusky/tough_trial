@@ -5,6 +5,10 @@ public extension V2PrototypeState {
             return false
         }
 
+        if let taskID, activeSessions.contains(where: { $0.taskID == taskID }) {
+            return false
+        }
+
         let sessionTaskID = taskID ?? "manual"
         activeSessions.append(
             V2ActiveSession(
