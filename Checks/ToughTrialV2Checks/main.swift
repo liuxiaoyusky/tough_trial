@@ -37,13 +37,28 @@ func checkActiveSessionLifecycle() {
     state.endSession(session.id, totalElapsed: 25, endLabel: "09:55")
 
     require(state.activeSessions.isEmpty, "Ending the only session should clear activeSessions")
-    require(
-        state.flattenTasks().first { $0.id == V2PrototypeState.writingTaskID }?.spentMinutes == 67,
-        "Writing task should accumulate 42 + 25 spent minutes"
-    )
+    let writingTask = state.flattenTasks().first { $0.id == V2PrototypeState.writingTaskID }
+    require(writingTask?.spentMinutes == 67, "Writing task should accumulate 42 + 25 spent minutes")
+    require(writingTask?.status != .done, "Ending a timing session should not complete the linked task")
     require(state.timelineItems.count == originalTimelineCount + 1, "Ending a session should append a timeline item")
-    require(state.timelineItems.last?.isDone == true, "Ended session timeline item should be done")
+    require(state.timelineItems.last?.isDone == false, "Ended session record should not be marked as task completion")
     requireContains(state.timelineItems.last?.detail ?? "", "25", "Ended session detail should include elapsed minutes")
+}
+
+func checkCompletingTimelineItemCompletesLinkedTask() {
+    var state = V2PrototypeState.sample()
+
+    let completed = state.completeTimelineItem("timeline-writing-start")
+
+    require(completed, "Completing an existing timeline item should succeed")
+    require(
+        state.timelineItems.first { $0.id == "timeline-writing-start" }?.isDone == true,
+        "Completing a timeline item should mark that item done"
+    )
+    require(
+        state.flattenTasks().first { $0.id == V2PrototypeState.writingTaskID }?.status == .done,
+        "Completing a linked timeline item should mark the task done"
+    )
 }
 
 func checkInvalidSessionTaskIDDoesNotMutate() {
@@ -181,6 +196,7 @@ func checkRecallReferenceAndFullscreen() {
 }
 
 checkActiveSessionLifecycle()
+checkCompletingTimelineItemCompletesLinkedTask()
 checkInvalidSessionTaskIDDoesNotMutate()
 checkDuplicateLinkedSessionDoesNotMutate()
 checkMultipleActiveSessions()

@@ -13,7 +13,6 @@
 		3B1C0341B571FCB4D961D720 /* ToughTrialV2App.swift in Sources */ = {isa = PBXBuildFile; fileRef = 232C6C7CC9BEE3D729AAA003 /* ToughTrialV2App.swift */; };
 		45C2E85D52E84C47102BA576 /* V2RecallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0017D24F92D72A81C33D4620 /* V2RecallView.swift */; };
 		653B167A9A5FD4BFECF96609 /* V2RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95F8A39501533A9884AFF851 /* V2RootView.swift */; };
-		998AC9AE6A9538ADEE4396BC /* V2PlaceholderScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E99788B862A8A7F8F1EFA9F /* V2PlaceholderScreen.swift */; };
 		A73A1FCC3E5FAACF61EB1731 /* V2AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89126F3A1AF89FAE9F43D45C /* V2AppStore.swift */; };
 		AD0B4FDF8DE3ECD10F5D93DF /* V2TasksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A69542D08D6797F0653E8B04 /* V2TasksView.swift */; };
 		CE3874C2F91A95260D113F3D /* V2Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E6A85B953D563AC1A9C0C64 /* V2Components.swift */; };
@@ -30,7 +29,6 @@
 		5937E2365044428AFC0C7211 /* tough_trial */ = {isa = PBXFileReference; lastKnownFileType = folder; name = tough_trial; path = .; sourceTree = SOURCE_ROOT; };
 		89126F3A1AF89FAE9F43D45C /* V2AppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2AppStore.swift; sourceTree = "<group>"; };
 		95F8A39501533A9884AFF851 /* V2RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2RootView.swift; sourceTree = "<group>"; };
-		9E99788B862A8A7F8F1EFA9F /* V2PlaceholderScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2PlaceholderScreen.swift; sourceTree = "<group>"; };
 		A69542D08D6797F0653E8B04 /* V2TasksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2TasksView.swift; sourceTree = "<group>"; };
 		AABA6A1FFF10B01D2E53A839 /* V2PlanAgentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2PlanAgentView.swift; sourceTree = "<group>"; };
 		BD88E1F61150B984C4116B93 /* V2ZenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2ZenView.swift; sourceTree = "<group>"; };
@@ -55,7 +53,6 @@
 				232C6C7CC9BEE3D729AAA003 /* ToughTrialV2App.swift */,
 				89126F3A1AF89FAE9F43D45C /* V2AppStore.swift */,
 				0E6A85B953D563AC1A9C0C64 /* V2Components.swift */,
-				9E99788B862A8A7F8F1EFA9F /* V2PlaceholderScreen.swift */,
 				AABA6A1FFF10B01D2E53A839 /* V2PlanAgentView.swift */,
 				0017D24F92D72A81C33D4620 /* V2RecallView.swift */,
 				95F8A39501533A9884AFF851 /* V2RootView.swift */,
@@ -156,7 +153,6 @@
 				3B1C0341B571FCB4D961D720 /* ToughTrialV2App.swift in Sources */,
 				A73A1FCC3E5FAACF61EB1731 /* V2AppStore.swift in Sources */,
 				CE3874C2F91A95260D113F3D /* V2Components.swift in Sources */,
-				998AC9AE6A9538ADEE4396BC /* V2PlaceholderScreen.swift in Sources */,
 				27CB67F1C93967A6AA8F9DAE /* V2PlanAgentView.swift in Sources */,
 				45C2E85D52E84C47102BA576 /* V2RecallView.swift in Sources */,
 				653B167A9A5FD4BFECF96609 /* V2RootView.swift in Sources */,

@@ -27,6 +27,7 @@ struct V2TodayView: View {
                             activeTaskIDs: activeTaskIDs,
                             onSelect: selectTimelineItem,
                             onStart: startTimelineItem,
+                            onComplete: completeTimelineItem,
                             onZen: { item in
                                 store.startZen(taskID: item.taskID, title: item.title)
                             }
@@ -97,6 +98,10 @@ struct V2TodayView: View {
     private func startTimelineItem(_ item: V2TimelineItem) {
         let title = item.taskID.flatMap { store.state.taskTitle(for: $0) } ?? item.title
         _ = store.state.startSession(taskID: item.taskID, title: title, startedAtLabel: currentTimeLabel())
+    }
+
+    private func completeTimelineItem(_ item: V2TimelineItem) {
+        _ = store.state.completeTimelineItem(item.id)
     }
 
     private func endSession(_ session: V2ActiveSession) {
@@ -197,7 +202,7 @@ private struct V2TodaySessionRow: View {
                 .accessibilityLabel(session.status == .running ? "暂停" : "继续")
 
                 Button(action: onEnd) {
-                    Image(systemName: "checkmark")
+                    Image(systemName: "stop.fill")
                         .font(.system(size: 15, weight: .bold))
                         .foregroundStyle(.white)
                         .frame(width: 38, height: 38)
@@ -249,6 +254,7 @@ private struct V2TodayTimeline: View {
     let activeTaskIDs: Set<String>
     let onSelect: (V2TimelineItem) -> Void
     let onStart: (V2TimelineItem) -> Void
+    let onComplete: (V2TimelineItem) -> Void
     let onZen: (V2TimelineItem) -> Void
 
     var body: some View {
@@ -266,6 +272,7 @@ private struct V2TodayTimeline: View {
                         isLast: index == items.count - 1,
                         onSelect: { onSelect(item) },
                         onStart: { onStart(item) },
+                        onComplete: { onComplete(item) },
                         onZen: { onZen(item) }
                     )
                 }
@@ -281,6 +288,7 @@ private struct V2TodayTimelineRow: View {
     let isLast: Bool
     let onSelect: () -> Void
     let onStart: () -> Void
+    let onComplete: () -> Void
     let onZen: () -> Void
 
     var body: some View {
@@ -311,53 +319,52 @@ private struct V2TodayTimelineRow: View {
                 .frame(width: 48, alignment: .leading)
                 .padding(.top, 1)
 
-            Button(action: onSelect) {
-                HStack(alignment: .center, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(spacing: 8) {
-                            Text(item.title)
-                                .font(.system(size: isSelected ? 18 : 16, weight: .semibold))
-                                .foregroundStyle(item.isDone ? V2Theme.tertiary : V2Theme.ink)
-                                .strikethrough(item.isDone, color: V2Theme.tertiary)
-                                .lineLimit(2)
-                                .fixedSize(horizontal: false, vertical: true)
-
-                            if isActive {
-                                Text("现在")
-                                    .font(.caption2.weight(.bold))
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, 7)
-                                    .padding(.vertical, 3)
-                                    .background(V2Theme.mint)
-                                    .clipShape(Capsule())
-                            }
-                        }
-
-                        Text(item.detail)
-                            .font(.footnote)
-                            .foregroundStyle(item.isDone ? V2Theme.tertiary : V2Theme.secondary)
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        Text(item.title)
+                            .font(.system(size: isSelected ? 18 : 16, weight: .semibold))
+                            .foregroundStyle(item.isDone ? V2Theme.tertiary : V2Theme.ink)
+                            .strikethrough(item.isDone, color: V2Theme.tertiary)
                             .lineLimit(2)
                             .fixedSize(horizontal: false, vertical: true)
+
+                        if isActive {
+                            Text("现在")
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 3)
+                                .background(V2Theme.mint)
+                                .clipShape(Capsule())
+                        }
                     }
 
-                    Spacer(minLength: 8)
+                    Text(item.detail)
+                        .font(.footnote)
+                        .foregroundStyle(item.isDone ? V2Theme.tertiary : V2Theme.secondary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
-                    HStack(spacing: 6) {
-                        if !item.isDone && !isActive {
-                            V2TodayRowIcon(systemName: "play.fill", action: onStart)
-                        }
-                        if !item.isDone {
-                            V2TodayRowIcon(systemName: "moon.fill", action: onZen)
-                        }
+                Spacer(minLength: 8)
+
+                HStack(spacing: 6) {
+                    if !item.isDone && !isActive {
+                        V2TodayRowIcon(systemName: "play.fill", action: onStart)
+                    }
+                    if !item.isDone {
+                        V2TodayRowIcon(systemName: "checkmark", action: onComplete)
+                        V2TodayRowIcon(systemName: "moon.fill", action: onZen)
                     }
                 }
-                .padding(.vertical, 12)
-                .padding(.horizontal, 12)
-                .background(isSelected ? V2Theme.blue.opacity(0.08) : Color.clear)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
-            .buttonStyle(.plain)
-            .disabled(item.taskID == nil)
+            .padding(.vertical, 12)
+            .padding(.horizontal, 12)
+            .background(isSelected ? V2Theme.blue.opacity(0.08) : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .contentShape(Rectangle())
+            .onTapGesture(perform: onSelect)
             .opacity(item.taskID == nil ? 0.72 : 1)
         }
         .padding(.bottom, isLast ? 0 : 8)
@@ -382,7 +389,7 @@ private struct V2TodayRowIcon: View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(systemName == "moon.fill" ? V2Theme.blue : V2Theme.ink)
+                .foregroundStyle(systemName == "moon.fill" || systemName == "checkmark" ? V2Theme.blue : V2Theme.ink)
                 .frame(width: 34, height: 34)
                 .background(V2Theme.panel)
                 .clipShape(Circle())

@@ -255,7 +255,6 @@ struct V2RecallView: View {
             store.state.recallDraft += "\n\n整理：事实先保留，下一步再判断原因。"
         }
 
-        store.state.applyRecallDraft()
         saveStatus = "已整理"
     }
 }

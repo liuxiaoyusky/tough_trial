@@ -51,7 +51,7 @@ public extension V2PrototypeState {
         if let taskID = session.taskID {
             updateTask(taskID) { task in
                 task.spentMinutes += totalElapsed
-                task.status = .done
+                task.status = .planned
             }
         }
 
@@ -60,11 +60,25 @@ public extension V2PrototypeState {
                 id: "timeline-session-\(timelineItems.count + 1)",
                 timeLabel: endLabel,
                 title: session.title,
-                detail: "完成一次 \(totalElapsed) 分钟执行。",
+                detail: "记录一次 \(totalElapsed) 分钟执行。",
                 taskID: session.taskID,
-                isDone: true
+                isDone: false
             )
         )
+    }
+
+    @discardableResult
+    mutating func completeTimelineItem(_ id: String) -> Bool {
+        guard let index = timelineItems.firstIndex(where: { $0.id == id }) else { return false }
+        timelineItems[index].isDone = true
+
+        if let taskID = timelineItems[index].taskID {
+            updateTask(taskID) { task in
+                task.status = .done
+            }
+        }
+
+        return true
     }
 
     mutating func quickAddTodayTask(title: String) {
