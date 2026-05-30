@@ -4,9 +4,9 @@ public extension V2PrototypeState {
             tasks: [
                 V2TaskNode(
                     id: writingTaskID,
-                    title: "写作",
-                    subtitle: "整理 Tough Trial V2 交互说明",
-                    goal: "把计划页和执行页边界写清楚",
+                    title: "论文段落重写",
+                    subtitle: "收束今天最重要的表达",
+                    goal: "写作系统",
                     colorName: "mint",
                     status: .active,
                     spentMinutes: 42
@@ -22,9 +22,9 @@ public extension V2PrototypeState {
                 ),
                 V2TaskNode(
                     id: readingTaskID,
-                    title: "阅读",
-                    subtitle: "读产品笔记并摘录",
-                    goal: "补充任务认知素材",
+                    title: "阅读 20 页",
+                    subtitle: "午后暂停，可继续",
+                    goal: "认知积累",
                     colorName: "indigo",
                     status: .paused,
                     spentMinutes: 18
@@ -32,32 +32,67 @@ public extension V2PrototypeState {
             ],
             timelineItems: [
                 V2TimelineItem(
-                    id: "timeline-writing-start",
-                    timeLabel: "09:00",
-                    title: "写作进行中",
-                    detail: "已投入 42 分钟，继续收束 V2 说明。",
+                    id: "timeline-admin-done",
+                    timeLabel: "09:20",
+                    title: "查报销到账",
+                    detail: "已完成，可在回想引用。",
+                    taskID: nil,
+                    isDone: true
+                ),
+                V2TimelineItem(
+                    id: "timeline-reading-paused",
+                    timeLabel: "14:00",
+                    title: "阅读 20 页",
+                    detail: "暂停过一次，累计 18 分钟。",
+                    taskID: readingTaskID,
+                    isDone: false
+                ),
+                V2TimelineItem(
+                    id: "timeline-writing-current",
+                    timeLabel: "16:10",
+                    title: "论文段落重写",
+                    detail: "当前进行中，只记录今天真实耗时。",
                     taskID: writingTaskID,
                     isDone: false
                 ),
                 V2TimelineItem(
+                    id: "timeline-urgent-form",
+                    timeLabel: "刚刚",
+                    title: "补交登记表",
+                    detail: "临时插入，不要求分类或冲突处理。",
+                    taskID: nil,
+                    isDone: false
+                ),
+                V2TimelineItem(
                     id: "timeline-running-plan",
-                    timeLabel: "18:30",
+                    timeLabel: "晚上",
                     title: "跑步",
                     detail: "晚饭前 30 分钟轻量恢复。",
                     taskID: runningTaskID,
                     isDone: false
-                ),
-                V2TimelineItem(
-                    id: "timeline-reading-done",
-                    timeLabel: "21:00",
-                    title: "阅读摘录",
-                    detail: "完成一轮材料阅读，留下回想证据。",
-                    taskID: readingTaskID,
-                    isDone: true
                 )
             ],
             selectedTaskID: writingTaskID,
-            activeSessions: [],
+            activeSessions: [
+                V2ActiveSession(
+                    id: "session-sample-writing",
+                    taskID: writingTaskID,
+                    title: "论文段落重写",
+                    startedAtLabel: "16:10",
+                    currentElapsed: 12,
+                    totalElapsed: 42,
+                    status: .running
+                ),
+                V2ActiveSession(
+                    id: "session-sample-reading",
+                    taskID: readingTaskID,
+                    title: "阅读 20 页",
+                    startedAtLabel: "14:00",
+                    currentElapsed: 0,
+                    totalElapsed: 18,
+                    status: .paused
+                )
+            ],
             planMessages: [
                 V2PlanMessage(id: "plan-agent-welcome", role: .agent, text: "说出你想安排的时间段，我先给草稿。")
             ],

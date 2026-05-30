@@ -26,5 +26,11 @@ final class V2AppStore: ObservableObject {
         zenSession = nil
     }
 
+    func toggleZenSession() {
+        guard let id = zenSession?.id else { return }
+        state.toggleSession(id)
+        zenSession = state.activeSessions.first { $0.id == id }
+    }
+
     func closeZen() { zenSession = nil }
 }

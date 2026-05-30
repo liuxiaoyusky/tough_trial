@@ -3,6 +3,7 @@ import ToughTrialV2Core
 
 struct V2ZenView: View {
     let session: V2ActiveSession
+    let onToggle: () -> Void
     let onFinish: () -> Void
     let onClose: () -> Void
 
@@ -10,11 +11,12 @@ struct V2ZenView: View {
         ZStack {
             LinearGradient(
                 colors: [
-                    Color(red: 0.04, green: 0.05, blue: 0.07),
-                    Color(red: 0.08, green: 0.09, blue: 0.13)
+                    Color(red: 0.08, green: 0.11, blue: 0.12),
+                    Color(red: 0.13, green: 0.18, blue: 0.15),
+                    Color(red: 0.06, green: 0.08, blue: 0.10)
                 ],
-                startPoint: .top,
-                endPoint: .bottom
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
             )
             .ignoresSafeArea()
 
@@ -22,101 +24,96 @@ struct V2ZenView: View {
                 HStack {
                     Button(action: onClose) {
                         Image(systemName: "xmark")
-                            .font(.system(size: 15, weight: .bold))
+                            .font(.system(size: 14, weight: .bold))
                             .foregroundStyle(.white.opacity(0.82))
                             .frame(width: 42, height: 42)
-                            .background(.white.opacity(0.10))
-                            .clipShape(Circle())
+                            .background(.white.opacity(0.10), in: Circle())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("关闭")
+                    .accessibilityLabel("回到今天")
 
                     Spacer()
 
-                    Text(session.status == .running ? "专注中" : "已暂停")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.72))
-                        .frame(minWidth: 72)
+                    Text(session.status == .running ? "Zen" : "Paused")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.white.opacity(0.70))
+                        .monospaced()
                 }
                 .padding(.horizontal, 22)
                 .padding(.top, 18)
 
-                Spacer(minLength: 34)
+                Spacer(minLength: 36)
 
-                VStack(spacing: 18) {
-                    Text(session.title)
-                        .font(.system(size: 26, weight: .semibold))
+                VStack(spacing: 15) {
+                    Text(session.taskID == nil ? "未关联任务" : "当前任务")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.white.opacity(0.52))
+
+                    Text(Self.formattedMinutes(max(session.currentElapsed, 25)))
+                        .font(.system(size: 74, weight: .bold, design: .rounded))
+                        .monospacedDigit()
                         .foregroundStyle(.white)
+                        .minimumScaleFactor(0.72)
+                        .lineLimit(1)
+
+                    Text(session.title)
+                        .font(.system(size: 21, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.92))
                         .multilineTextAlignment(.center)
                         .lineLimit(3)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.horizontal, 28)
 
-                    ZStack {
-                        Circle()
-                            .stroke(.white.opacity(0.08), lineWidth: 18)
-                        Circle()
-                            .trim(from: 0, to: progress)
-                            .stroke(
-                                V2Theme.blue,
-                                style: StrokeStyle(lineWidth: 18, lineCap: .round)
-                            )
-                            .rotationEffect(.degrees(-90))
-
-                        VStack(spacing: 8) {
-                            Text(Self.formattedMinutes(session.currentElapsed))
-                                .font(.system(size: 56, weight: .bold, design: .rounded))
-                                .monospacedDigit()
-                                .foregroundStyle(.white)
-                                .minimumScaleFactor(0.75)
-                                .lineLimit(1)
-                                .frame(minWidth: 190)
-
-                            Text("累计 \(Self.formattedMinutes(session.totalElapsed))")
-                                .font(.subheadline.weight(.medium))
-                                .monospacedDigit()
-                                .foregroundStyle(.white.opacity(0.62))
-                        }
-                    }
-                    .frame(width: 272, height: 272)
-
-                    Text("开始 \(session.startedAtLabel)")
+                    Text(footerText)
                         .font(.footnote.weight(.medium))
                         .foregroundStyle(.white.opacity(0.50))
-                        .monospacedDigit()
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 38)
                 }
+                .frame(maxWidth: .infinity)
 
-                Spacer(minLength: 42)
+                Spacer(minLength: 44)
 
-                Button(action: onFinish) {
-                    HStack(spacing: 10) {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 17, weight: .bold))
-                        Text("完成")
-                            .font(.system(size: 17, weight: .semibold))
+                HStack(spacing: 12) {
+                    Button(action: onToggle) {
+                        Label(session.status == .running ? "暂停" : "继续", systemImage: session.status == .running ? "pause.fill" : "play.fill")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.92))
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 54)
+                            .background(.white.opacity(0.13), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                    .stroke(.white.opacity(0.10), lineWidth: 1)
+                            )
                     }
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 54)
-                    .background(V2Theme.blue)
-                    .clipShape(Capsule())
+                    .buttonStyle(.plain)
+
+                    Button(action: onFinish) {
+                        Text("结束时间段")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(Color(red: 0.08, green: 0.10, blue: 0.11))
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 54)
+                            .background(Color(red: 0.94, green: 0.89, blue: 0.78), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 34)
+                .padding(.horizontal, 26)
                 .padding(.bottom, 30)
             }
         }
     }
 
-    private var progress: CGFloat {
-        let targetMinutes = max(session.totalElapsed + session.currentElapsed, 25)
-        return min(max(CGFloat(session.currentElapsed) / CGFloat(targetMinutes), 0.08), 1)
+    private var footerText: String {
+        if session.taskID == nil {
+            return "结束后可以只保存时间段，也可以回到今天再关联任务。"
+        }
+        return "结束后写回任务用时；是否完成任务，回到今天时间线决定。"
     }
 
     private static func formattedMinutes(_ minutes: Int) -> String {
-        if minutes >= 60 {
-            return "\(minutes / 60):\(String(format: "%02d", minutes % 60))"
-        }
-        return "\(minutes):00"
+        let value = max(minutes, 0)
+        return "\(value):00"
     }
 }

@@ -15,31 +15,37 @@ func checkActiveSessionLifecycle() {
     let originalTimelineCount = state.timelineItems.count
 
     let started = state.startSession(
-        taskID: V2PrototypeState.writingTaskID,
-        title: "写作",
+        taskID: V2PrototypeState.runningTaskID,
+        title: "跑步",
         startedAtLabel: "09:30"
     )
 
     require(started, "Starting a valid linked session should succeed")
 
-    guard let session = state.activeSessions.first else {
+    guard let session = state.activeSessions.last else {
         fatalError("Expected an active session")
     }
 
     require(session.status == .running, "New sessions should start running")
 
     state.toggleSession(session.id)
-    require(state.activeSessions.first?.status == .paused, "Toggle should pause a running session")
+    require(
+        state.activeSessions.first { $0.id == session.id }?.status == .paused,
+        "Toggle should pause a running session"
+    )
 
     state.toggleSession(session.id)
-    require(state.activeSessions.first?.status == .running, "Toggle should resume a paused session")
+    require(
+        state.activeSessions.first { $0.id == session.id }?.status == .running,
+        "Toggle should resume a paused session"
+    )
 
     state.endSession(session.id, totalElapsed: 25, endLabel: "09:55")
 
-    require(state.activeSessions.isEmpty, "Ending the only session should clear activeSessions")
-    let writingTask = state.flattenTasks().first { $0.id == V2PrototypeState.writingTaskID }
-    require(writingTask?.spentMinutes == 67, "Writing task should accumulate 42 + 25 spent minutes")
-    require(writingTask?.status != .done, "Ending a timing session should not complete the linked task")
+    require(state.activeSessions.count == 2, "Ending the new session should leave sample live tray sessions")
+    let runningTask = state.flattenTasks().first { $0.id == V2PrototypeState.runningTaskID }
+    require(runningTask?.spentMinutes == 25, "Running task should accumulate 25 spent minutes")
+    require(runningTask?.status != .done, "Ending a timing session should not complete the linked task")
     require(state.timelineItems.count == originalTimelineCount + 1, "Ending a session should append a timeline item")
     require(state.timelineItems.last?.isDone == false, "Ended session record should not be marked as task completion")
     requireContains(state.timelineItems.last?.detail ?? "", "25", "Ended session detail should include elapsed minutes")
@@ -48,11 +54,11 @@ func checkActiveSessionLifecycle() {
 func checkCompletingTimelineItemCompletesLinkedTask() {
     var state = V2PrototypeState.sample()
 
-    let completed = state.completeTimelineItem("timeline-writing-start")
+    let completed = state.completeTimelineItem("timeline-writing-current")
 
     require(completed, "Completing an existing timeline item should succeed")
     require(
-        state.timelineItems.first { $0.id == "timeline-writing-start" }?.isDone == true,
+        state.timelineItems.first { $0.id == "timeline-writing-current" }?.isDone == true,
         "Completing a timeline item should mark that item done"
     )
     require(
@@ -81,24 +87,24 @@ func checkDuplicateLinkedSessionDoesNotMutate() {
     var state = V2PrototypeState.sample()
 
     let firstStarted = state.startSession(
-        taskID: V2PrototypeState.writingTaskID,
-        title: "写作",
+        taskID: V2PrototypeState.runningTaskID,
+        title: "跑步",
         startedAtLabel: "09:30"
     )
 
-    require(firstStarted, "Starting a valid writing session should succeed")
+    require(firstStarted, "Starting a valid running session should succeed")
 
     let timelineAfterFirstStart = state.timelineItems
     let tasksAfterFirstStart = state.tasks
 
     let secondStarted = state.startSession(
-        taskID: V2PrototypeState.writingTaskID,
-        title: "写作",
+        taskID: V2PrototypeState.runningTaskID,
+        title: "跑步",
         startedAtLabel: "09:45"
     )
 
-    require(!secondStarted, "Starting a duplicate linked writing session should fail")
-    require(state.activeSessions.count == 1, "Duplicate linked session should not append another active session")
+    require(!secondStarted, "Starting a duplicate linked running session should fail")
+    require(state.activeSessions.count == 3, "Duplicate linked session should not append another active session")
     require(state.timelineItems == timelineAfterFirstStart, "Duplicate linked session should not mutate timeline items")
     require(state.tasks == tasksAfterFirstStart, "Duplicate linked session should not mutate tasks")
 }
@@ -106,28 +112,34 @@ func checkDuplicateLinkedSessionDoesNotMutate() {
 func checkMultipleActiveSessions() {
     var state = V2PrototypeState.sample()
 
-    let firstStarted = state.startSession(
-        taskID: V2PrototypeState.writingTaskID,
-        title: "写作",
-        startedAtLabel: "09:30"
-    )
-    let secondStarted = state.startSession(
+    let started = state.startSession(
         taskID: V2PrototypeState.runningTaskID,
         title: "跑步",
         startedAtLabel: "18:30"
     )
 
-    require(firstStarted && secondStarted, "Starting two valid sessions should succeed")
-    require(state.activeSessions.count == 2, "Two valid starts should leave two active sessions")
+    require(started, "Starting one more valid session should succeed")
+    require(state.activeSessions.count == 3, "Sample live tray plus one valid start should leave three active sessions")
 
-    guard let firstID = state.activeSessions.first?.id else {
-        fatalError("Expected first active session")
+    guard let runningID = state.activeSessions.last?.id else {
+        fatalError("Expected newly started active session")
     }
 
-    state.endSession(firstID, totalElapsed: 15, endLabel: "09:45")
+    state.endSession(runningID, totalElapsed: 15, endLabel: "09:45")
 
-    require(state.activeSessions.count == 1, "Ending one session should leave the other active")
-    require(state.activeSessions.first?.taskID == V2PrototypeState.runningTaskID, "Ending one session should not remove another")
+    require(state.activeSessions.count == 2, "Ending one session should leave sample live tray sessions")
+    require(state.activeSessions.contains { $0.taskID == V2PrototypeState.writingTaskID }, "Ending one session should not remove writing")
+    require(state.activeSessions.contains { $0.taskID == V2PrototypeState.readingTaskID }, "Ending one session should not remove reading")
+}
+
+func checkSampleSupportsTodayLiveTrayPrototype() {
+    let state = V2PrototypeState.sample()
+
+    require(state.activeSessions.count == 2, "Sample state should show one running and one paused live tray item")
+    require(state.activeSessions[0].taskID == V2PrototypeState.writingTaskID, "First sample session should be linked to writing")
+    require(state.activeSessions[0].status == .running, "First sample session should be running")
+    require(state.activeSessions[1].taskID == V2PrototypeState.readingTaskID, "Second sample session should be linked to reading")
+    require(state.activeSessions[1].status == .paused, "Second sample session should be paused")
 }
 
 func checkQuickAddTodayTask() {
@@ -220,6 +232,7 @@ checkCompletingTimelineItemCompletesLinkedTask()
 checkInvalidSessionTaskIDDoesNotMutate()
 checkDuplicateLinkedSessionDoesNotMutate()
 checkMultipleActiveSessions()
+checkSampleSupportsTodayLiveTrayPrototype()
 checkQuickAddTodayTask()
 checkPlanPromptDraftIsolation()
 checkAcceptPlanDraft()

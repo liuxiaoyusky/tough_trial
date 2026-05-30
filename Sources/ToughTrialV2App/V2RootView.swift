@@ -39,6 +39,7 @@ struct V2RootView: View {
             if let session = store.zenSession {
                 V2ZenView(
                     session: session,
+                    onToggle: store.toggleZenSession,
                     onFinish: store.finishZen,
                     onClose: store.closeZen
                 )
