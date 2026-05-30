@@ -1,0 +1,927 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tough Trial · 今天执行页三版</title>
+  <style>
+    :root {
+      --ink: #171b20;
+      --muted: #75808d;
+      --paper: #f6f4ee;
+      --line: #d9d4c8;
+      --blue: #4f6ff1;
+      --sage: #71a58b;
+      --coral: #dd7467;
+      --gold: #c99535;
+      --charcoal: #1b222a;
+      --panel: rgba(255,255,255,.74);
+      --glass: rgba(255,255,255,.58);
+      --shadow: 0 22px 70px rgba(38, 42, 49, .15);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      font-family: "Avenir Next", "PingFang SC", "Hiragino Sans GB", sans-serif;
+      background:
+        linear-gradient(90deg, rgba(23,27,32,.035) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(23,27,32,.028) 1px, transparent 1px),
+        #efeee9;
+      background-size: 38px 38px;
+      letter-spacing: 0;
+    }
+
+    .page {
+      width: min(1320px, calc(100vw - 36px));
+      margin: 0 auto;
+      padding: 44px 0 64px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 24px;
+      align-items: end;
+      margin-bottom: 30px;
+    }
+
+    .hero h1 {
+      margin: 0;
+      font-size: clamp(32px, 4.5vw, 66px);
+      line-height: .96;
+      max-width: 760px;
+      font-weight: 820;
+      letter-spacing: 0;
+    }
+
+    .hero p {
+      margin: 14px 0 0;
+      max-width: 720px;
+      font-size: 16px;
+      line-height: 1.7;
+      color: #59636f;
+    }
+
+    .legend {
+      display: grid;
+      gap: 8px;
+      min-width: 240px;
+      padding: 16px;
+      border: 1px solid rgba(23,27,32,.08);
+      background: rgba(255,255,255,.54);
+      border-radius: 18px;
+      box-shadow: 0 12px 42px rgba(38,42,49,.08);
+    }
+
+    .legend span {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: #56616e;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(300px, 1fr));
+      gap: 22px;
+      align-items: start;
+    }
+
+    .option {
+      position: relative;
+      padding: 18px;
+      border-radius: 30px;
+      background: rgba(255,255,255,.42);
+      border: 1px solid rgba(23,27,32,.08);
+      box-shadow: var(--shadow);
+    }
+
+    .option h2 {
+      margin: 0 0 6px;
+      font-size: 20px;
+      line-height: 1.2;
+      font-weight: 820;
+    }
+
+    .option > p {
+      margin: 0 0 16px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .phone {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 390 / 844;
+      min-height: 650px;
+      overflow: hidden;
+      border-radius: 38px;
+      border: 8px solid #11161c;
+      background: var(--paper);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.7);
+    }
+
+    .screen {
+      height: 100%;
+      position: relative;
+      overflow: hidden;
+      padding: 18px 18px 88px;
+      background:
+        radial-gradient(circle at 18% 0%, rgba(113,165,139,.18), transparent 28%),
+        linear-gradient(180deg, #f8f7f2 0%, #edeae2 100%);
+    }
+
+    .island {
+      width: 96px;
+      height: 28px;
+      border-radius: 999px;
+      background: #11161c;
+      margin: 0 auto 12px;
+    }
+
+    .status {
+      position: absolute;
+      top: 20px;
+      left: 22px;
+      right: 22px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      font-weight: 750;
+      color: rgba(17,22,28,.82);
+    }
+
+    .top {
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      margin-top: 4px;
+    }
+
+    .title {
+      font-size: 32px;
+      line-height: 1;
+      font-weight: 850;
+    }
+
+    .date {
+      margin-top: 7px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .ghost-button {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border-radius: 16px;
+      background: rgba(255,255,255,.72);
+      border: 1px solid rgba(23,27,32,.08);
+      font-size: 19px;
+    }
+
+    .tray {
+      margin-top: 18px;
+      border-radius: 26px;
+      padding: 16px;
+      background: rgba(255,255,255,.72);
+      border: 1px solid rgba(23,27,32,.08);
+      box-shadow: 0 16px 42px rgba(30,36,44,.10);
+    }
+
+    .tray-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 780;
+    }
+
+    .live-row {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 12px;
+      align-items: center;
+      margin-top: 12px;
+    }
+
+    .play {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border-radius: 15px;
+      background: var(--charcoal);
+      color: #fff;
+      font-size: 14px;
+      box-shadow: 0 12px 24px rgba(27,34,42,.22);
+    }
+
+    .pause {
+      background: #e9e5dc;
+      color: #37404a;
+      box-shadow: none;
+    }
+
+    .task-title {
+      font-size: 16px;
+      font-weight: 820;
+      line-height: 1.25;
+    }
+
+    .task-sub {
+      margin-top: 3px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .times {
+      text-align: right;
+      font-weight: 850;
+      line-height: 1.12;
+    }
+
+    .times small {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      margin-top: 3px;
+    }
+
+    .compact-live {
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 9px 10px;
+      border-radius: 17px;
+      background: rgba(245,242,234,.9);
+      color: #4f5864;
+      font-size: 12px;
+      font-weight: 760;
+    }
+
+    .timeline {
+      position: relative;
+      margin-top: 20px;
+      padding: 8px 0 0;
+    }
+
+    .timeline::before {
+      content: "";
+      position: absolute;
+      top: 18px;
+      bottom: 8px;
+      left: 44px;
+      width: 2px;
+      background: linear-gradient(180deg, transparent, rgba(23,27,32,.16), transparent);
+    }
+
+    .now-line {
+      position: absolute;
+      left: 32px;
+      right: 0;
+      top: 148px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--blue);
+      font-size: 11px;
+      font-weight: 850;
+      z-index: 3;
+    }
+
+    .now-line::after {
+      content: "";
+      height: 2px;
+      flex: 1;
+      background: linear-gradient(90deg, var(--blue), transparent);
+      opacity: .72;
+    }
+
+    .event {
+      position: relative;
+      display: grid;
+      grid-template-columns: 56px 1fr;
+      gap: 10px;
+      margin: 0 0 13px;
+      align-items: start;
+    }
+
+    .time {
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 790;
+      text-align: right;
+      padding-top: 13px;
+    }
+
+    .event-card {
+      min-height: 54px;
+      border-radius: 19px;
+      padding: 12px 13px;
+      background: rgba(255,255,255,.58);
+      border: 1px solid rgba(23,27,32,.07);
+    }
+
+    .event-card strong {
+      display: block;
+      font-size: 14px;
+      line-height: 1.26;
+      font-weight: 820;
+    }
+
+    .event-card span {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.35;
+    }
+
+    .event.current .event-card {
+      background: #fff;
+      border-color: rgba(79,111,241,.24);
+      transform: scale(1.025);
+      box-shadow: 0 14px 34px rgba(79,111,241,.13);
+    }
+
+    .event.done .event-card {
+      opacity: .58;
+    }
+
+    .event.done strong {
+      text-decoration: line-through;
+    }
+
+    .event.inserted .event-card {
+      border-color: rgba(79,111,241,.32);
+    }
+
+    .actions {
+      display: flex;
+      gap: 7px;
+      margin-top: 10px;
+    }
+
+    .mini-action {
+      border: 0;
+      border-radius: 999px;
+      padding: 7px 10px;
+      background: #edf0ff;
+      color: #354bd4;
+      font-size: 11px;
+      font-weight: 850;
+      font-family: inherit;
+    }
+
+    .mini-action.dark {
+      background: var(--charcoal);
+      color: #fff;
+    }
+
+    .plus {
+      position: absolute;
+      right: 22px;
+      bottom: 92px;
+      width: 74px;
+      height: 58px;
+      border-radius: 999px;
+      background: var(--blue);
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font-size: 38px;
+      font-weight: 360;
+      box-shadow: 0 18px 42px rgba(79,111,241,.42);
+      z-index: 6;
+    }
+
+    .tabbar {
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      bottom: 18px;
+      height: 58px;
+      border-radius: 26px;
+      background: rgba(255,255,255,.74);
+      border: 1px solid rgba(23,27,32,.08);
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      align-items: center;
+      text-align: center;
+      color: #87909b;
+      font-size: 11px;
+      font-weight: 820;
+      backdrop-filter: blur(22px);
+    }
+
+    .tabbar .on {
+      color: var(--ink);
+    }
+
+    .option-b .screen {
+      background:
+        linear-gradient(180deg, #f6f1e6, #ece7db);
+    }
+
+    .horizon {
+      margin-top: 18px;
+      padding: 16px 14px 14px;
+      border-radius: 30px;
+      background: rgba(255,255,255,.64);
+      border: 1px solid rgba(23,27,32,.08);
+      overflow: hidden;
+    }
+
+    .horizon-head {
+      display: flex;
+      justify-content: space-between;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 820;
+      margin-bottom: 12px;
+    }
+
+    .h-track {
+      position: relative;
+      height: 130px;
+      border-radius: 24px;
+      background:
+        linear-gradient(90deg, transparent 0 19%, rgba(23,27,32,.08) 19% 20%, transparent 20% 39%, rgba(23,27,32,.08) 39% 40%, transparent 40% 59%, rgba(23,27,32,.08) 59% 60%, transparent 60% 79%, rgba(23,27,32,.08) 79% 80%, transparent 80%),
+        rgba(247,245,238,.9);
+    }
+
+    .h-now {
+      position: absolute;
+      top: 8px;
+      bottom: 8px;
+      left: 46%;
+      width: 2px;
+      background: var(--blue);
+      box-shadow: 0 0 0 5px rgba(79,111,241,.08);
+    }
+
+    .h-task {
+      position: absolute;
+      min-width: 86px;
+      padding: 9px 10px;
+      border-radius: 17px;
+      background: #fff;
+      border: 1px solid rgba(23,27,32,.08);
+      box-shadow: 0 10px 26px rgba(23,27,32,.08);
+      font-size: 12px;
+      font-weight: 820;
+    }
+
+    .h-task span {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 760;
+    }
+
+    .h-task.done { opacity: .55; text-decoration: line-through; }
+    .h-task.active { border-color: rgba(79,111,241,.38); transform: scale(1.08); }
+    .h-task.insert { background: #eef2ff; color: #354bd4; }
+
+    .stack-list {
+      margin-top: 14px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .slice {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 12px;
+      border-radius: 20px;
+      background: rgba(255,255,255,.62);
+      border: 1px solid rgba(23,27,32,.07);
+    }
+
+    .slice .mark {
+      width: 12px;
+      height: 30px;
+      border-radius: 999px;
+      background: var(--sage);
+    }
+
+    .slice:nth-child(2) .mark { background: var(--blue); }
+    .slice:nth-child(3) .mark { background: var(--coral); }
+
+    .option-c .screen {
+      background:
+        linear-gradient(180deg, #f7f5f0, #ece9e0);
+    }
+
+    .ledger {
+      margin-top: 18px;
+      border-radius: 28px;
+      padding: 8px 0 4px;
+      background:
+        repeating-linear-gradient(180deg, rgba(23,27,32,.045) 0 1px, transparent 1px 48px),
+        rgba(255,255,255,.48);
+      border: 1px solid rgba(23,27,32,.07);
+      overflow: hidden;
+    }
+
+    .ledger-row {
+      display: grid;
+      grid-template-columns: 58px 1fr;
+      gap: 10px;
+      min-height: 60px;
+      padding: 10px 14px;
+      align-items: start;
+    }
+
+    .ledger-row .event-card {
+      background: transparent;
+      border-color: transparent;
+      padding: 4px 0;
+      border-radius: 0;
+    }
+
+    .ledger-row.active {
+      margin: 0 8px;
+      border-radius: 23px;
+      background: rgba(255,255,255,.76);
+      box-shadow: 0 16px 36px rgba(23,27,32,.09);
+    }
+
+    .zen-panel {
+      margin-top: 22px;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(300px, 1fr));
+      gap: 22px;
+    }
+
+    .zen-phone .screen {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      background:
+        linear-gradient(145deg, #182126 0%, #243228 46%, #12171d 100%);
+      color: #f4f0e8;
+      padding: 18px 20px 26px;
+    }
+
+    .zen-phone .status { color: rgba(244,240,232,.84); }
+    .zen-phone .island { background: rgba(0,0,0,.5); }
+
+    .zen-center {
+      text-align: center;
+      display: grid;
+      gap: 12px;
+      place-items: center;
+      margin-top: 90px;
+    }
+
+    .zen-kicker {
+      color: rgba(244,240,232,.62);
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    .zen-time {
+      font-size: 76px;
+      line-height: .95;
+      font-weight: 850;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .zen-task {
+      max-width: 240px;
+      font-size: 17px;
+      line-height: 1.45;
+      font-weight: 730;
+    }
+
+    .zen-total {
+      color: rgba(244,240,232,.58);
+      font-size: 12px;
+      font-weight: 720;
+    }
+
+    .zen-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .zen-btn {
+      height: 52px;
+      border-radius: 20px;
+      display: grid;
+      place-items: center;
+      background: rgba(255,255,255,.14);
+      color: rgba(244,240,232,.9);
+      font-size: 14px;
+      font-weight: 850;
+      border: 1px solid rgba(255,255,255,.12);
+    }
+
+    .zen-btn.end {
+      background: #f0e6d2;
+      color: #1b222a;
+    }
+
+    .caption {
+      margin-top: 14px;
+      color: #65707c;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    @media (max-width: 1080px) {
+      .grid, .zen-panel { grid-template-columns: 1fr; }
+      .phone { max-width: 430px; margin: 0 auto; }
+      .hero { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <div>
+        <h1>今天：只处理今天，别让系统抢走注意力</h1>
+        <p>三版都按当前文字 spec 重做：顶部只显示已经开始或暂停的任务；时间线负责选择、开始、Zen、完成；蓝色加号只负责快速插入；Zen 是全屏计时，不直接完成任务。</p>
+      </div>
+      <div class="legend">
+        <span><i class="dot" style="background:var(--blue)"></i>当前或临时插入</span>
+        <span><i class="dot" style="background:var(--sage)"></i>正常计划 / 维护事项</span>
+        <span><i class="dot" style="background:var(--coral)"></i>暂停或被打断</span>
+        <span><i class="dot" style="background:var(--gold)"></i>已完成或可回想</span>
+      </div>
+    </section>
+
+    <section class="grid">
+      <article class="option">
+        <h2>A. Live Tray + Flow Timeline</h2>
+        <p>最贴近当前 spec。顶部是正在计时的 live tray；时间线是主要操作场。</p>
+        <div class="phone">
+          <div class="screen">
+            <div class="status"><span>16:30</span><span>78%</span></div>
+            <div class="island"></div>
+            <div class="top">
+              <div>
+                <div class="title">今天</div>
+                <div class="date">5月30日 · 周六</div>
+              </div>
+              <div class="ghost-button">☰</div>
+            </div>
+
+            <section class="tray">
+              <div class="tray-label"><span>当前任务区</span><span>2 个时间段</span></div>
+              <div class="live-row">
+                <div class="play">Ⅱ</div>
+                <div>
+                  <div class="task-title">论文段落重写</div>
+                  <div class="task-sub">Zen 可进入 · 结束只结束时间段</div>
+                </div>
+                <div class="times">12:08<small>38:40</small></div>
+              </div>
+              <div class="compact-live">
+                <span>暂停 · 查报销材料</span>
+                <span>08:12</span>
+              </div>
+            </section>
+
+            <section class="timeline">
+              <div class="now-line">16:30</div>
+              <div class="event done">
+                <div class="time">09:20</div>
+                <div class="event-card"><strong>查报销到账</strong><span>已完成 · 可在回想引用</span></div>
+              </div>
+              <div class="event">
+                <div class="time">14:00</div>
+                <div class="event-card"><strong>午后阅读</strong><span>暂停过一次 · 累计 24m</span></div>
+              </div>
+              <div class="event current">
+                <div class="time">16:10</div>
+                <div class="event-card">
+                  <strong>论文段落重写</strong>
+                  <span>当前进行中 · 不展示长期目标解释</span>
+                  <div class="actions"><button class="mini-action dark">暂停</button><button class="mini-action">Zen</button><button class="mini-action">完成</button></div>
+                </div>
+              </div>
+              <div class="event inserted">
+                <div class="time">刚刚</div>
+                <div class="event-card"><strong>补交登记表</strong><span>临时插入 · 未判断冲突</span></div>
+              </div>
+              <div class="event">
+                <div class="time">晚上</div>
+                <div class="event-card"><strong>整理明天材料</strong><span>未来任务 · 不抢当前注意力</span></div>
+              </div>
+            </section>
+
+            <div class="plus">+</div>
+            <nav class="tabbar"><span class="on">今天</span><span>任务</span><span>计划</span><span>回想</span></nav>
+          </div>
+        </div>
+        <div class="caption">我会优先推荐这版。它最清楚地表达了“时间线选择，当前任务区计时”。</div>
+      </article>
+
+      <article class="option option-b">
+        <h2>B. Time Horizon</h2>
+        <p>更现代、更流动。用横向时间带强调当前时间，下面保留可扫读任务片段。</p>
+        <div class="phone">
+          <div class="screen">
+            <div class="status"><span>16:30</span><span>78%</span></div>
+            <div class="island"></div>
+            <div class="top">
+              <div>
+                <div class="title">今天</div>
+                <div class="date">当前时间附近</div>
+              </div>
+              <div class="ghost-button">⌁</div>
+            </div>
+
+            <section class="tray">
+              <div class="tray-label"><span>进行中</span><span>当前段 / 今日累计</span></div>
+              <div class="live-row">
+                <div class="play">Ⅱ</div>
+                <div>
+                  <div class="task-title">论文段落重写</div>
+                  <div class="task-sub">从 16:10 开始</div>
+                </div>
+                <div class="times">12:08<small>38:40</small></div>
+              </div>
+            </section>
+
+            <section class="horizon">
+              <div class="horizon-head"><span>13:00</span><span>现在 16:30</span><span>21:00</span></div>
+              <div class="h-track">
+                <div class="h-now"></div>
+                <div class="h-task done" style="left: 4%; top: 18px;">报销<span>完成</span></div>
+                <div class="h-task" style="left: 28%; top: 72px;">阅读<span>暂停</span></div>
+                <div class="h-task active" style="left: 48%; top: 34px;">论文<span>进行中</span></div>
+                <div class="h-task insert" style="left: 64%; top: 78px;">登记表<span>临时</span></div>
+              </div>
+            </section>
+
+            <section class="stack-list">
+              <div class="slice">
+                <div class="mark"></div>
+                <div><div class="task-title">阅读 20 页</div><div class="task-sub">暂停 · 可继续</div></div>
+                <div class="times">24m</div>
+              </div>
+              <div class="slice">
+                <div class="mark"></div>
+                <div><div class="task-title">论文段落重写</div><div class="task-sub">原地展开动作，不自动搬到顶部</div></div>
+                <div class="times">38m</div>
+              </div>
+              <div class="slice">
+                <div class="mark"></div>
+                <div><div class="task-title">补交登记表</div><div class="task-sub">蓝色加号插入</div></div>
+                <div class="times">--</div>
+              </div>
+            </section>
+
+            <div class="plus">+</div>
+            <nav class="tabbar"><span class="on">今天</span><span>任务</span><span>计划</span><span>回想</span></nav>
+          </div>
+        </div>
+        <div class="caption">这版视觉更强，但横向时间带在小屏上实现难度更高，适合作为高级方向。</div>
+      </article>
+
+      <article class="option option-c">
+        <h2>C. Quiet Ledger</h2>
+        <p>更接近安静纸感。把一天当作一页执行账本，但仍然保留任务动作和计时边界。</p>
+        <div class="phone">
+          <div class="screen">
+            <div class="status"><span>16:30</span><span>78%</span></div>
+            <div class="island"></div>
+            <div class="top">
+              <div>
+                <div class="title">今天</div>
+                <div class="date">一页执行记录</div>
+              </div>
+              <div class="ghost-button">☼</div>
+            </div>
+
+            <section class="tray">
+              <div class="tray-label"><span>当前任务</span><span>只显示已开始</span></div>
+              <div class="live-row">
+                <div class="play">Ⅱ</div>
+                <div>
+                  <div class="task-title">论文段落重写</div>
+                  <div class="task-sub">当前段 12:08</div>
+                </div>
+                <div class="times">38:40<small>今日</small></div>
+              </div>
+            </section>
+
+            <section class="ledger">
+              <div class="ledger-row">
+                <div class="time">09:20</div>
+                <div class="event-card"><strong>查报销到账</strong><span>完成后变浅，可引用到回想</span></div>
+              </div>
+              <div class="ledger-row">
+                <div class="time">14:00</div>
+                <div class="event-card"><strong>阅读 20 页</strong><span>暂停，不进入顶部展开</span></div>
+              </div>
+              <div class="ledger-row active">
+                <div class="time">16:10</div>
+                <div class="event-card">
+                  <strong>论文段落重写</strong>
+                  <span>正在记录真实耗时</span>
+                  <div class="actions"><button class="mini-action dark">暂停</button><button class="mini-action">Zen</button><button class="mini-action">完成</button></div>
+                </div>
+              </div>
+              <div class="ledger-row">
+                <div class="time">刚刚</div>
+                <div class="event-card"><strong>补交登记表</strong><span>临时插入，不要求分类</span></div>
+              </div>
+              <div class="ledger-row">
+                <div class="time">晚上</div>
+                <div class="event-card"><strong>整理明天材料</strong><span>未来项保持安静</span></div>
+              </div>
+            </section>
+
+            <div class="plus">+</div>
+            <nav class="tabbar"><span class="on">今天</span><span>任务</span><span>计划</span><span>回想</span></nav>
+          </div>
+        </div>
+        <div class="caption">这版最安静，和回想的纸感接近；风险是如果太像日记，会弱化执行感。</div>
+      </article>
+    </section>
+
+    <section class="zen-panel">
+      <article class="option">
+        <h2>Zen A · Linked</h2>
+        <p>从任务进入，显示关联任务和今日累计。</p>
+        <div class="phone zen-phone">
+          <div class="screen">
+            <div class="status"><span>16:42</span><span>Zen</span></div>
+            <div class="island"></div>
+            <div class="zen-center">
+              <div class="zen-kicker">当前任务</div>
+              <div class="zen-time">25:00</div>
+              <div class="zen-task">论文段落重写</div>
+              <div class="zen-total">结束后写回当前任务 · 今日已 38:40</div>
+            </div>
+            <div class="zen-actions"><div class="zen-btn">暂停</div><div class="zen-btn end">结束时间段</div></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="option">
+        <h2>Zen B · Unlinked</h2>
+        <p>从空状态进入，允许不关联任务，也可以搜索关联。</p>
+        <div class="phone zen-phone">
+          <div class="screen">
+            <div class="status"><span>16:42</span><span>Zen</span></div>
+            <div class="island"></div>
+            <div class="zen-center">
+              <div class="zen-kicker">未关联任务</div>
+              <div class="zen-time">18:34</div>
+              <div class="zen-task">保持专注，不急着分类</div>
+              <div class="zen-total">结束后可选择关联任务或仅保存时间段</div>
+            </div>
+            <div class="zen-actions"><div class="zen-btn">关联任务</div><div class="zen-btn end">结束时间段</div></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="option">
+        <h2>Zen C · Paused</h2>
+        <p>暂停态只改变计时，不把任务标记为完成。</p>
+        <div class="phone zen-phone">
+          <div class="screen">
+            <div class="status"><span>16:42</span><span>Paused</span></div>
+            <div class="island"></div>
+            <div class="zen-center">
+              <div class="zen-kicker">暂停中</div>
+              <div class="zen-time">12:08</div>
+              <div class="zen-task">论文段落重写</div>
+              <div class="zen-total">任务仍在当前任务区，可回到今天继续</div>
+            </div>
+            <div class="zen-actions"><div class="zen-btn">继续</div><div class="zen-btn end">结束时间段</div></div>
+          </div>
+        </div>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
