@@ -81,6 +81,28 @@ public extension V2PrototypeState {
         return true
     }
 
+    @discardableResult
+    mutating func restoreTimelineItem(_ id: String) -> Bool {
+        guard let index = timelineItems.firstIndex(where: { $0.id == id }) else { return false }
+        timelineItems[index].isDone = false
+
+        if let taskID = timelineItems[index].taskID {
+            let liveStatus = activeSessions.first { $0.taskID == taskID }?.status
+            updateTask(taskID) { task in
+                switch liveStatus {
+                case .running:
+                    task.status = .active
+                case .paused:
+                    task.status = .paused
+                case nil:
+                    task.status = .planned
+                }
+            }
+        }
+
+        return true
+    }
+
     mutating func quickAddTodayTask(title: String) {
         let taskID = "task-quick-\(flattenTasks().count + 1)"
         tasks.append(

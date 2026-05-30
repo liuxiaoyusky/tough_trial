@@ -67,6 +67,23 @@ func checkCompletingTimelineItemCompletesLinkedTask() {
     )
 }
 
+func checkRestoringCompletedTimelineItemReopensLinkedTask() {
+    var state = V2PrototypeState.sample()
+
+    _ = state.completeTimelineItem("timeline-writing-current")
+    let restored = state.restoreTimelineItem("timeline-writing-current")
+
+    require(restored, "Restoring an existing completed timeline item should succeed")
+    require(
+        state.timelineItems.first { $0.id == "timeline-writing-current" }?.isDone == false,
+        "Restoring a completed timeline item should mark that item not done"
+    )
+    require(
+        state.flattenTasks().first { $0.id == V2PrototypeState.writingTaskID }?.status == .active,
+        "Restoring a linked item with a running session should reopen the task as active"
+    )
+}
+
 func checkInvalidSessionTaskIDDoesNotMutate() {
     var state = V2PrototypeState.sample()
     let originalSessions = state.activeSessions
@@ -229,6 +246,7 @@ func checkRecallDatesAreIsolated() {
 
 checkActiveSessionLifecycle()
 checkCompletingTimelineItemCompletesLinkedTask()
+checkRestoringCompletedTimelineItemReopensLinkedTask()
 checkInvalidSessionTaskIDDoesNotMutate()
 checkDuplicateLinkedSessionDoesNotMutate()
 checkMultipleActiveSessions()
