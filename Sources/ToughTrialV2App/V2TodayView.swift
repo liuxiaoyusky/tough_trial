@@ -5,18 +5,28 @@ struct V2TodayView: View {
     @ObservedObject var store: V2AppStore
     @State private var isQuickAddPresented = false
     @State private var quickAddTitle = ""
+    @State private var isFocusExpanded = true
 
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottomTrailing) {
                 V2TodayBackground()
 
+                Color.clear
+                    .contentShape(Rectangle())
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        collapseFocus()
+                    }
+
                 VStack(alignment: .leading, spacing: 16) {
                     V2TodayHeader()
 
                     V2TodayFocusCanvas(
                         sessions: store.state.activeSessions,
+                        isExpanded: isFocusExpanded,
                         onFocus: focusSession,
+                        onExpand: expandFocus,
                         onToggle: { store.state.toggleSession($0.id) },
                         onEnd: endSession,
                         onZen: { store.startZen(taskID: $0.taskID, title: $0.title) }
@@ -43,14 +53,14 @@ struct V2TodayView: View {
                     Image(systemName: "plus")
                         .font(.system(size: 28, weight: .medium))
                         .foregroundStyle(.white)
-                        .frame(width: 68, height: 52)
-                        .background(V2Theme.blue, in: Capsule())
+                        .frame(width: 60, height: 60)
+                        .background(V2Theme.blue, in: Circle())
                         .shadow(color: V2Theme.blue.opacity(0.28), radius: 22, y: 12)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("快速添加今日任务")
                 .padding(.trailing, 24)
-                .padding(.bottom, 108)
+                .padding(.bottom, 78)
             }
             .navigationBarHidden(true)
             .sheet(isPresented: $isQuickAddPresented) {
@@ -74,13 +84,22 @@ struct V2TodayView: View {
     }
 
     private func focusSession(_ session: V2ActiveSession) {
-        guard let index = store.state.activeSessions.firstIndex(where: { $0.id == session.id }), index != 0 else {
-            return
-        }
         withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
-            let focused = store.state.activeSessions.remove(at: index)
-            store.state.activeSessions.insert(focused, at: 0)
-            store.state.selectedTaskID = focused.taskID
+            _ = store.state.focusActiveSession(session.id)
+            isFocusExpanded = true
+        }
+    }
+
+    private func expandFocus() {
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+            isFocusExpanded = true
+        }
+    }
+
+    private func collapseFocus() {
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.88)) {
+            isFocusExpanded = false
+            store.state.selectedTaskID = nil
         }
     }
 
@@ -192,7 +211,9 @@ private struct V2TodayHeader: View {
 
 private struct V2TodayFocusCanvas: View {
     let sessions: [V2ActiveSession]
+    let isExpanded: Bool
     let onFocus: (V2ActiveSession) -> Void
+    let onExpand: () -> Void
     let onToggle: (V2ActiveSession) -> Void
     let onEnd: (V2ActiveSession) -> Void
     let onZen: (V2ActiveSession) -> Void
@@ -207,7 +228,9 @@ private struct V2TodayFocusCanvas: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if let primarySession {
+            if sessions.isEmpty {
+                V2TodayEmptyFocus()
+            } else if isExpanded, let primarySession {
                 V2TodayPrimaryFocus(
                     session: primarySession,
                     onToggle: { onToggle(primarySession) },
@@ -215,10 +238,14 @@ private struct V2TodayFocusCanvas: View {
                     onZen: { onZen(primarySession) }
                 )
             } else {
-                V2TodayEmptyFocus()
+                V2TodayCollapsedFocus(
+                    sessions: sessions,
+                    onFocus: onFocus,
+                    onExpand: onExpand
+                )
             }
 
-            if !secondarySessions.isEmpty {
+            if isExpanded && !secondarySessions.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 10) {
                         ForEach(secondarySessions, id: \.id) { session in
@@ -350,6 +377,52 @@ private struct V2TodayEmptyFocus: View {
         .padding(24)
         .frame(maxWidth: .infinity, minHeight: 296, alignment: .topLeading)
         .background(.white.opacity(0.52), in: RoundedRectangle(cornerRadius: 34, style: .continuous))
+    }
+}
+
+private struct V2TodayCollapsedFocus: View {
+    let sessions: [V2ActiveSession]
+    let onFocus: (V2ActiveSession) -> Void
+    let onExpand: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("进行中")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(V2Theme.secondary)
+
+                Spacer()
+
+                Button(action: onExpand) {
+                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(V2Theme.secondary)
+                        .frame(width: 30, height: 30)
+                        .background(.white.opacity(0.58), in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("展开当前任务")
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 9) {
+                    ForEach(sessions, id: \.id) { session in
+                        V2TodaySessionPill(session: session) {
+                            onFocus(session)
+                        }
+                    }
+                }
+                .padding(.horizontal, 1)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(.white.opacity(0.46), in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .stroke(.white.opacity(0.72), lineWidth: 1)
+        )
     }
 }
 
@@ -496,6 +569,16 @@ private struct V2TodayFlowRow: View {
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                             .background(V2Theme.mint, in: Capsule())
+                    } else if item.isDone {
+                        Button(action: onRestore) {
+                            Label("恢复", systemImage: "arrow.uturn.backward")
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(V2Theme.secondary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(.white.opacity(0.72), in: Capsule())
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
 

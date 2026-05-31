@@ -149,6 +149,21 @@ func checkMultipleActiveSessions() {
     require(state.activeSessions.contains { $0.taskID == V2PrototypeState.readingTaskID }, "Ending one session should not remove reading")
 }
 
+func checkFocusingActiveSessionMovesItToPrimary() {
+    var state = V2PrototypeState.sample()
+    let readingSessionID = state.activeSessions[1].id
+
+    let focused = state.focusActiveSession(readingSessionID)
+
+    require(focused, "Focusing an existing active session should succeed")
+    require(state.activeSessions.first?.id == readingSessionID, "Focused session should become the primary session")
+    require(state.selectedTaskID == V2PrototypeState.readingTaskID, "Focusing a linked session should select its task")
+    require(
+        state.activeSessions.contains { $0.taskID == V2PrototypeState.writingTaskID },
+        "Focusing should keep the previous primary session in the active tray"
+    )
+}
+
 func checkSampleSupportsTodayLiveTrayPrototype() {
     let state = V2PrototypeState.sample()
 
@@ -250,6 +265,7 @@ checkRestoringCompletedTimelineItemReopensLinkedTask()
 checkInvalidSessionTaskIDDoesNotMutate()
 checkDuplicateLinkedSessionDoesNotMutate()
 checkMultipleActiveSessions()
+checkFocusingActiveSessionMovesItToPrimary()
 checkSampleSupportsTodayLiveTrayPrototype()
 checkQuickAddTodayTask()
 checkPlanPromptDraftIsolation()

@@ -44,6 +44,15 @@ public extension V2PrototypeState {
         }
     }
 
+    @discardableResult
+    mutating func focusActiveSession(_ id: String) -> Bool {
+        guard let index = activeSessions.firstIndex(where: { $0.id == id }) else { return false }
+        let session = activeSessions.remove(at: index)
+        activeSessions.insert(session, at: 0)
+        selectedTaskID = session.taskID
+        return true
+    }
+
     mutating func endSession(_ id: String, totalElapsed: Int, endLabel: String) {
         guard let index = activeSessions.firstIndex(where: { $0.id == id }) else { return }
         let session = activeSessions.remove(at: index)
