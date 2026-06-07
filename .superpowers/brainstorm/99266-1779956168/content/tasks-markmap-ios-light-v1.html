@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tough Trial · Markmap iOS 结构视角</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    :root {
+      --ink: #20242b;
+      --soft-ink: #5f6570;
+      --muted: #9aa0a9;
+      --page: #f4f3ef;
+      --paper: #fffdf8;
+      --paper-edge: rgba(31, 35, 43, 0.08);
+      --blue: #3577d4;
+      --coral: #e27765;
+      --amber: #d79a2c;
+      --violet: #8f76d6;
+      --green: #49a676;
+      --red: #dc7b74;
+      --gray-line: rgba(91, 97, 105, 0.22);
+      --tab: rgba(255, 255, 255, 0.74);
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.7), transparent 48%),
+        radial-gradient(circle at 20% 18%, rgba(53, 119, 212, 0.10), transparent 34%),
+        radial-gradient(circle at 76% 74%, rgba(73, 166, 118, 0.10), transparent 38%),
+        var(--page);
+      color: var(--ink);
+      font-family: "Avenir Next", "PingFang SC", "SF Pro Text", -apple-system, BlinkMacSystemFont, sans-serif;
+      padding: 26px;
+    }
+
+    .phone {
+      width: 410px;
+      height: 862px;
+      padding: 12px;
+      border-radius: 46px;
+      background: #151922;
+      box-shadow:
+        0 34px 90px rgba(24, 29, 39, 0.22),
+        0 10px 22px rgba(24, 29, 39, 0.12);
+    }
+
+    .screen {
+      position: relative;
+      height: 100%;
+      overflow: hidden;
+      border-radius: 34px;
+      background: var(--paper);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.48);
+    }
+
+    .screen::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.6;
+      background-image:
+        linear-gradient(rgba(47, 55, 67, 0.028) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(47, 55, 67, 0.024) 1px, transparent 1px);
+      background-size: 36px 36px;
+      mask-image: linear-gradient(180deg, transparent 0, #000 118px, #000 86%, transparent 100%);
+    }
+
+    .status {
+      height: 38px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      padding: 0 25px 8px;
+      font-size: 13px;
+      font-weight: 800;
+      color: #11151b;
+    }
+
+    .signal {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      color: #12151b;
+    }
+
+    .bars {
+      display: grid;
+      grid-auto-flow: column;
+      gap: 2px;
+      align-items: end;
+    }
+
+    .bars i {
+      display: block;
+      width: 3px;
+      border-radius: 2px;
+      background: currentColor;
+    }
+
+    .bars i:nth-child(1) { height: 7px; opacity: 0.45; }
+    .bars i:nth-child(2) { height: 10px; opacity: 0.62; }
+    .bars i:nth-child(3) { height: 13px; opacity: 0.8; }
+    .bars i:nth-child(4) { height: 16px; }
+
+    .battery {
+      width: 24px;
+      height: 12px;
+      border-radius: 4px;
+      border: 2px solid currentColor;
+      position: relative;
+    }
+
+    .battery::before {
+      content: "";
+      position: absolute;
+      inset: 2px 7px 2px 2px;
+      border-radius: 2px;
+      background: var(--green);
+    }
+
+    .battery::after {
+      content: "";
+      position: absolute;
+      width: 3px;
+      height: 6px;
+      right: -5px;
+      top: 1px;
+      border-radius: 0 2px 2px 0;
+      background: currentColor;
+    }
+
+    .app {
+      position: relative;
+      height: calc(100% - 38px);
+      padding: 18px 18px 76px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+
+    .title {
+      font-size: 31px;
+      line-height: 1;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .icon-button {
+      width: 39px;
+      height: 39px;
+      display: grid;
+      place-items: center;
+      border-radius: 15px;
+      background: rgba(255, 255, 255, 0.7);
+      border: 1px solid rgba(45, 52, 64, 0.06);
+      box-shadow: 0 8px 18px rgba(37, 43, 53, 0.07);
+    }
+
+    .icon-button svg {
+      width: 19px;
+      height: 19px;
+      color: var(--soft-ink);
+      stroke-width: 2.3;
+    }
+
+    .lens {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 7px;
+      padding: 4px;
+      border-radius: 18px;
+      background: rgba(38, 44, 55, 0.055);
+      margin-bottom: 10px;
+    }
+
+    .lens span {
+      height: 31px;
+      display: grid;
+      place-items: center;
+      border-radius: 14px;
+      color: #7c838d;
+      font-size: 13px;
+      font-weight: 750;
+    }
+
+    .lens .active {
+      color: #1e242e;
+      background: rgba(255, 255, 255, 0.88);
+      box-shadow:
+        0 8px 17px rgba(40, 47, 58, 0.08),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.8);
+    }
+
+    .canvas {
+      position: relative;
+      height: calc(100% - 98px);
+      overflow: hidden;
+      margin: 0 -9px;
+      border-radius: 0;
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+      touch-action: none;
+    }
+
+    .canvas::after {
+      content: "";
+      position: absolute;
+      inset: auto 0 0;
+      height: 64px;
+      pointer-events: none;
+      background: linear-gradient(180deg, transparent, rgba(255, 253, 248, 0.92));
+    }
+
+    .canvas::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: 14px;
+      z-index: 3;
+      pointer-events: none;
+      background: linear-gradient(90deg, transparent, rgba(255, 253, 248, 0.46));
+    }
+
+    .map-layer {
+      position: absolute;
+      width: 760px;
+      height: 600px;
+      left: 0;
+      top: 0;
+      transform: translate(6px, 28px) scale(0.66);
+      transform-origin: 0 0;
+      cursor: grab;
+    }
+
+    .map-layer.dragging {
+      cursor: grabbing;
+    }
+
+    .map-lines {
+      position: absolute;
+      inset: 0;
+      width: 760px;
+      height: 600px;
+      overflow: visible;
+    }
+
+    path {
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .trunk {
+      stroke-width: 7;
+      opacity: 0.82;
+    }
+
+    .branch {
+      stroke-width: 4.8;
+      opacity: 0.62;
+    }
+
+    .branch.selected {
+      stroke-width: 6.4;
+      opacity: 0.9;
+    }
+
+    .twig {
+      stroke-width: 3.6;
+      opacity: 0.5;
+    }
+
+    .node {
+      position: absolute;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      height: 32px;
+      white-space: nowrap;
+      color: var(--soft-ink);
+      font-size: 33px;
+      line-height: 1;
+      font-weight: 750;
+      letter-spacing: 0;
+    }
+
+    .node.small {
+      font-size: 32px;
+      font-weight: 700;
+      color: #6b7078;
+    }
+
+    .node.detail {
+      font-size: 31px;
+      color: #666c74;
+      font-weight: 690;
+    }
+
+    .node.root {
+      color: #1f252d;
+      font-size: 42px;
+      font-weight: 850;
+    }
+
+    .node.active {
+      color: #1e355b;
+      font-size: 38px;
+      font-weight: 850;
+    }
+
+    .node.dim {
+      color: #a1a5ab;
+    }
+
+    .dot {
+      width: 17px;
+      height: 17px;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: #fffaf0;
+      border: 4px solid currentColor;
+      box-shadow: 0 0 0 5px rgba(255, 253, 248, 0.86);
+    }
+
+    .node.root .dot {
+      width: 23px;
+      height: 23px;
+      color: var(--ink);
+      border-width: 5px;
+    }
+
+    .status-dot {
+      width: 12px;
+      height: 12px;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: #fffdf8;
+      border: 2px solid var(--red);
+      box-shadow: 0 0 0 4px rgba(255, 253, 248, 0.78);
+    }
+
+    .status-dot.done {
+      border-color: var(--green);
+      background: var(--green);
+    }
+
+    .status-dot.soft {
+      border-color: rgba(220, 123, 116, 0.58);
+    }
+
+    .node-label {
+      position: relative;
+      padding-bottom: 5px;
+    }
+
+    .node-label::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 3px;
+      border-radius: 999px;
+      background: currentColor;
+      opacity: 0.24;
+    }
+
+    .node.root .node-label::after,
+    .node.active .node-label::after {
+      opacity: 0.36;
+    }
+
+    .meta {
+      color: #9aa0a9;
+      font-size: 20px;
+      font-weight: 700;
+      margin-left: 2px;
+      transform: translateY(1px);
+    }
+
+    .fold {
+      min-width: 36px;
+      height: 24px;
+      display: inline-grid;
+      place-items: center;
+      border-radius: 999px;
+      color: #7a8088;
+      background: rgba(255, 253, 248, 0.9);
+      border: 1px solid rgba(40, 47, 58, 0.12);
+      font-size: 14px;
+      font-weight: 800;
+      box-shadow: 0 4px 10px rgba(39, 47, 56, 0.05);
+    }
+
+    .map-hint {
+      position: absolute;
+      left: 16px;
+      bottom: 16px;
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+      color: #8c929b;
+      font-size: 12px;
+      font-weight: 700;
+      z-index: 4;
+    }
+
+    .map-hint i {
+      width: 6px;
+      height: 6px;
+      display: block;
+      border-radius: 50%;
+      background: var(--blue);
+      opacity: 0.56;
+    }
+
+    .plus {
+      position: absolute;
+      right: 27px;
+      bottom: 88px;
+      z-index: 6;
+      width: 63px;
+      height: 50px;
+      border: 0;
+      border-radius: 999px;
+      background: #3478f6;
+      color: white;
+      font-size: 36px;
+      line-height: 1;
+      box-shadow:
+        0 18px 34px rgba(52, 120, 246, 0.31),
+        inset 0 1px 0 rgba(255, 255, 255, 0.36);
+    }
+
+    .tabbar {
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      bottom: 14px;
+      height: 58px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      align-items: center;
+      padding: 5px;
+      border-radius: 25px;
+      background: var(--tab);
+      border: 1px solid rgba(255, 255, 255, 0.84);
+      box-shadow:
+        0 14px 32px rgba(24, 29, 39, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.82);
+      backdrop-filter: blur(24px);
+    }
+
+    .tab {
+      display: grid;
+      place-items: center;
+      gap: 2px;
+      color: #858b95;
+      font-size: 10px;
+      font-weight: 750;
+    }
+
+    .tab svg {
+      width: 22px;
+      height: 22px;
+      stroke-width: 2.4;
+    }
+
+    .tab.active {
+      color: #20242b;
+    }
+
+    .tab.active .tab-icon {
+      display: grid;
+      place-items: center;
+      width: 48px;
+      height: 34px;
+      border-radius: 18px;
+      background: rgba(35, 40, 50, 0.08);
+      margin-bottom: -3px;
+    }
+  </style>
+</head>
+<body>
+  <div class="phone">
+    <div class="screen">
+      <div class="status">
+        <span>16:30</span>
+        <span class="signal">
+          <span class="bars"><i></i><i></i><i></i><i></i></span>
+          <span>⌁</span>
+          <span class="battery"></span>
+        </span>
+      </div>
+
+      <main class="app">
+        <header class="topbar">
+          <div class="title">任务</div>
+          <div class="actions">
+            <div class="icon-button" aria-label="搜索">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <circle cx="11" cy="11" r="6.5"></circle>
+                <path d="M16 16l4 4"></path>
+              </svg>
+            </div>
+            <div class="icon-button" aria-label="更多">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M6 8h12"></path>
+                <path d="M10 12h8"></path>
+                <path d="M4 16h12"></path>
+              </svg>
+            </div>
+          </div>
+        </header>
+
+        <nav class="lens" aria-label="任务视角">
+          <span class="active">结构</span>
+          <span>时间</span>
+          <span>鱼骨</span>
+        </nav>
+
+        <section class="canvas" aria-label="自媒体成长结构图">
+          <div class="map-layer" id="mapLayer">
+            <svg class="map-lines" viewBox="0 0 760 600" aria-hidden="true">
+              <path class="trunk" stroke="var(--coral)" d="M96 282 C160 282 172 126 245 124"></path>
+              <path class="trunk selected" stroke="var(--blue)" d="M96 282 C158 280 168 246 245 246"></path>
+              <path class="trunk" stroke="var(--amber)" d="M96 282 C162 288 174 366 245 366"></path>
+              <path class="trunk" stroke="var(--violet)" d="M96 282 C164 296 174 480 245 480"></path>
+
+              <path class="branch selected" stroke="var(--blue)" d="M313 246 C360 246 374 170 410 170"></path>
+              <path class="branch selected" stroke="var(--blue)" d="M313 246 C360 246 374 246 410 246"></path>
+              <path class="branch selected" stroke="var(--blue)" d="M313 246 C360 246 374 318 410 318"></path>
+
+              <path class="twig" stroke="var(--blue)" d="M540 246 C584 246 596 204 620 204"></path>
+              <path class="twig" stroke="var(--blue)" d="M540 246 C584 246 596 248 620 248"></path>
+              <path class="twig" stroke="var(--blue)" d="M540 246 C584 246 596 290 620 290"></path>
+
+              <path class="branch" stroke="var(--gray-line)" d="M310 124 C370 124 392 96 452 96"></path>
+              <path class="branch" stroke="var(--gray-line)" d="M310 366 C372 366 392 394 452 394"></path>
+              <path class="branch" stroke="var(--gray-line)" d="M310 480 C372 480 392 518 452 518"></path>
+            </svg>
+
+            <div class="node root" style="left: 24px; top: 266px; color: #252932;">
+              <span class="dot"></span>
+              <span class="node-label">自媒体成长</span>
+            </div>
+
+            <div class="node small dim" style="left: 244px; top: 108px; color: var(--coral);">
+              <span class="dot"></span>
+              <span class="node-label">定位</span>
+              <span class="fold">+3</span>
+            </div>
+
+            <div class="node active" style="left: 244px; top: 230px; color: var(--blue);">
+              <span class="dot"></span>
+              <span class="node-label">选题库</span>
+            </div>
+
+            <div class="node small dim" style="left: 244px; top: 350px; color: var(--amber);">
+              <span class="dot"></span>
+              <span class="node-label">表达</span>
+              <span class="fold">+4</span>
+            </div>
+
+            <div class="node small dim" style="left: 244px; top: 464px; color: var(--violet);">
+              <span class="dot"></span>
+              <span class="node-label">复盘</span>
+              <span class="fold">+2</span>
+            </div>
+
+            <div class="node detail" style="left: 410px; top: 154px;">
+              <span class="status-dot done"></span>
+              <span class="node-label">对标账号</span>
+              <span class="meta">3/3</span>
+            </div>
+
+            <div class="node detail" style="left: 410px; top: 230px;">
+              <span class="status-dot soft"></span>
+              <span class="node-label">爆款拆解</span>
+              <span class="meta">10/100</span>
+            </div>
+
+            <div class="node detail" style="left: 410px; top: 302px;">
+              <span class="status-dot"></span>
+              <span class="node-label">每日选题</span>
+              <span class="meta">0/7</span>
+            </div>
+
+            <div class="node detail" style="left: 620px; top: 188px;">
+              <span class="status-dot soft"></span>
+              <span class="node-label">小红书爆款</span>
+            </div>
+
+            <div class="node detail" style="left: 620px; top: 232px;">
+              <span class="status-dot done"></span>
+              <span class="node-label">视频号案例</span>
+            </div>
+
+            <div class="node detail" style="left: 620px; top: 274px;">
+              <span class="status-dot"></span>
+              <span class="node-label">选题共性</span>
+            </div>
+          </div>
+
+          <div class="map-hint"><i></i>可横向拖动画布，点节点展开细节</div>
+        </section>
+
+        <button class="plus" aria-label="新增任务">+</button>
+
+        <nav class="tabbar" aria-label="主导航">
+          <div class="tab">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M5 12l4 4L19 6"></path>
+            </svg>
+            <span>今天</span>
+          </div>
+          <div class="tab active">
+            <span class="tab-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M4 12h5"></path>
+                <path d="M9 12c2 0 2-5 5-5h6"></path>
+                <path d="M9 12c2 0 2 5 5 5h6"></path>
+              </svg>
+            </span>
+            <span>任务</span>
+          </div>
+          <div class="tab">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M6 18V7a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v11l-6-3z"></path>
+            </svg>
+            <span>计划</span>
+          </div>
+          <div class="tab">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M7 4h10v18H7z"></path>
+              <path d="M10 8h4"></path>
+              <path d="M10 12h4"></path>
+            </svg>
+            <span>回想</span>
+          </div>
+        </nav>
+      </main>
+    </div>
+  </div>
+
+  <script>
+      const layer = document.getElementById("mapLayer");
+    let dragging = false;
+    let startX = 0;
+    let startY = 0;
+    let tx = 6;
+    let ty = 28;
+    const scale = 0.66;
+
+    function render() {
+      layer.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+    }
+
+    layer.addEventListener("pointerdown", (event) => {
+      dragging = true;
+      startX = event.clientX - tx;
+      startY = event.clientY - ty;
+      layer.classList.add("dragging");
+      layer.setPointerCapture(event.pointerId);
+    });
+
+    layer.addEventListener("pointermove", (event) => {
+      if (!dragging) return;
+      tx = Math.min(24, Math.max(-185, event.clientX - startX));
+      ty = Math.min(56, Math.max(-92, event.clientY - startY));
+      render();
+    });
+
+    layer.addEventListener("pointerup", (event) => {
+      dragging = false;
+      layer.classList.remove("dragging");
+      layer.releasePointerCapture(event.pointerId);
+    });
+  </script>
+</body>
+</html>
