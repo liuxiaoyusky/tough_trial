@@ -1,6 +1,6 @@
 # 后端 MVP 引擎核心设计
 
-状态：已确认，任务执行引擎与今天页面已接通
+状态：已确认，任务执行与计划草稿内核实施中
 日期：2026-07-01
 输入：
 
@@ -212,6 +212,9 @@ struct V2AppSnapshot: Codable, Equatable, Sendable {
 - `acceptedAt?`
 
 未接受前不能写正式任务或计划项。
+
+MVP 中 `V2ProposedTaskChange` 只表示“创建新任务”。更新或移动已有任务需要后续
+增加明确的 operation 类型，不能通过复用 proposal id 暗示更新。
 
 ### V2PlanItem
 
@@ -445,5 +448,9 @@ Dreaming suggestion 只能作为草案存在。
 - [x] 第一轮先做 task + execution + JSON。
 - [x] `今天` 与 Zen 切换到 `TodayExecutionSnapshot` 和 Engine commands；首次启动为空状态。
 - [x] 今日紧急新增、开始、暂停、恢复、结束、完成与撤销完成均写入本地 JSON。
+- [x] 计划草稿支持覆盖保存、丢弃，以及 `scheduleOnly / breakdownOnly` 原子接受。
+- [x] 周期目标可由一个草稿生成多个 `PlanItem`；未接受前不修改任务与日程。
+- [x] 新拆解节点使用临时 proposal id 建立父子关系，确认后映射为正式 task id。
+- [ ] `mixed` 草稿接受、局部接受与真实 AI 调用。
 - [ ] `任务`、`计划`、`回想` 的剩余交互逐页切换到 Engine 页面投影。
-- [ ] plan + recall durable commands 与查询。
+- [ ] recall durable commands 与查询。

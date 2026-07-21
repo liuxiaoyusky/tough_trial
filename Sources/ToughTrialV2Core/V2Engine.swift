@@ -13,6 +13,12 @@ public enum V2EngineError: Error, Equatable, Sendable {
     case segmentNotFound(String)
     case segmentAlreadyClosed(String)
     case invalidSegmentEnd
+    case planDraftNotFound(String)
+    case planDraftNotEditable(String)
+    case unsupportedPlanMode(V2PlanDraftRecord.Mode)
+    case invalidPlanDraft(String)
+    case duplicateProposalID(String)
+    case invalidPlanTimeRange(String)
 }
 
 public final class V2Engine {
@@ -529,7 +535,7 @@ public final class V2Engine {
     }
 
     @discardableResult
-    private func commit<Result>(
+    func commit<Result>(
         _ mutation: (inout V2AppSnapshot) throws -> Result
     ) throws -> Result {
         var next = snapshot
@@ -565,7 +571,7 @@ public final class V2Engine {
         }
     }
 
-    private static func validatePlacement(
+    static func validatePlacement(
         parentID: String?,
         contextID: String?,
         tasks: [V2Task],

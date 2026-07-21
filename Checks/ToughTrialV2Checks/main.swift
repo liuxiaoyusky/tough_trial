@@ -380,5 +380,8 @@ try checkEngineTaskTreeAndCompletion()
 try checkEngineExecutionFacts()
 try checkEnginePersistenceAndRecovery()
 try checkTodayProjectionUsesDurableFacts()
+try checkSchedulePlanDraftLifecycle()
+try checkBreakdownPlanDraftCreatesTreeAtomically()
+try checkPlanDraftFailureRollsBackAndDiscardStaysClean()
 
 print("ToughTrialV2Checks passed")
