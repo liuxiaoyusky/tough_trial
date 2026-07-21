@@ -49,7 +49,7 @@ struct V2ZenView: View {
                         .font(.caption.weight(.bold))
                         .foregroundStyle(.white.opacity(0.52))
 
-                    Text(Self.formattedMinutes(max(session.currentElapsed, 25)))
+                    Text(Self.formattedDuration(session.currentElapsedSeconds))
                         .font(.system(size: 74, weight: .bold, design: .rounded))
                         .monospacedDigit()
                         .foregroundStyle(.white)
@@ -112,8 +112,11 @@ struct V2ZenView: View {
         return "结束后写回任务用时；是否完成任务，回到今天时间线决定。"
     }
 
-    private static func formattedMinutes(_ minutes: Int) -> String {
-        let value = max(minutes, 0)
-        return "\(value):00"
+    private static func formattedDuration(_ seconds: Int) -> String {
+        let value = max(seconds, 0)
+        if value >= 3_600 {
+            return "\(value / 3_600):\(String(format: "%02d", (value % 3_600) / 60)):\(String(format: "%02d", value % 60))"
+        }
+        return "\(value / 60):\(String(format: "%02d", value % 60))"
     }
 }

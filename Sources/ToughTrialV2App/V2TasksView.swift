@@ -272,8 +272,9 @@ struct V2TasksView: View {
     private func submitScheduledTask() {
         let title = quickAddTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { return }
-        store.state.quickAddScheduledTask(title: title, on: timeAnchor)
-        closeQuickAdd()
+        if store.quickAddScheduledTask(title: title, on: timeAnchor) {
+            closeQuickAdd()
+        }
     }
 
     private func closeQuickAdd() {

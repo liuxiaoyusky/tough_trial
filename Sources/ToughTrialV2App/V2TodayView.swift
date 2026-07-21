@@ -27,7 +27,7 @@ struct V2TodayView: View {
                         isExpanded: isFocusExpanded,
                         onFocus: focusSession,
                         onExpand: expandFocus,
-                        onToggle: { store.state.toggleSession($0.id) },
+                        onToggle: { store.toggleSession($0.id) },
                         onEnd: endSession,
                         onZen: { store.startZen(taskID: $0.taskID, title: $0.title) }
                     )
@@ -72,20 +72,23 @@ struct V2TodayView: View {
                 .presentationDetents([.height(184)])
                 .presentationDragIndicator(.visible)
             }
+            .alert("操作未完成", isPresented: errorBinding) {
+                Button("知道了") {
+                    store.dismissError()
+                }
+            } message: {
+                Text(store.errorMessage ?? "请稍后再试。")
+            }
         }
     }
 
     private func selectTimelineItem(_ item: V2TimelineItem) {
-        guard let taskID = item.taskID else {
-            store.state.selectedTaskID = nil
-            return
-        }
-        store.state.selectedTaskID = taskID
+        store.selectTodayItem(item)
     }
 
     private func focusSession(_ session: V2ActiveSession) {
         withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
-            _ = store.state.focusActiveSession(session.id)
+            store.focusSession(session.id)
             isFocusExpanded = true
         }
     }
@@ -99,36 +102,32 @@ struct V2TodayView: View {
     private func collapseFocus() {
         withAnimation(.spring(response: 0.34, dampingFraction: 0.88)) {
             isFocusExpanded = false
-            store.state.selectedTaskID = nil
+            store.clearTodaySelection()
         }
     }
 
     private func startTimelineItem(_ item: V2TimelineItem) {
-        let title = item.taskID.flatMap { store.state.taskTitle(for: $0) } ?? item.title
-        _ = store.state.startSession(taskID: item.taskID, title: title, startedAtLabel: currentTimeLabel())
+        store.startTodayItem(item)
     }
 
     private func completeTimelineItem(_ item: V2TimelineItem) {
-        _ = store.state.completeTimelineItem(item.id)
+        store.completeTodayItem(item)
     }
 
     private func restoreTimelineItem(_ item: V2TimelineItem) {
-        _ = store.state.restoreTimelineItem(item.id)
-        if let taskID = item.taskID {
-            store.state.selectedTaskID = taskID
-        }
+        store.restoreTodayItem(item)
     }
 
     private func endSession(_ session: V2ActiveSession) {
-        let elapsed = max(session.currentElapsed, 1)
-        store.state.endSession(session.id, totalElapsed: elapsed, endLabel: currentTimeLabel())
+        store.endSession(session.id)
     }
 
     private func submitQuickAdd() {
         let title = quickAddTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { return }
-        store.state.quickAddTodayTask(title: title)
-        dismissQuickAdd()
+        if store.quickAddTodayTask(title: title) {
+            dismissQuickAdd()
+        }
     }
 
     private func dismissQuickAdd() {
@@ -136,10 +135,15 @@ struct V2TodayView: View {
         isQuickAddPresented = false
     }
 
-    private func currentTimeLabel() -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        return formatter.string(from: Date())
+    private var errorBinding: Binding<Bool> {
+        Binding(
+            get: { store.errorMessage != nil },
+            set: { isPresented in
+                if !isPresented {
+                    store.dismissError()
+                }
+            }
+        )
     }
 }
 
@@ -277,7 +281,7 @@ private struct V2TodayPrimaryFocus: View {
                         .minimumScaleFactor(0.80)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text(V2TodayFormat.minutes(session.currentElapsed))
+                    Text(V2TodayFormat.duration(session.currentElapsedSeconds))
                         .font(V2Theme.TypeRole.timerLarge)
                         .foregroundStyle(V2Theme.ColorRole.textPrimary)
                 }
@@ -288,7 +292,7 @@ private struct V2TodayPrimaryFocus: View {
                     Text("当前")
                         .font(V2Theme.TypeRole.labelSmall)
                         .foregroundStyle(V2Theme.ColorRole.textTertiary)
-                    Text("今日 \(V2TodayFormat.minutes(session.totalElapsed))")
+                    Text("今日 \(V2TodayFormat.duration(session.totalElapsedSeconds))")
                         .font(V2Theme.TypeRole.timerSmall)
                         .foregroundStyle(V2Theme.ColorRole.textSecondary)
                 }
@@ -423,7 +427,7 @@ private struct V2TodaySessionPill: View {
                     .foregroundStyle(V2Theme.ColorRole.textPrimary.opacity(0.86))
                     .lineLimit(1)
 
-                Text(V2TodayFormat.minutes(session.totalElapsed))
+                Text(V2TodayFormat.duration(session.totalElapsedSeconds))
                     .font(V2Theme.TypeRole.timerSmall)
                     .foregroundStyle(V2Theme.ColorRole.textSecondary)
             }
@@ -492,6 +496,7 @@ private struct V2TodayFlowStrip: View {
     }
 
     private func isSelected(_ item: V2TimelineItem) -> Bool {
+        guard item.kind == .task else { return false }
         guard let selectedTaskID else {
             return item.taskID == nil && !item.isDone
         }
@@ -531,7 +536,7 @@ private struct V2TodayFlowRow: View {
             VStack(alignment: .leading, spacing: isSelected ? 10 : 5) {
                 HStack(alignment: .firstTextBaseline, spacing: 9) {
                     V2TodayFlowDot(
-                        isDone: item.isDone,
+                        isDone: isCompletedTask,
                         isFocused: isFocused,
                         color: dotColor,
                         onRestore: onRestore
@@ -539,8 +544,8 @@ private struct V2TodayFlowRow: View {
 
                     Text(item.title)
                         .font(isSelected ? V2Theme.TypeRole.titleLarge : V2Theme.TypeRole.titleMedium)
-                        .foregroundStyle(item.isDone ? V2Theme.ColorRole.textTertiary : V2Theme.ColorRole.textPrimary)
-                        .strikethrough(item.isDone, color: V2Theme.ColorRole.textTertiary)
+                        .foregroundStyle(isCompletedTask ? V2Theme.ColorRole.textTertiary : V2Theme.ColorRole.textPrimary)
+                        .strikethrough(isCompletedTask, color: V2Theme.ColorRole.textTertiary)
                         .lineLimit(2)
 
                     if isFocused {
@@ -550,7 +555,7 @@ private struct V2TodayFlowRow: View {
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                             .background(V2Theme.ColorRole.taskActive, in: Capsule())
-                    } else if item.isDone {
+                    } else if isCompletedTask {
                         Button(action: onRestore) {
                             Label("恢复", systemImage: "arrow.uturn.backward")
                                 .font(V2Theme.TypeRole.labelSmall)
@@ -563,7 +568,7 @@ private struct V2TodayFlowRow: View {
                     }
                 }
 
-                if isSelected || isFocused {
+                if isSelected || isFocused || item.kind == .executionRecord {
                     Text(item.detail)
                         .font(V2Theme.TypeRole.bodySmall)
                         .foregroundStyle(V2Theme.ColorRole.textSecondary)
@@ -571,7 +576,7 @@ private struct V2TodayFlowRow: View {
                         .padding(.leading, 21)
                 }
 
-                if isSelected && !item.isDone {
+                if isSelected && item.kind == .task && !item.isDone {
                     HStack(spacing: 8) {
                         if !isFocused {
                             V2TodayFlowAction(title: "开始", systemName: "play.fill", isPrimary: true, action: onStart)
@@ -591,7 +596,7 @@ private struct V2TodayFlowRow: View {
                     .stroke(rowBorder, lineWidth: 1)
             )
             .clipShape(RoundedRectangle(cornerRadius: isSelected ? 24 : 20, style: .continuous))
-            .opacity(item.isDone ? 0.58 : 1)
+            .opacity(isCompletedTask ? 0.58 : 1)
             .contentShape(RoundedRectangle(cornerRadius: isSelected ? 24 : 20, style: .continuous))
             .onTapGesture(perform: onSelect)
         }
@@ -599,14 +604,15 @@ private struct V2TodayFlowRow: View {
     }
 
     private var timeColor: Color {
-        if item.isDone { return V2Theme.ColorRole.textTertiary.opacity(0.72) }
+        if isCompletedTask { return V2Theme.ColorRole.textTertiary.opacity(0.72) }
         if isFocused { return V2Theme.ColorRole.primary }
         return V2Theme.ColorRole.textSecondary
     }
 
     private var dotColor: Color {
         // Completed work recedes on Today; unfinished work remains easy to spot.
-        if item.isDone { return V2Theme.ColorRole.textTertiary.opacity(0.42) }
+        if item.kind == .executionRecord { return V2Theme.ColorRole.textTertiary.opacity(0.58) }
+        if isCompletedTask { return V2Theme.ColorRole.textTertiary.opacity(0.42) }
         if isFocused { return V2Theme.ColorRole.taskActive }
         return V2Theme.ColorRole.taskIncomplete.opacity(item.taskID == nil ? 1 : 0.78)
     }
@@ -620,6 +626,10 @@ private struct V2TodayFlowRow: View {
     private var rowBorder: Color {
         if isSelected { return V2Theme.ColorRole.primary.opacity(0.16) }
         return V2Theme.ColorRole.outline.opacity(0.40)
+    }
+
+    private var isCompletedTask: Bool {
+        item.kind == .task && item.isDone
     }
 }
 
@@ -734,10 +744,11 @@ private struct V2TodayQuickAddSheet: View {
 }
 
 private enum V2TodayFormat {
-    static func minutes(_ minutes: Int) -> String {
-        if minutes >= 60 {
-            return "\(minutes / 60):\(String(format: "%02d", minutes % 60))"
+    static func duration(_ seconds: Int) -> String {
+        let value = max(0, seconds)
+        if value >= 3_600 {
+            return "\(value / 3_600):\(String(format: "%02d", (value % 3_600) / 60)):\(String(format: "%02d", value % 60))"
         }
-        return "\(minutes)m"
+        return "\(value / 60):\(String(format: "%02d", value % 60))"
     }
 }

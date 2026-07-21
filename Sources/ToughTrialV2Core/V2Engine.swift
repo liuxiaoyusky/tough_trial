@@ -144,7 +144,14 @@ public final class V2Engine {
 
     @discardableResult
     public func restoreTask(id: String, at date: Date = Date()) throws -> V2Task {
-        try updateTaskStatus(id: id, status: .notStarted, completedAt: nil, archivedAt: nil, at: date)
+        let hasOpenExecution = snapshot.executionSegments.contains { $0.taskID == id && $0.endAt == nil }
+        return try updateTaskStatus(
+            id: id,
+            status: hasOpenExecution ? .active : .notStarted,
+            completedAt: nil,
+            archivedAt: nil,
+            at: date
+        )
     }
 
     public func archiveTask(id: String, at date: Date = Date()) throws {
@@ -186,6 +193,91 @@ public final class V2Engine {
     }
 
     @discardableResult
+    public func addTaskToToday(
+        taskID: String,
+        date: Date,
+        calendar: Calendar = .current
+    ) throws -> V2PlanItem {
+        try commit { snapshot in
+            guard let task = snapshot.tasks.first(where: { $0.id == taskID }) else {
+                throw V2EngineError.taskNotFound(taskID)
+            }
+            guard task.status != .archived else {
+                throw V2EngineError.taskArchived(taskID)
+            }
+            let day = calendar.startOfDay(for: date)
+            if let existing = snapshot.planItems.first(where: {
+                $0.taskID == taskID && calendar.isDate($0.date, inSameDayAs: day) && $0.status != .canceled
+            }) {
+                return existing
+            }
+
+            let item = V2PlanItem(
+                id: UUID().uuidString,
+                date: day,
+                taskID: taskID,
+                title: task.title
+            )
+            snapshot.planItems.append(item)
+            return item
+        }
+    }
+
+    @discardableResult
+    public func quickInsertTodayTask(
+        title: String,
+        at date: Date = Date(),
+        calendar: Calendar = .current
+    ) throws -> (task: V2Task, planItem: V2PlanItem) {
+        let title = try normalizedTitle(title)
+        return try commit { snapshot in
+            let task = V2Task(
+                id: UUID().uuidString,
+                title: title,
+                createdAt: date,
+                updatedAt: date
+            )
+            let item = V2PlanItem(
+                id: UUID().uuidString,
+                date: calendar.startOfDay(for: date),
+                startAt: date,
+                taskID: task.id,
+                title: title
+            )
+            snapshot.tasks.append(task)
+            snapshot.planItems.append(item)
+            return (task, item)
+        }
+    }
+
+    @discardableResult
+    public func quickInsertScheduledTask(
+        title: String,
+        on date: Date,
+        calendar: Calendar = .current
+    ) throws -> (task: V2Task, planItem: V2PlanItem) {
+        let title = try normalizedTitle(title)
+        return try commit { snapshot in
+            let createdAt = Date()
+            let task = V2Task(
+                id: UUID().uuidString,
+                title: title,
+                createdAt: createdAt,
+                updatedAt: createdAt
+            )
+            let item = V2PlanItem(
+                id: UUID().uuidString,
+                date: calendar.startOfDay(for: date),
+                taskID: task.id,
+                title: title
+            )
+            snapshot.tasks.append(task)
+            snapshot.planItems.append(item)
+            return (task, item)
+        }
+    }
+
+    @discardableResult
     public func startExecution(
         taskID: String?,
         title: String,
@@ -203,8 +295,10 @@ public final class V2Engine {
 
             let fallbackTitle = linkedTaskIndex.map { snapshot.tasks[$0].title } ?? ""
             let titleSnapshot = try normalizedTitle(title.isEmpty ? fallbackTitle : title)
+            let segmentID = UUID().uuidString
             let segment = V2ExecutionSegment(
-                id: UUID().uuidString,
+                id: segmentID,
+                sessionID: segmentID,
                 taskID: taskID,
                 titleSnapshot: titleSnapshot,
                 startAt: date,
@@ -224,44 +318,132 @@ public final class V2Engine {
 
     @discardableResult
     public func pauseExecution(segmentID: String, at date: Date = Date()) throws -> V2ExecutionSegment {
-        try closeExecution(segmentID: segmentID, at: date, taskStatus: .paused)
+        try closeExecution(
+            segmentID: segmentID,
+            at: date,
+            endReason: .paused,
+            taskStatus: .paused
+        )
     }
 
     @discardableResult
     public func endExecution(segmentID: String, at date: Date = Date()) throws -> V2ExecutionSegment {
-        try closeExecution(segmentID: segmentID, at: date, taskStatus: .notStarted)
+        try closeExecution(
+            segmentID: segmentID,
+            at: date,
+            endReason: .stopped,
+            taskStatus: .notStarted
+        )
+    }
+
+    @discardableResult
+    public func pauseExecutionSession(
+        sessionID: String,
+        at date: Date = Date()
+    ) throws -> V2ExecutionSegment {
+        guard let segment = snapshot.executionSegments.first(where: {
+            $0.logicalSessionID == sessionID && $0.endAt == nil
+        }) else {
+            throw V2EngineError.segmentNotFound(sessionID)
+        }
+        return try pauseExecution(segmentID: segment.id, at: date)
+    }
+
+    @discardableResult
+    public func resumeExecution(
+        after segmentID: String,
+        at date: Date = Date()
+    ) throws -> V2ExecutionSegment {
+        try commit { snapshot in
+            guard let previous = snapshot.executionSegments.first(where: { $0.id == segmentID }) else {
+                throw V2EngineError.segmentNotFound(segmentID)
+            }
+            guard previous.endAt != nil, previous.endReason == .paused else {
+                throw V2EngineError.taskNotPaused(previous.taskID ?? previous.logicalSessionID)
+            }
+            guard !snapshot.executionSegments.contains(where: {
+                $0.logicalSessionID == previous.logicalSessionID && $0.endAt == nil
+            }) else {
+                throw V2EngineError.taskAlreadyRunning(previous.taskID ?? previous.logicalSessionID)
+            }
+
+            let taskIndex = try Self.executableTaskIndex(taskID: previous.taskID, snapshot: snapshot)
+            let segment = V2ExecutionSegment(
+                id: UUID().uuidString,
+                sessionID: previous.logicalSessionID,
+                taskID: previous.taskID,
+                titleSnapshot: taskIndex.map { snapshot.tasks[$0].title } ?? previous.titleSnapshot,
+                startAt: date,
+                source: previous.source,
+                createdFromPlanItemID: previous.createdFromPlanItemID,
+                note: previous.note
+            )
+            snapshot.executionSegments.append(segment)
+            if let taskIndex {
+                snapshot.tasks[taskIndex].status = .active
+                snapshot.tasks[taskIndex].updatedAt = date
+            }
+            return segment
+        }
+    }
+
+    @discardableResult
+    public func resumeExecutionSession(
+        sessionID: String,
+        at date: Date = Date()
+    ) throws -> V2ExecutionSegment {
+        guard let latest = snapshot.executionSegments
+            .filter({ $0.logicalSessionID == sessionID })
+            .max(by: { $0.startAt < $1.startAt }) else {
+            throw V2EngineError.segmentNotFound(sessionID)
+        }
+        return try resumeExecution(after: latest.id, at: date)
+    }
+
+    public func stopExecutionSession(sessionID: String, at date: Date = Date()) throws {
+        try commit { snapshot in
+            guard let index = snapshot.executionSegments.indices
+                .filter({ snapshot.executionSegments[$0].logicalSessionID == sessionID })
+                .max(by: {
+                    snapshot.executionSegments[$0].startAt < snapshot.executionSegments[$1].startAt
+                }) else {
+                throw V2EngineError.segmentNotFound(sessionID)
+            }
+
+            if snapshot.executionSegments[index].endAt == nil {
+                guard date >= snapshot.executionSegments[index].startAt else {
+                    throw V2EngineError.invalidSegmentEnd
+                }
+                snapshot.executionSegments[index].endAt = date
+            } else if snapshot.executionSegments[index].endReason != .paused {
+                throw V2EngineError.segmentAlreadyClosed(snapshot.executionSegments[index].id)
+            }
+            snapshot.executionSegments[index].endReason = .stopped
+
+            if let taskID = snapshot.executionSegments[index].taskID,
+               let taskIndex = snapshot.tasks.firstIndex(where: { $0.id == taskID }),
+               snapshot.tasks[taskIndex].status != .done,
+               snapshot.tasks[taskIndex].status != .archived {
+                snapshot.tasks[taskIndex].status = .notStarted
+                snapshot.tasks[taskIndex].updatedAt = date
+            }
+        }
     }
 
     @discardableResult
     public func resumeTaskExecution(taskID: String, at date: Date = Date()) throws -> V2ExecutionSegment {
-        try commit { snapshot in
-            guard let taskIndex = snapshot.tasks.firstIndex(where: { $0.id == taskID }) else {
-                throw V2EngineError.taskNotFound(taskID)
-            }
-            let task = snapshot.tasks[taskIndex]
-            guard task.status == .paused else {
-                throw V2EngineError.taskNotPaused(taskID)
-            }
-            guard !snapshot.executionSegments.contains(where: { $0.taskID == taskID && $0.endAt == nil }) else {
-                throw V2EngineError.taskAlreadyRunning(taskID)
-            }
-
-            let previous = snapshot.executionSegments
-                .filter { $0.taskID == taskID }
-                .max { $0.startAt < $1.startAt }
-            let segment = V2ExecutionSegment(
-                id: UUID().uuidString,
-                taskID: taskID,
-                titleSnapshot: task.title,
-                startAt: date,
-                source: previous?.source ?? .normal,
-                createdFromPlanItemID: previous?.createdFromPlanItemID
-            )
-            snapshot.executionSegments.append(segment)
-            snapshot.tasks[taskIndex].status = .active
-            snapshot.tasks[taskIndex].updatedAt = date
-            return segment
+        guard let task = snapshot.tasks.first(where: { $0.id == taskID }) else {
+            throw V2EngineError.taskNotFound(taskID)
         }
+        guard task.status == .paused else {
+            throw V2EngineError.taskNotPaused(taskID)
+        }
+        guard let latest = snapshot.executionSegments
+            .filter({ $0.taskID == taskID })
+            .max(by: { $0.startAt < $1.startAt }) else {
+            throw V2EngineError.taskNotPaused(taskID)
+        }
+        return try resumeExecution(after: latest.id, at: date)
     }
 
     public func openExecutionSegments() -> [V2ExecutionSegment] {
@@ -295,6 +477,7 @@ public final class V2Engine {
     private func closeExecution(
         segmentID: String,
         at date: Date,
+        endReason: V2ExecutionSegment.EndReason,
         taskStatus: V2Task.Status
     ) throws -> V2ExecutionSegment {
         try commit { snapshot in
@@ -309,6 +492,7 @@ public final class V2Engine {
             }
 
             snapshot.executionSegments[segmentIndex].endAt = date
+            snapshot.executionSegments[segmentIndex].endReason = endReason
             let taskID = snapshot.executionSegments[segmentIndex].taskID
             if let taskID,
                let taskIndex = snapshot.tasks.firstIndex(where: { $0.id == taskID }),

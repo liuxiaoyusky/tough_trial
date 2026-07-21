@@ -379,5 +379,6 @@ checkRecallDatesAreIsolated()
 try checkEngineTaskTreeAndCompletion()
 try checkEngineExecutionFacts()
 try checkEnginePersistenceAndRecovery()
+try checkTodayProjectionUsesDurableFacts()
 
 print("ToughTrialV2Checks passed")

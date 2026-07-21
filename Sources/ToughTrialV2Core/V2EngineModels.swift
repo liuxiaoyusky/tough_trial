@@ -107,30 +107,41 @@ public struct V2ExecutionSegment: Identifiable, Codable, Equatable, Sendable {
         case urgentInsert
     }
 
+    public enum EndReason: String, Codable, Equatable, Sendable {
+        case paused
+        case stopped
+    }
+
     public var id: String
+    public var sessionID: String?
     public var taskID: String?
     public var titleSnapshot: String
     public var startAt: Date
     public var endAt: Date?
+    public var endReason: EndReason?
     public var source: Source
     public var createdFromPlanItemID: String?
     public var note: String
 
     public init(
         id: String,
+        sessionID: String? = nil,
         taskID: String? = nil,
         titleSnapshot: String,
         startAt: Date,
         endAt: Date? = nil,
+        endReason: EndReason? = nil,
         source: Source,
         createdFromPlanItemID: String? = nil,
         note: String = ""
     ) {
         self.id = id
+        self.sessionID = sessionID
         self.taskID = taskID
         self.titleSnapshot = titleSnapshot
         self.startAt = startAt
         self.endAt = endAt
+        self.endReason = endReason
         self.source = source
         self.createdFromPlanItemID = createdFromPlanItemID
         self.note = note
@@ -138,6 +149,10 @@ public struct V2ExecutionSegment: Identifiable, Codable, Equatable, Sendable {
 
     public func duration(through date: Date) -> TimeInterval {
         max(0, (endAt ?? date).timeIntervalSince(startAt))
+    }
+
+    public var logicalSessionID: String {
+        sessionID ?? id
     }
 }
 

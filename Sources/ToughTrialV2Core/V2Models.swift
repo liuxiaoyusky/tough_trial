@@ -54,7 +54,13 @@ public extension V2TaskNode {
 }
 
 public struct V2TimelineItem: Equatable, Sendable {
+    public enum Kind: Equatable, Sendable {
+        case task
+        case executionRecord
+    }
+
     public var id: String
+    public var kind: Kind
     public var timeLabel: String
     public var title: String
     public var detail: String
@@ -63,6 +69,7 @@ public struct V2TimelineItem: Equatable, Sendable {
 
     public init(
         id: String,
+        kind: Kind = .task,
         timeLabel: String,
         title: String,
         detail: String,
@@ -70,6 +77,7 @@ public struct V2TimelineItem: Equatable, Sendable {
         isDone: Bool
     ) {
         self.id = id
+        self.kind = kind
         self.timeLabel = timeLabel
         self.title = title
         self.detail = detail
@@ -123,6 +131,8 @@ public struct V2ActiveSession: Equatable, Sendable {
     public var startedAtLabel: String
     public var currentElapsed: Int
     public var totalElapsed: Int
+    public var currentElapsedSeconds: Int
+    public var totalElapsedSeconds: Int
     public var status: Status
 
     public init(
@@ -132,6 +142,8 @@ public struct V2ActiveSession: Equatable, Sendable {
         startedAtLabel: String,
         currentElapsed: Int,
         totalElapsed: Int,
+        currentElapsedSeconds: Int? = nil,
+        totalElapsedSeconds: Int? = nil,
         status: Status
     ) {
         self.id = id
@@ -140,6 +152,8 @@ public struct V2ActiveSession: Equatable, Sendable {
         self.startedAtLabel = startedAtLabel
         self.currentElapsed = currentElapsed
         self.totalElapsed = totalElapsed
+        self.currentElapsedSeconds = currentElapsedSeconds ?? currentElapsed * 60
+        self.totalElapsedSeconds = totalElapsedSeconds ?? totalElapsed * 60
         self.status = status
     }
 }

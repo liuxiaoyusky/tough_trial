@@ -1,6 +1,6 @@
 # 后端 MVP 引擎核心设计
 
-状态：已确认，第一阶段实施中
+状态：已确认，任务执行引擎与今天页面已接通
 日期：2026-07-01
 输入：
 
@@ -443,5 +443,7 @@ Dreaming suggestion 只能作为草案存在。
 - [x] 任务持久化采用扁平存储，查询时组装树。
 - [x] 暂停 = 结束当前 segment；恢复 = 新建 segment。
 - [x] 第一轮先做 task + execution + JSON。
-- [ ] SwiftUI 切换到 Engine 页面投影。
+- [x] `今天` 与 Zen 切换到 `TodayExecutionSnapshot` 和 Engine commands；首次启动为空状态。
+- [x] 今日紧急新增、开始、暂停、恢复、结束、完成与撤销完成均写入本地 JSON。
+- [ ] `任务`、`计划`、`回想` 的剩余交互逐页切换到 Engine 页面投影。
 - [ ] plan + recall durable commands 与查询。
