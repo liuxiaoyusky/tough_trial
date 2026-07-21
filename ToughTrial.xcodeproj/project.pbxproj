@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0F8AEA723A49AE691BF2462D /* V2TaskTimeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F34993961036C6FC5F9841CF /* V2TaskTimeView.swift */; };
 		15314799A436E36CED8BA418 /* V2ZenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD88E1F61150B984C4116B93 /* V2ZenView.swift */; };
 		27CB67F1C93967A6AA8F9DAE /* V2PlanAgentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABA6A1FFF10B01D2E53A839 /* V2PlanAgentView.swift */; };
 		33EB924760B7EE7B76AB392B /* V2Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC098F64104F891A638C7642 /* V2Theme.swift */; };
@@ -33,6 +34,7 @@
 		AABA6A1FFF10B01D2E53A839 /* V2PlanAgentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2PlanAgentView.swift; sourceTree = "<group>"; };
 		BD88E1F61150B984C4116B93 /* V2ZenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2ZenView.swift; sourceTree = "<group>"; };
 		CC098F64104F891A638C7642 /* V2Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2Theme.swift; sourceTree = "<group>"; };
+		F34993961036C6FC5F9841CF /* V2TaskTimeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2TaskTimeView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -57,6 +59,7 @@
 				0017D24F92D72A81C33D4620 /* V2RecallView.swift */,
 				95F8A39501533A9884AFF851 /* V2RootView.swift */,
 				A69542D08D6797F0653E8B04 /* V2TasksView.swift */,
+				F34993961036C6FC5F9841CF /* V2TaskTimeView.swift */,
 				CC098F64104F891A638C7642 /* V2Theme.swift */,
 				15AA1100342D40ED57AFDEF9 /* V2TodayView.swift */,
 				BD88E1F61150B984C4116B93 /* V2ZenView.swift */,
@@ -156,6 +159,7 @@
 				27CB67F1C93967A6AA8F9DAE /* V2PlanAgentView.swift in Sources */,
 				45C2E85D52E84C47102BA576 /* V2RecallView.swift in Sources */,
 				653B167A9A5FD4BFECF96609 /* V2RootView.swift in Sources */,
+				0F8AEA723A49AE691BF2462D /* V2TaskTimeView.swift in Sources */,
 				AD0B4FDF8DE3ECD10F5D93DF /* V2TasksView.swift in Sources */,
 				33EB924760B7EE7B76AB392B /* V2Theme.swift in Sources */,
 				D202F730EB92A0E3591F77FC /* V2TodayView.swift in Sources */,

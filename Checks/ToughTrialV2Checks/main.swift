@@ -1,3 +1,4 @@
+import Foundation
 import ToughTrialV2Core
 
 func require(_ condition: @autoclosure () -> Bool, _ message: String) {
@@ -174,6 +175,84 @@ func checkSampleSupportsTodayLiveTrayPrototype() {
     require(state.activeSessions[1].status == .paused, "Second sample session should be paused")
 }
 
+func checkSampleSupportsTaskStructureMap() {
+    let state = V2PrototypeState.sample()
+
+    require(!state.tasks.isEmpty, "Sample state should expose at least one root task context")
+    require(
+        state.tasks.contains { !$0.children.isEmpty },
+        "Sample task structure should include first-level branches"
+    )
+    require(
+        state.tasks.flatMap(\.children).contains { !$0.children.isEmpty },
+        "Sample task structure should include a branch with detail children"
+    )
+    require(
+        state.tasks.flatMap(\.children).flatMap(\.children).contains { !$0.children.isEmpty },
+        "Sample task structure should include third-level leaf branches"
+    )
+    require(
+        state.flattenTasks().contains { $0.status == .done },
+        "Sample task structure should include completed nodes for subtle status rendering"
+    )
+
+    let benchmark = state.flattenTasks().first { $0.id == "task-benchmark-accounts" }
+    let hitBreakdown = state.flattenTasks().first { $0.id == "task-hit-breakdown" }
+    require(benchmark?.completionSignal == 1, "All-done child nodes should fill their parent")
+    require(
+        abs((hitBreakdown?.completionSignal ?? -1) - (1.0 / 3.0)) < 0.0001,
+        "Partially done child nodes should fill their parent proportionally"
+    )
+}
+
+func checkTaskCompletionSignalUsesLeafDoneAndChildAverage() {
+    let doneLeaf = V2TaskNode(
+        id: "done-leaf",
+        title: "Done leaf",
+        subtitle: "",
+        goal: "Test",
+        colorName: "blue",
+        status: .done,
+        spentMinutes: 0
+    )
+    let plannedLeaf = V2TaskNode(
+        id: "planned-leaf",
+        title: "Planned leaf",
+        subtitle: "",
+        goal: "Test",
+        colorName: "blue",
+        status: .planned,
+        spentMinutes: 0
+    )
+    let halfDoneParent = V2TaskNode(
+        id: "half-parent",
+        title: "Half parent",
+        subtitle: "",
+        goal: "Test",
+        colorName: "blue",
+        status: .planned,
+        spentMinutes: 0,
+        children: [doneLeaf, plannedLeaf]
+    )
+    let root = V2TaskNode(
+        id: "root",
+        title: "Root",
+        subtitle: "",
+        goal: "Test",
+        colorName: "blue",
+        status: .planned,
+        spentMinutes: 0,
+        children: [halfDoneParent, doneLeaf]
+    )
+
+    require(doneLeaf.completionSignal == 1, "Done leaf should have completion signal 1")
+    require(plannedLeaf.completionSignal == 0, "Unfinished leaf should have completion signal 0")
+    require(abs(halfDoneParent.completionSignal - 0.5) < 0.0001, "Parent should average child signals")
+    require(abs(root.completionSignal - 0.75) < 0.0001, "Parent averaging should recurse through child parents")
+    require(root.containsTask(id: "planned-leaf"), "Parent task lookup should find nested children")
+    require(!plannedLeaf.containsTask(id: "done-leaf"), "Leaf task lookup should not match sibling nodes")
+}
+
 func checkQuickAddTodayTask() {
     var state = V2PrototypeState.sample()
     let originalTaskCount = state.flattenTasks().count
@@ -186,6 +265,27 @@ func checkQuickAddTodayTask() {
     require(state.selectedTaskID == state.timelineItems.last?.taskID, "Quick add should select the new task")
     require(state.taskTitle(for: state.selectedTaskID ?? "") == "整理维护", "Quick add should use the provided task title")
     requireContains(state.timelineItems.last?.detail ?? "", "可并行", "Quick add detail should mention 可并行")
+}
+
+func checkScheduledTaskModelAndQuickAddIsolation() {
+    var state = V2PrototypeState.sample()
+    let originalTaskCount = state.flattenTasks().count
+    let originalTimelineItems = state.timelineItems
+    let originalScheduleCount = state.scheduledTasks.count
+    let calendar = Calendar(identifier: .gregorian)
+    let date = calendar.date(from: DateComponents(year: 2026, month: 7, day: 24, hour: 17))!
+
+    state.quickAddScheduledTask(title: "临时维护", on: date, calendar: calendar)
+
+    require(state.flattenTasks().count == originalTaskCount + 1, "Scheduled quick add should create a task")
+    require(state.scheduledTasks.count == originalScheduleCount + 1, "Scheduled quick add should create a placement")
+    require(state.timelineItems == originalTimelineItems, "Future scheduling must not mutate today's execution timeline")
+    require(state.scheduledTasks.last?.placement == .allDay, "Date-only quick add should remain all-day until refined")
+    require(
+        calendar.isDate(state.scheduledTasks.last?.date ?? Date.distantPast, inSameDayAs: date),
+        "Scheduled quick add should preserve the selected day"
+    )
+    require(state.selectedTaskID == state.scheduledTasks.last?.taskID, "Scheduled quick add should select its task")
 }
 
 func checkPlanPromptDraftIsolation() {
@@ -267,7 +367,10 @@ checkDuplicateLinkedSessionDoesNotMutate()
 checkMultipleActiveSessions()
 checkFocusingActiveSessionMovesItToPrimary()
 checkSampleSupportsTodayLiveTrayPrototype()
+checkSampleSupportsTaskStructureMap()
+checkTaskCompletionSignalUsesLeafDoneAndChildAverage()
 checkQuickAddTodayTask()
+checkScheduledTaskModelAndQuickAddIsolation()
 checkPlanPromptDraftIsolation()
 checkAcceptPlanDraft()
 checkSaveThenAcceptPlanDraftDoesNotDuplicate()

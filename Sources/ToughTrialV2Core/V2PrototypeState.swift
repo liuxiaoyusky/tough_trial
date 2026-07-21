@@ -8,6 +8,7 @@ public struct V2PrototypeState: Equatable, Sendable {
 
     public var tasks: [V2TaskNode]
     public var timelineItems: [V2TimelineItem]
+    public var scheduledTasks: [V2ScheduledTask]
     public var selectedTaskID: String?
     public var activeSessions: [V2ActiveSession]
     public var planMessages: [V2PlanMessage]
@@ -25,6 +26,7 @@ public struct V2PrototypeState: Equatable, Sendable {
     public init(
         tasks: [V2TaskNode],
         timelineItems: [V2TimelineItem],
+        scheduledTasks: [V2ScheduledTask] = [],
         selectedTaskID: String?,
         activeSessions: [V2ActiveSession],
         planMessages: [V2PlanMessage],
@@ -41,6 +43,7 @@ public struct V2PrototypeState: Equatable, Sendable {
     ) {
         self.tasks = tasks
         self.timelineItems = timelineItems
+        self.scheduledTasks = scheduledTasks
         self.selectedTaskID = selectedTaskID
         self.activeSessions = activeSessions
         self.planMessages = planMessages

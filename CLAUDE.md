@@ -5,14 +5,16 @@
 - Edit this file only. `AGENTS.md` must be a symlink to `CLAUDE.md`.
 - If `AGENTS.md` becomes a normal file, merge any useful content here and restore
   the symlink with `ln -s CLAUDE.md AGENTS.md`.
-- Product design decisions live in `docs/superpowers/specs/`.
+- Product design decisions start at `docs/spec.md`, which links to detailed
+  specs under `docs/superpowers/specs/`.
 
 ## Current Product Direction
 
 Tough Trial is a native SwiftUI iOS prototype for task execution, task cognition,
-planning, and reflection. The current redesign source of truth is:
+planning, and reflection. The current product source-of-truth entrypoint is:
 
-- `docs/superpowers/specs/2026-05-28-tough-trial-interaction-redesign-design.md`
+- `docs/spec.md`
+- `docs/superpowers/specs/2026-05-30-tough-trial-interaction-redesign-design-zh.md`
 
 Follow that spec before changing UI or behavior. In short:
 
@@ -44,7 +46,8 @@ Follow that spec before changing UI or behavior. In short:
 - `Sources/ToughTrialApp/`: SwiftUI app views.
 - `Checks/FocusTimelineCoreChecks/main.swift`: executable core checks.
 - `project.yml`: XcodeGen iOS project definition.
-- `docs/superpowers/specs/`: approved design specs.
+- `docs/spec.md`: current product source-of-truth entrypoint.
+- `docs/superpowers/specs/`: detailed and historical design specs.
 - `docs/superpowers/plans/`: implementation plans.
 
 ## Commands

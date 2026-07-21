@@ -1,3 +1,5 @@
+import Foundation
+
 public extension V2PrototypeState {
     @discardableResult
     mutating func startSession(taskID: String?, title: String, startedAtLabel: String) -> Bool {
@@ -138,6 +140,38 @@ public extension V2PrototypeState {
         selectedTaskID = taskID
     }
 
+    mutating func quickAddScheduledTask(
+        title: String,
+        on date: Date,
+        calendar: Calendar = .current
+    ) {
+        let taskID = "task-scheduled-\(flattenTasks().count + 1)"
+        let day = calendar.startOfDay(for: date)
+        tasks.append(
+            V2TaskNode(
+                id: taskID,
+                title: title,
+                subtitle: "已放到 \(Self.scheduleDateLabel(day, calendar: calendar))",
+                goal: "",
+                colorName: "teal",
+                status: .planned,
+                spentMinutes: 0
+            )
+        )
+        scheduledTasks.append(
+            V2ScheduledTask(
+                id: "schedule-quick-\(scheduledTasks.count + 1)",
+                title: title,
+                detail: "仅确定日期，时间可以之后再安排。",
+                taskID: taskID,
+                date: day,
+                placement: .allDay,
+                isDone: false
+            )
+        )
+        selectedTaskID = taskID
+    }
+
     mutating func sendPlanPrompt(_ prompt: String) {
         planMessages.append(V2PlanMessage(id: "plan-user-\(planMessages.count + 1)", role: .user, text: prompt))
         let draft = V2PlanDraft(
@@ -237,6 +271,11 @@ public extension V2PrototypeState {
 }
 
 private extension V2PrototypeState {
+    static func scheduleDateLabel(_ date: Date, calendar: Calendar) -> String {
+        let components = calendar.dateComponents([.month, .day], from: date)
+        return "\(components.month ?? 1)月\(components.day ?? 1)日"
+    }
+
     mutating func updateTask(_ id: String, mutate: (inout V2TaskNode) -> Void) {
         updateTask(id, in: &tasks, mutate: mutate)
     }
