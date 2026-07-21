@@ -64,6 +64,7 @@ today's execution flow.
 - `Sources/ToughTrialV2Core/`: V2 domain models and prototype state.
 - `Sources/ToughTrialV2Core/V2Engine.swift`: durable task and execution commands.
 - `Sources/ToughTrialV2Core/V2PlanEngine.swift`: durable plan drafts, atomic acceptance, and planning queries.
+- `Sources/ToughTrialV2Core/V2RecallEngine.swift`: daily reflection persistence, execution evidence, and conservative plan-deviation queries.
 - `Sources/ToughTrialV2Core/V2JSONSnapshotStore.swift`: local JSON persistence.
 - `Sources/ToughTrialV2App/`: V2 SwiftUI screens.
 - `Checks/ToughTrialV2Checks/`: executable checks for V2 behavior.

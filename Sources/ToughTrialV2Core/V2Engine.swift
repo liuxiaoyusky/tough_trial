@@ -19,6 +19,9 @@ public enum V2EngineError: Error, Equatable, Sendable {
     case invalidPlanDraft(String)
     case duplicateProposalID(String)
     case invalidPlanTimeRange(String)
+    case planItemNotFound(String)
+    case recallEntryNotFound(String)
+    case blankRecallText
 }
 
 public final class V2Engine {

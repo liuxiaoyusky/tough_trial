@@ -1,6 +1,6 @@
 # 后端 MVP 引擎核心设计
 
-状态：已确认，任务执行与计划草稿内核实施中
+状态：已确认，任务执行、计划草稿与回想证据内核已实施
 日期：2026-07-01
 输入：
 
@@ -119,6 +119,15 @@ AI 和 Dreaming 只能 propose，用户才 commit。
 - AI 整理草稿
 
 回想分析只在回想使用，不回写今天执行流。
+
+MVP 证据规则：
+
+- 同一 `logicalSessionID` 的暂停 / 恢复 segments 合并为一个执行事件，但保留全部 segment IDs。
+- 跨日执行按所选日期切分时长，不复制或改写原始执行事实。
+- 执行与计划只通过精确 `createdFromPlanItemID` 或相同非空 `taskID` 匹配，不按标题猜测。
+- “计划未执行”只判断已经结束的日期；今天只判断明确 `endAt` 已经过期的计划，未来计划和今天无结束时间的计划不提前判断。
+- “执行未计划”可以在执行事实出现后立即呈现。
+- 每个自然日保存一个当前回想条目；再次保存同一天会更新该条目，并验证所有证据引用仍然存在。
 
 ## 4. 核心状态
 
@@ -315,7 +324,7 @@ Dreaming suggestion 只能作为草案存在。
 
 - `saveRecallEntry(date:text:references:)`
 - `updateRecallEntry(id:text:references:)`
-- `acceptRecallDraft(...)`
+- `acceptRecallDraft(...)`（AI 整理草稿阶段，尚未实施）
 
 ### Dreaming Commands
 
@@ -409,9 +418,13 @@ Dreaming suggestion 只能作为草案存在。
 ### RecallChecks
 
 - 按日期读取 execution evidence。
+- 暂停 / 恢复合并为同一逻辑事件，并保留原始 segment IDs。
+- 跨日 execution evidence 按自然日切分时长。
 - 保存并读取 RecallEntry。
 - 引用 segment / task / planItem。
 - 计划未执行、执行未计划能被列为偏差。
+- 今天未到期与未来计划不会提前被列为偏差。
+- 空白文本或无效引用失败时不修改已有回想。
 - 回想分析不影响 today 执行流。
 
 ### PersistenceChecks
@@ -451,6 +464,7 @@ Dreaming suggestion 只能作为草案存在。
 - [x] 计划草稿支持覆盖保存、丢弃，以及 `scheduleOnly / breakdownOnly` 原子接受。
 - [x] 周期目标可由一个草稿生成多个 `PlanItem`；未接受前不修改任务与日程。
 - [x] 新拆解节点使用临时 proposal id 建立父子关系，确认后映射为正式 task id。
+- [x] 回想支持按日查询执行证据、计划偏差，以及带证据引用的单日持久化文本。
+- [x] 回想事件按逻辑 session 合并，跨日切片；偏差不使用标题推断且不提前判断未来计划。
 - [ ] `mixed` 草稿接受、局部接受与真实 AI 调用。
 - [ ] `任务`、`计划`、`回想` 的剩余交互逐页切换到 Engine 页面投影。
-- [ ] recall durable commands 与查询。
