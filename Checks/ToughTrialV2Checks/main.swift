@@ -376,5 +376,8 @@ checkAcceptPlanDraft()
 checkSaveThenAcceptPlanDraftDoesNotDuplicate()
 checkRecallReferenceAndFullscreen()
 checkRecallDatesAreIsolated()
+try checkEngineTaskTreeAndCompletion()
+try checkEngineExecutionFacts()
+try checkEnginePersistenceAndRecovery()
 
 print("ToughTrialV2Checks passed")

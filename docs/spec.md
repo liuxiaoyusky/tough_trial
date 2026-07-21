@@ -1,7 +1,7 @@
 # Tough Trial Product Spec
 
 Status: active source-of-truth entrypoint
-Last updated: 2026-07-20
+Last updated: 2026-07-21
 
 ## Canonical Design Source
 
@@ -62,6 +62,8 @@ today's execution flow.
 ## Implementation Surfaces
 
 - `Sources/ToughTrialV2Core/`: V2 domain models and prototype state.
+- `Sources/ToughTrialV2Core/V2Engine.swift`: durable task and execution commands.
+- `Sources/ToughTrialV2Core/V2JSONSnapshotStore.swift`: local JSON persistence.
 - `Sources/ToughTrialV2App/`: V2 SwiftUI screens.
 - `Checks/ToughTrialV2Checks/`: executable checks for V2 behavior.
 - `docs/superpowers/specs/`: historical and detailed design specs.
