@@ -8,6 +8,7 @@ final class V2AppStore: ObservableObject {
     @Published var isPlanPresented = false
     @Published var zenSession: V2ActiveSession?
     @Published var errorMessage: String?
+    @Published private(set) var pendingPlanDrafts: [V2PlanDraftRecord] = []
 
     private let engine: V2Engine
     private let calendar: Calendar
@@ -50,6 +51,47 @@ final class V2AppStore: ObservableObject {
 
     func openPlanAgent() { isPlanPresented = true }
     func closePlanAgent() { isPlanPresented = false }
+
+    var planDraftCount: Int {
+        let durableIDs = Set(pendingPlanDrafts.map(\.id))
+        guard let currentID = state.currentPlanDraft?.id else { return durableIDs.count }
+        return durableIDs.contains(currentID) ? durableIDs.count : durableIDs.count + 1
+    }
+
+    func setPlanScope(_ scope: String?) {
+        state.setPlanScope(scope)
+    }
+
+    func beginPlanPrompt(_ prompt: String, at date: Date = Date()) {
+        state.beginPlanPrompt(prompt, scope: state.planScope, at: date, calendar: calendar)
+    }
+
+    func confirmPlanClarification(_ response: String, at date: Date = Date()) {
+        state.confirmPlanClarification(response, at: date, calendar: calendar)
+    }
+
+    func saveCurrentPlanDraft(at date: Date = Date()) {
+        guard let draft = state.currentPlanDraft else { return }
+        let record = planDraftRecord(from: draft, at: date)
+        guard mutate(at: date, {
+            try engine.savePlanDraft(record, at: date, calendar: calendar)
+        }) != nil else {
+            return
+        }
+        state.saveCurrentPlanDraft()
+    }
+
+    func acceptCurrentPlanDraft(at date: Date = Date()) {
+        guard let draft = state.currentPlanDraft else { return }
+        let record = planDraftRecord(from: draft, at: date)
+        guard mutate(at: date, {
+            _ = try engine.savePlanDraft(record, at: date, calendar: calendar)
+            return try engine.acceptPlanDraft(id: record.id, at: date, calendar: calendar)
+        }) != nil else {
+            return
+        }
+        state.completeCurrentPlanDraftAcceptance()
+    }
 
     func runClock() async {
         while !Task.isCancelled {
@@ -205,6 +247,9 @@ final class V2AppStore: ObservableObject {
 
     private func refreshProjection(at now: Date) {
         let today = engine.todaySnapshot(date: now, now: now, calendar: calendar)
+        pendingPlanDrafts = engine.snapshot.planDrafts
+            .filter { $0.status == .draft }
+            .sorted { $0.updatedAt > $1.updatedAt }
         var next = state
         next.tasks = projectedTasks(through: now)
         next.timelineItems = today.items.map { item in
@@ -256,6 +301,26 @@ final class V2AppStore: ObservableObject {
                 self.zenSessionID = nil
             }
         }
+    }
+
+    private func planDraftRecord(from draft: V2PlanDraft, at date: Date) -> V2PlanDraftRecord {
+        V2PlanDraftRecord(
+            id: draft.id,
+            mode: .scheduleOnly,
+            userPrompt: draft.userPrompt,
+            summary: "\(draft.title)：\(draft.summary)",
+            proposedPlanItems: draft.scheduleItems.map { item in
+                V2ProposedPlanItem(
+                    id: item.id,
+                    date: item.date,
+                    startAt: item.startAt,
+                    endAt: item.endAt,
+                    title: item.title
+                )
+            },
+            createdAt: date,
+            updatedAt: date
+        )
     }
 
     private func projectedTasks(through now: Date) -> [V2TaskNode] {

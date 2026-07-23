@@ -175,13 +175,53 @@ public struct V2PlanMessage: Equatable, Sendable {
     }
 }
 
+public enum V2PlanConversationPhase: String, Equatable, Sendable {
+    case empty
+    case clarifying
+    case reviewingDraft
+    case complete
+}
+
+public struct V2PlanDraftScheduleItem: Identifiable, Equatable, Sendable {
+    public var id: String
+    public var date: Date
+    public var startAt: Date?
+    public var endAt: Date?
+    public var title: String
+
+    public init(
+        id: String,
+        date: Date,
+        startAt: Date? = nil,
+        endAt: Date? = nil,
+        title: String
+    ) {
+        self.id = id
+        self.date = date
+        self.startAt = startAt
+        self.endAt = endAt
+        self.title = title
+    }
+}
+
 public struct V2PlanDraft: Equatable, Sendable {
+    public var id: String
+    public var userPrompt: String
     public var title: String
     public var summary: String
     public var decisions: [String]
-    public var scheduleItems: [String]
+    public var scheduleItems: [V2PlanDraftScheduleItem]
 
-    public init(title: String, summary: String, decisions: [String], scheduleItems: [String]) {
+    public init(
+        id: String = UUID().uuidString,
+        userPrompt: String,
+        title: String,
+        summary: String,
+        decisions: [String],
+        scheduleItems: [V2PlanDraftScheduleItem]
+    ) {
+        self.id = id
+        self.userPrompt = userPrompt
         self.title = title
         self.summary = summary
         self.decisions = decisions

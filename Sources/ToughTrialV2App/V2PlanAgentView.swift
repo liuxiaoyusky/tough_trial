@@ -4,10 +4,10 @@ import ToughTrialV2Core
 struct V2PlanAgentView: View {
     @ObservedObject var store: V2AppStore
     @State private var promptText = ""
-    @State private var selectedRange = "今天"
+    @State private var showHistory = false
     @FocusState private var isComposerFocused: Bool
 
-    private let ranges = ["今天", "三日", "本周", "本月"]
+    private let quickReplies = ["可以", "想分两次", "先看看时间"]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -15,33 +15,17 @@ struct V2PlanAgentView: View {
 
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 14) {
-                        V2PlanOpeningPrompt()
-
-                        ForEach(store.state.planMessages, id: \.id) { message in
-                            V2PlanMessageBubble(message: message)
-                                .id(message.id)
-                        }
-
-                        if let draft = store.state.currentPlanDraft {
-                            V2PlanDraftCard(
-                                draft: draft,
-                                onContinue: {
-                                    isComposerFocused = true
-                                },
-                                onSave: {
-                                    store.state.saveCurrentPlanDraft()
-                                },
-                                onAccept: {
-                                    store.state.acceptCurrentPlanDraft()
-                                }
-                            )
-                            .id("current-draft")
+                    LazyVStack(alignment: .leading, spacing: 16) {
+                        if store.state.planConversationPhase == .empty {
+                            V2PlanOpeningPrompt(onSelect: beginConversation)
+                        } else {
+                            conversation
                         }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 18)
-                    .padding(.top, 12)
-                    .padding(.bottom, 18)
+                    .padding(.top, store.state.planConversationPhase == .empty ? 112 : 22)
+                    .padding(.bottom, 24)
                 }
                 .scrollDismissesKeyboard(.interactively)
                 .onChange(of: store.state.planMessages.count) { _, _ in
@@ -54,14 +38,68 @@ struct V2PlanAgentView: View {
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             V2PlanComposer(
-                ranges: ranges,
-                selectedRange: $selectedRange,
+                scope: Binding(
+                    get: { store.state.planScope },
+                    set: { store.setPlanScope($0) }
+                ),
                 promptText: $promptText,
+                placeholder: composerPlaceholder,
                 isFocused: $isComposerFocused,
                 onSend: sendPrompt
             )
         }
+        .sheet(isPresented: $showHistory) {
+            V2PlanHistorySheet(drafts: store.pendingPlanDrafts)
+        }
+        .alert("操作未完成", isPresented: errorBinding) {
+            Button("知道了") {
+                store.dismissError()
+            }
+        } message: {
+            Text(store.errorMessage ?? "请稍后再试。")
+        }
         .v2ScreenBackground()
+    }
+
+    private var errorBinding: Binding<Bool> {
+        Binding(
+            get: { store.errorMessage != nil },
+            set: { isPresented in
+                if !isPresented {
+                    store.dismissError()
+                }
+            }
+        )
+    }
+
+    private var conversation: some View {
+        Group {
+            ForEach(store.state.planMessages, id: \.id) { message in
+                V2PlanMessageRow(message: message)
+                    .id(message.id)
+            }
+
+            if store.state.planConversationPhase == .clarifying {
+                V2PlanQuickReplies(replies: quickReplies) { reply in
+                    withAnimation(.snappy(duration: 0.25)) {
+                        store.confirmPlanClarification(reply)
+                    }
+                }
+                .id("plan-quick-replies")
+            }
+
+            if let draft = store.state.currentPlanDraft {
+                V2PlanInlineDraft(
+                    draft: draft,
+                    onSave: { store.saveCurrentPlanDraft() },
+                    onContinue: {
+                        isComposerFocused = true
+                    },
+                    onAccept: { store.acceptCurrentPlanDraft() }
+                )
+                .id("current-plan-draft")
+            }
+        }
     }
 
     private var header: some View {
@@ -71,36 +109,81 @@ struct V2PlanAgentView: View {
             }
             .accessibilityLabel("关闭计划")
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text("计划 Agent")
-                    .font(.system(size: 22, weight: .semibold))
+            VStack(alignment: .leading, spacing: 1) {
+                Text("计划")
+                    .font(.system(size: 23, weight: .bold))
                     .foregroundStyle(V2Theme.ink)
-                Text("草稿 \(store.state.savedPlanDrafts.count)")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(V2Theme.tertiary)
+
+                if let detail = headerDetail {
+                    Text(detail)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(V2Theme.tertiary)
+                }
             }
 
             Spacer()
+
+            Button("历史") {
+                showHistory = true
+            }
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(V2Theme.secondary)
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, 18)
-        .padding(.top, 12)
+        .padding(.top, 10)
         .padding(.bottom, 10)
         .background(V2Theme.page)
+    }
+
+    private var headerDetail: String? {
+        if store.state.planConversationPhase == .reviewingDraft {
+            return "\(max(1, store.planDraftCount))个草稿"
+        }
+        return store.state.planScope
+    }
+
+    private var composerPlaceholder: String {
+        switch store.state.planConversationPhase {
+        case .empty:
+            "说说你想安排什么..."
+        case .clarifying:
+            "也可以直接补充..."
+        case .reviewingDraft:
+            "继续补充或调整..."
+        case .complete:
+            "继续安排其他事情..."
+        }
+    }
+
+    private func beginConversation(_ prompt: String) {
+        promptText = ""
+        withAnimation(.snappy(duration: 0.25)) {
+            store.beginPlanPrompt(prompt)
+        }
     }
 
     private func sendPrompt() {
         let trimmed = promptText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
-        store.state.sendPlanPrompt("\(selectedRange)：\(trimmed)")
         promptText = ""
         isComposerFocused = false
+        withAnimation(.snappy(duration: 0.25)) {
+            if store.state.planConversationPhase == .clarifying {
+                store.confirmPlanClarification(trimmed)
+            } else {
+                store.beginPlanPrompt(trimmed)
+            }
+        }
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
         withAnimation(.snappy(duration: 0.25)) {
             if store.state.currentPlanDraft != nil {
-                proxy.scrollTo("current-draft", anchor: .bottom)
+                proxy.scrollTo("current-plan-draft", anchor: .bottom)
+            } else if store.state.planConversationPhase == .clarifying {
+                proxy.scrollTo("plan-quick-replies", anchor: .bottom)
             } else if let last = store.state.planMessages.last {
                 proxy.scrollTo(last.id, anchor: .bottom)
             }
@@ -109,226 +192,337 @@ struct V2PlanAgentView: View {
 }
 
 private struct V2PlanOpeningPrompt: View {
-    private let examples = ["这周想跑 10 公里", "明天安排得轻一点", "这几天想推进论文"]
+    let onSelect: (String) -> Void
+
+    private let firstRow = ["这周想跑 10 公里", "明天安排得轻一点"]
+    private let secondRow = ["帮我拆解论文写作"]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 22) {
             Text("想怎么安排？")
-                .font(.system(size: 24, weight: .semibold))
+                .font(.system(size: 30, weight: .bold))
                 .foregroundStyle(V2Theme.ink)
 
-            Text("直接说目标、时间感或限制，我会先整理成草稿。")
-                .font(.system(size: 15))
-                .foregroundStyle(V2Theme.secondary)
-
-            ScrollView(.horizontal, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 9) {
                 HStack(spacing: 8) {
-                    ForEach(examples, id: \.self) { example in
-                        Text(example)
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(V2Theme.secondary)
-                            .padding(.horizontal, 11)
-                            .padding(.vertical, 7)
-                            .background(V2Theme.panel)
-                            .clipShape(Capsule())
-                            .overlay(
-                                Capsule().stroke(V2Theme.line, lineWidth: 1)
-                            )
+                    ForEach(firstRow, id: \.self) { prompt in
+                        promptButton(prompt)
+                    }
+                }
+
+                HStack(spacing: 8) {
+                    ForEach(secondRow, id: \.self) { prompt in
+                        promptButton(prompt)
                     }
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 12)
+    }
+
+    private func promptButton(_ prompt: String) -> some View {
+        Button(prompt) {
+            onSelect(prompt)
+        }
+        .font(.system(size: 13, weight: .semibold))
+        .foregroundStyle(V2Theme.secondary)
+        .lineLimit(1)
+        .padding(.horizontal, 13)
+        .frame(height: 38)
+        .background(V2Theme.ColorRole.surfaceRaised)
+        .clipShape(Capsule())
+        .overlay {
+            Capsule().stroke(V2Theme.line, lineWidth: 1)
+        }
+        .buttonStyle(.plain)
     }
 }
 
-private struct V2PlanMessageBubble: View {
+private struct V2PlanMessageRow: View {
     let message: V2PlanMessage
 
-    private var isUser: Bool {
-        message.role == .user
-    }
-
     var body: some View {
-        HStack(alignment: .bottom) {
-            if isUser {
-                Spacer(minLength: 48)
+        if message.role == .user {
+            HStack {
+                Spacer(minLength: 56)
+                Text(message.text)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 15)
+                    .padding(.vertical, 12)
+                    .background(V2Theme.ink)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 7) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(V2Theme.violet)
+                        .frame(width: 18, height: 18)
+                        .background(V2Theme.violet.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
 
-            Text(message.text)
-                .font(.system(size: 15))
-                .foregroundStyle(isUser ? .white : V2Theme.ink)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 11)
-                .background(isUser ? V2Theme.ink : V2Theme.panel)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(isUser ? Color.clear : V2Theme.line, lineWidth: 1)
-                )
+                    Text("计划 Agent")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(V2Theme.secondary)
+                }
 
-            if !isUser {
-                Spacer(minLength: 48)
+                Text(message.text)
+                    .font(.system(size: 16))
+                    .foregroundStyle(V2Theme.ink)
+                    .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
     }
 }
 
-private struct V2PlanDraftCard: View {
+private struct V2PlanQuickReplies: View {
+    let replies: [String]
+    let onSelect: (String) -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(replies, id: \.self) { reply in
+                Button(reply) {
+                    onSelect(reply)
+                }
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(V2Theme.secondary)
+                .padding(.horizontal, 13)
+                .frame(height: 36)
+                .background(V2Theme.ColorRole.surfaceRaised)
+                .clipShape(Capsule())
+                .overlay {
+                    Capsule().stroke(V2Theme.line, lineWidth: 1)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct V2PlanInlineDraft: View {
     let draft: V2PlanDraft
-    let onContinue: () -> Void
     let onSave: () -> Void
+    let onContinue: () -> Void
     let onAccept: () -> Void
 
     var body: some View {
-        V2Panel(padding: 16) {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: "doc.text.sparkle")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(V2Theme.violet)
-                        .frame(width: 28, height: 28)
-                        .background(V2Theme.violet.opacity(0.12))
-                        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        HStack(alignment: .top, spacing: 14) {
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                .fill(V2Theme.violet)
+                .frame(width: 3)
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(draft.title)
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(V2Theme.ink)
-                        Text(draft.summary)
-                            .font(.system(size: 14))
-                            .foregroundStyle(V2Theme.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(draft.title)
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(V2Theme.ink)
+                    Text(draft.summary)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(V2Theme.tertiary)
+                }
+
+                VStack(spacing: 0) {
+                    ForEach(Array(draft.scheduleItems.enumerated()), id: \.element.id) { index, item in
+                        V2PlanDraftRow(item: item)
+                        if index < draft.scheduleItems.count - 1 {
+                            Divider()
+                                .overlay(V2Theme.line)
+                        }
                     }
                 }
 
-                V2DraftSection(title: "决策", items: draft.decisions, systemName: "checkmark.circle")
-                V2DraftSection(title: "安排", items: draft.scheduleItems, systemName: "calendar")
-
                 HStack(spacing: 10) {
-                    Button("继续聊", action: onContinue)
-                        .buttonStyle(V2PlanSecondaryButtonStyle())
-
                     Button("存草稿", action: onSave)
-                        .buttonStyle(V2PlanSecondaryButtonStyle())
+                        .foregroundStyle(V2Theme.tertiary)
 
-                    Button("接受", action: onAccept)
-                        .buttonStyle(V2PlanPrimaryButtonStyle())
+                    Spacer(minLength: 8)
+
+                    Button("继续聊", action: onContinue)
+                        .foregroundStyle(V2Theme.ink)
+
+                    Button("加入计划", action: onAccept)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16)
+                        .frame(height: 42)
+                        .background(V2Theme.blue)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
-                .padding(.top, 2)
+                .font(.system(size: 14, weight: .semibold))
+                .buttonStyle(.plain)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
-private struct V2DraftSection: View {
-    let title: String
-    let items: [String]
-    let systemName: String
+private struct V2PlanDraftRow: View {
+    let item: V2PlanDraftScheduleItem
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label(title, systemImage: systemName)
+        HStack(spacing: 10) {
+            Text(Self.weekdayFormatter.string(from: item.date))
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(V2Theme.tertiary)
+                .frame(width: 44, alignment: .leading)
 
-            VStack(alignment: .leading, spacing: 7) {
-                ForEach(items, id: \.self) { item in
-                    HStack(alignment: .top, spacing: 8) {
-                        Circle()
-                            .fill(V2Theme.mint)
-                            .frame(width: 5, height: 5)
-                            .padding(.top, 7)
+            Text(item.title)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(V2Theme.ink)
+                .lineLimit(2)
 
-                        Text(item)
-                            .font(.system(size: 14))
-                            .foregroundStyle(V2Theme.ink)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-            }
+            Spacer(minLength: 8)
+
+            Text(timeLabel)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(V2Theme.tertiary)
+                .monospacedDigit()
         }
+        .frame(minHeight: 44)
     }
+
+    private var timeLabel: String {
+        guard let startAt = item.startAt else { return "待定" }
+        let hour = Calendar.current.component(.hour, from: startAt)
+        return hour < 12 ? "上午" : Self.timeFormatter.string(from: startAt)
+    }
+
+    private static let weekdayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "EEE"
+        return formatter
+    }()
+
+    private static let timeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter
+    }()
 }
 
 private struct V2PlanComposer: View {
-    let ranges: [String]
-    @Binding var selectedRange: String
+    @Binding var scope: String?
     @Binding var promptText: String
+    let placeholder: String
     var isFocused: FocusState<Bool>.Binding
     let onSend: () -> Void
+
+    private let scopes = ["今天", "明天", "近三日", "本周", "本月"]
 
     private var canSend: Bool {
         !promptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var body: some View {
-        VStack(spacing: 12) {
-            V2SegmentedPicker(items: ranges, selection: $selectedRange)
-
-            HStack(alignment: .bottom, spacing: 10) {
-                TextField("说说你想安排什么", text: $promptText, axis: .vertical)
-                    .lineLimit(1...4)
-                    .font(.system(size: 16))
-                    .focused(isFocused)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 12)
-                    .background(V2Theme.page)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-
-                Button(action: onSend) {
-                    Image(systemName: "arrow.up")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 40, height: 40)
-                        .background(canSend ? V2Theme.ink : V2Theme.tertiary)
-                        .clipShape(Circle())
+        HStack(alignment: .bottom, spacing: 9) {
+            Menu {
+                Button("不指定") { scope = nil }
+                ForEach(scopes, id: \.self) { item in
+                    Button(item) { scope = item }
                 }
-                .buttonStyle(.plain)
-                .disabled(!canSend)
-                .accessibilityLabel("发送")
+            } label: {
+                HStack(spacing: 3) {
+                    Text(scope ?? "选项")
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 9, weight: .bold))
+                }
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(V2Theme.secondary)
+                .padding(.horizontal, 10)
+                .frame(height: 32)
+                .background(V2Theme.panel)
+                .clipShape(Capsule())
+                .overlay {
+                    Capsule().stroke(V2Theme.line, lineWidth: 1)
+                }
             }
+
+            TextField(placeholder, text: $promptText, axis: .vertical)
+                .lineLimit(1...4)
+                .font(.system(size: 15))
+                .focused(isFocused)
+                .padding(.vertical, 8)
+
+            Button(action: onSend) {
+                Image(systemName: "arrow.up")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 40, height: 40)
+                    .background(canSend ? V2Theme.ink : V2Theme.tertiary)
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .disabled(!canSend)
+            .accessibilityLabel("发送")
         }
-        .padding(.horizontal, 18)
-        .padding(.top, 12)
-        .padding(.bottom, 10)
+        .padding(10)
+        .background(V2Theme.ColorRole.surfaceRaised)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(.horizontal, 16)
+        .padding(.top, 10)
+        .padding(.bottom, 8)
         .background(
-            V2Theme.panel
+            V2Theme.page
                 .overlay(alignment: .top) {
                     Rectangle()
-                        .fill(V2Theme.line)
+                        .fill(V2Theme.line.opacity(0.7))
                         .frame(height: 1)
                 }
         )
     }
 }
 
-private struct V2PlanPrimaryButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 14, weight: .semibold))
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 11)
-            .background(V2Theme.ink.opacity(configuration.isPressed ? 0.82 : 1))
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-    }
-}
+private struct V2PlanHistorySheet: View {
+    let drafts: [V2PlanDraftRecord]
+    @Environment(\.dismiss) private var dismiss
 
-private struct V2PlanSecondaryButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 14, weight: .semibold))
-            .foregroundStyle(V2Theme.ink)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 11)
-            .background(V2Theme.page.opacity(configuration.isPressed ? 0.72 : 1))
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(V2Theme.line, lineWidth: 1)
-            )
+    var body: some View {
+        NavigationStack {
+            Group {
+                if drafts.isEmpty {
+                    ContentUnavailableView(
+                        "还没有草稿",
+                        systemImage: "doc.text",
+                        description: Text("保存的计划草稿会出现在这里。")
+                    )
+                } else {
+                    List(drafts) { draft in
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text(draft.userPrompt)
+                                .font(.headline)
+                            Text(draft.summary)
+                                .font(.subheadline)
+                                .foregroundStyle(V2Theme.secondary)
+                                .lineLimit(2)
+                            Text(Self.dateFormatter.string(from: draft.updatedAt))
+                                .font(.caption)
+                                .foregroundStyle(V2Theme.tertiary)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+            }
+            .navigationTitle("草稿历史")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
     }
+
+    private static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M月d日 HH:mm"
+        return formatter
+    }()
 }

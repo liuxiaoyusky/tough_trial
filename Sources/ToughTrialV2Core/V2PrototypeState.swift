@@ -12,6 +12,8 @@ public struct V2PrototypeState: Equatable, Sendable {
     public var selectedTaskID: String?
     public var activeSessions: [V2ActiveSession]
     public var planMessages: [V2PlanMessage]
+    public var planConversationPhase: V2PlanConversationPhase
+    public var planScope: String?
     public var currentPlanDraft: V2PlanDraft?
     public var savedPlanDrafts: [V2PlanDraft]
     public var recallReferences: [V2RecallReference]
@@ -30,6 +32,8 @@ public struct V2PrototypeState: Equatable, Sendable {
         selectedTaskID: String?,
         activeSessions: [V2ActiveSession],
         planMessages: [V2PlanMessage],
+        planConversationPhase: V2PlanConversationPhase = .empty,
+        planScope: String? = nil,
         currentPlanDraft: V2PlanDraft?,
         savedPlanDrafts: [V2PlanDraft],
         recallReferences: [V2RecallReference],
@@ -47,6 +51,8 @@ public struct V2PrototypeState: Equatable, Sendable {
         self.selectedTaskID = selectedTaskID
         self.activeSessions = activeSessions
         self.planMessages = planMessages
+        self.planConversationPhase = planConversationPhase
+        self.planScope = planScope
         self.currentPlanDraft = currentPlanDraft
         self.savedPlanDrafts = savedPlanDrafts
         self.recallReferences = recallReferences

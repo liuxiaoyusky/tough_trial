@@ -299,6 +299,24 @@ func checkPlanPromptDraftIsolation() {
     require(state.timelineItems == originalTimelineItems, "Plan prompt should not mutate timeline items")
 }
 
+func checkPlanConversationClarifiesBeforeDraft() {
+    var state = V2PrototypeState.empty()
+    let calendar = Calendar(identifier: .gregorian)
+    let date = calendar.date(from: DateComponents(year: 2026, month: 7, day: 21, hour: 9))!
+
+    state.beginPlanPrompt("这周想跑 10 公里", at: date, calendar: calendar)
+
+    require(state.planConversationPhase == .clarifying, "A new plan prompt should enter clarification")
+    require(state.planScope == "本周", "The planning range should be inferred without a required picker")
+    require(state.currentPlanDraft == nil, "Clarification must not create a durable-looking draft early")
+
+    state.confirmPlanClarification("可以", at: date, calendar: calendar)
+
+    require(state.planConversationPhase == .reviewingDraft, "A confirmed clarification should reveal the draft")
+    require(state.currentPlanDraft?.scheduleItems.count == 3, "The running example should produce three draft rows")
+    require(state.planMessages.count == 2, "The draft state should replace the question instead of stacking every state")
+}
+
 func checkAcceptPlanDraft() {
     var state = V2PrototypeState.sample()
     let originalTimelineCount = state.timelineItems.count
@@ -372,6 +390,7 @@ checkTaskCompletionSignalUsesLeafDoneAndChildAverage()
 checkQuickAddTodayTask()
 checkScheduledTaskModelAndQuickAddIsolation()
 checkPlanPromptDraftIsolation()
+checkPlanConversationClarifiesBeforeDraft()
 checkAcceptPlanDraft()
 checkSaveThenAcceptPlanDraftDoesNotDuplicate()
 checkRecallReferenceAndFullscreen()

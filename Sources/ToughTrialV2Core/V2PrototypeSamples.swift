@@ -391,9 +391,7 @@ public extension V2PrototypeState {
                     status: .paused
                 )
             ],
-            planMessages: [
-                V2PlanMessage(id: "plan-agent-welcome", role: .agent, text: "说出你想安排的时间段，我先给草稿。")
-            ],
+            planMessages: [],
             currentPlanDraft: nil,
             savedPlanDrafts: [],
             recallReferences: [
