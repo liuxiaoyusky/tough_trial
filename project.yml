@@ -60,3 +60,27 @@ targets:
         CFBundleDisplayName: Tough Trial Focus
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
+  ToughTrialUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: Tests/ToughTrialUITests
+    dependencies:
+      - target: ToughTrial
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.xiaoyuliu.ToughTrialUITests
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  ToughTrial:
+    build:
+      targets:
+        ToughTrial: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - ToughTrialUITests
+    archive:
+      config: Release

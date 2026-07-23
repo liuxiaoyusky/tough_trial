@@ -1,5 +1,6 @@
 import SwiftUI
 import ToughTrialV2Core
+import UIKit
 
 struct V2TodayView: View {
     @ObservedObject var store: V2AppStore
@@ -77,14 +78,9 @@ struct V2TodayView: View {
                         speech.stop()
                         isQuickAddPresented = true
                     }
-                ) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 28, weight: .medium))
-                        .foregroundStyle(V2Theme.ColorRole.onPrimary)
-                        .frame(width: 60, height: 60)
-                        .background(V2Theme.ColorRole.primary, in: Circle())
-                        .shadow(color: V2Theme.ColorRole.primary.opacity(0.24), radius: 18, y: 10)
-                }
+                )
+                .frame(width: 60, height: 60)
+                .shadow(color: V2Theme.ColorRole.primary.opacity(0.24), radius: 18, y: 10)
                 .padding(.trailing, 24)
                 .padding(.bottom, 78)
             }
@@ -849,6 +845,7 @@ private struct V2TodayQuickAddSheet: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .accessibilityLabel("添加任务")
             }
             .padding(.horizontal, 14)
             .frame(height: 54)
@@ -867,69 +864,124 @@ private struct V2TodayQuickAddSheet: View {
     }
 }
 
-private struct V2TodayCaptureButton<Label: View>: View {
+private struct V2TodayCaptureButton: UIViewRepresentable {
     let onTap: () -> Void
     let onVoiceStart: () -> Void
     let onVoiceLock: () -> Void
     let onVoiceEnd: () -> Void
-    @ViewBuilder let label: () -> Label
 
-    @State private var isVoiceGestureActive = false
-    @State private var isVoiceLocked = false
-    @State private var suppressesTap = false
-
-    var body: some View {
-        label()
-            .contentShape(Circle())
-            .onTapGesture {
-                guard !suppressesTap else {
-                    suppressesTap = false
-                    return
-                }
-                onTap()
-            }
-            .gesture(voiceGesture)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("快速添加今日任务")
-            .accessibilityHint("点按输入文字；长按语音输入，上拖锁定")
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
     }
 
-    private var voiceGesture: some Gesture {
-        LongPressGesture(minimumDuration: 0.45, maximumDistance: 1_000)
-            .sequenced(before: DragGesture(minimumDistance: 0))
-            .onChanged { value in
-                switch value {
-                case .first(true):
-                    startVoiceGestureIfNeeded()
-                case .second(true, let drag):
-                    startVoiceGestureIfNeeded()
-                    if let drag,
-                       drag.translation.height < -56,
-                       !isVoiceLocked {
-                        isVoiceLocked = true
-                        onVoiceLock()
-                    }
-                default:
-                    break
-                }
-            }
-            .onEnded { _ in
-                if isVoiceGestureActive && !isVoiceLocked {
-                    onVoiceEnd()
-                }
-                isVoiceGestureActive = false
-                isVoiceLocked = false
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                    suppressesTap = false
-                }
-            }
+    func makeUIView(context: Context) -> V2CaptureControl {
+        let control = V2CaptureControl()
+        control.backgroundColor = UIColor(V2Theme.ColorRole.primary)
+        control.layer.cornerRadius = 30
+        control.layer.masksToBounds = true
+        control.isAccessibilityElement = true
+        control.accessibilityTraits = .button
+        control.accessibilityLabel = "快速添加今日任务"
+        control.accessibilityHint = "点按输入文字；长按语音输入，上拖锁定"
+        control.accessibilityIdentifier = "today.quickAdd"
+
+        let configuration = UIImage.SymbolConfiguration(pointSize: 28, weight: .medium)
+        let icon = UIImageView(
+            image: UIImage(systemName: "plus", withConfiguration: configuration)
+        )
+        icon.translatesAutoresizingMaskIntoConstraints = false
+        icon.tintColor = UIColor(V2Theme.ColorRole.onPrimary)
+        icon.isUserInteractionEnabled = false
+        control.addSubview(icon)
+        NSLayoutConstraint.activate([
+            icon.centerXAnchor.constraint(equalTo: control.centerXAnchor),
+            icon.centerYAnchor.constraint(equalTo: control.centerYAnchor)
+        ])
+
+        connect(control, coordinator: context.coordinator)
+        return control
     }
 
-    private func startVoiceGestureIfNeeded() {
-        guard !isVoiceGestureActive else { return }
-        isVoiceGestureActive = true
-        suppressesTap = true
-        onVoiceStart()
+    func updateUIView(_ control: V2CaptureControl, context: Context) {
+        context.coordinator.parent = self
+        connect(control, coordinator: context.coordinator)
+    }
+
+    private func connect(_ control: V2CaptureControl, coordinator: Coordinator) {
+        control.onTap = { coordinator.parent.onTap() }
+        control.onVoiceStart = { coordinator.parent.onVoiceStart() }
+        control.onVoiceLock = { coordinator.parent.onVoiceLock() }
+        control.onVoiceEnd = { coordinator.parent.onVoiceEnd() }
+    }
+
+    final class Coordinator {
+        var parent: V2TodayCaptureButton
+
+        init(parent: V2TodayCaptureButton) {
+            self.parent = parent
+        }
+    }
+}
+
+private final class V2CaptureControl: UIControl {
+    var onTap: (() -> Void)?
+    var onVoiceStart: (() -> Void)?
+    var onVoiceLock: (() -> Void)?
+    var onVoiceEnd: (() -> Void)?
+
+    private var startPoint = CGPoint.zero
+    private var isVoiceActive = false
+    private var isVoiceLocked = false
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        addTarget(self, action: #selector(handleTap), for: .touchUpInside)
+
+        let longPress = UILongPressGestureRecognizer(
+            target: self,
+            action: #selector(handleLongPress)
+        )
+        longPress.minimumPressDuration = 0.45
+        longPress.allowableMovement = 1_000
+        addGestureRecognizer(longPress)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func accessibilityActivate() -> Bool {
+        onTap?()
+        return true
+    }
+
+    @objc private func handleTap() {
+        onTap?()
+    }
+
+    @objc private func handleLongPress(_ recognizer: UILongPressGestureRecognizer) {
+        let point = recognizer.location(in: self)
+        switch recognizer.state {
+        case .began:
+            startPoint = point
+            isVoiceActive = true
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            onVoiceStart?()
+        case .changed where
+            isVoiceActive && !isVoiceLocked && point.y - startPoint.y < -56:
+            isVoiceLocked = true
+            UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
+            onVoiceLock?()
+        case .ended, .cancelled, .failed:
+            if isVoiceActive && !isVoiceLocked {
+                onVoiceEnd?()
+            }
+            isVoiceActive = false
+            isVoiceLocked = false
+        default:
+            break
+        }
     }
 }
 

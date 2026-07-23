@@ -381,7 +381,7 @@ private struct V2TaskMapCanvas: View {
     @GestureState private var pinchScale: CGFloat = 1
 
     private var branches: [V2TaskNode] {
-        task.children.isEmpty ? [task] : task.children
+        task.children
     }
 
     private let canvasWidth: CGFloat = 900
@@ -464,6 +464,8 @@ private struct V2TaskMapCanvas: View {
                         childCount: 0,
                         isExpanded: true
                     )
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(task.title)
                     .position(x: rootX, y: rootY)
 
                     ForEach(Array(branches.enumerated()), id: \.element.id) { index, branch in
@@ -484,6 +486,8 @@ private struct V2TaskMapCanvas: View {
                             )
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel(branch.title)
+                        .accessibilityValue(isExpanded ? "已展开" : "已收起")
                         .scaleEffect(isSelected ? 1 : 0.96)
                         .opacity(isSelected ? 1 : 0.42)
                         .position(x: branchX, y: branchY(index: index, count: branches.count))
@@ -507,6 +511,8 @@ private struct V2TaskMapCanvas: View {
                             )
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel(node.title)
+                        .accessibilityValue(isExpanded ? "已展开" : "已收起")
                         .scaleEffect(isFocusedDetail ? 1 : 0.98)
                         .opacity(isFocusedDetail ? 1 : 0.68)
                         .transition(.opacity.combined(with: .scale(scale: 0.96)))
@@ -530,6 +536,9 @@ private struct V2TaskMapCanvas: View {
                             childCount: node.children.count,
                             isExpanded: false
                         )
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(node.title)
+                        .accessibilityValue(node.status == .done ? "已完成" : "未完成")
                         .transition(.opacity.combined(with: .scale(scale: 0.94)))
                         .position(
                             x: leafX,

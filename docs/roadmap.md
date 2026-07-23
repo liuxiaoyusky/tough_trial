@@ -1,6 +1,6 @@
 # Tough Trial 交付路线
 
-更新日期：2026-07-23
+更新日期：2026-07-24
 
 ## 当前阶段
 
@@ -127,5 +127,17 @@ Phase 7 的真机验收，不提前标记为通过。
 - 主要 iPhone 尺寸的视觉回归与可访问性检查。
 - 真机连续使用、性能和数据安全检查。
 - TestFlight 交付与问题分级。
+
+状态：本地 Beta 候选已达到 Conditional Pass。核心检查、Swift 构建、通用
+iOS Simulator 构建、无签名 `iphoneos` Release 构建均通过；4 个 UI 测试已在
+iPhone 17 Pro 与 iPhone 17e 分别通过，四个主页面的双尺寸截图已人工检查。
+测试过程中发现并修复了蓝色加号普通点按被长按手势吞掉、孤立任务结构重复绘制
+两项真实回归。完整证据见
+[`docs/qa/2026-07-24-v1-beta-readiness.md`](qa/2026-07-24-v1-beta-readiness.md)。
+
+TestFlight 仍为 Blocked：本机 Xcode 没有当前 Team 的有效账号会话，主 App 与
+Live Activity 扩展均缺 provisioning profile。真实 AI 凭据联调，以及通知、
+Live Activity、麦克风、Apple Pencil 和连续使用仍需真机门禁。因此 M3 尚未
+标记为最终完成，不把本地构建提前表述为已交付 Beta。
 
 该阶段结束时，M3：V1 Beta 完成。
