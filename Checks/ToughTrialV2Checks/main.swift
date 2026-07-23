@@ -412,5 +412,6 @@ try checkWeeklyRunningPlanExecutionRecallLoop()
 try await checkAIPlanningClients()
 try checkMemoryPersistenceCorrectionAndForget()
 try checkTemporaryMemoryExpiryAndCorruptionBoundary()
+try checkDreamingEligibilityAndDraftOnlySuggestions()
 
 print("ToughTrialV2Checks passed")

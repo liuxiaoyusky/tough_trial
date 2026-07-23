@@ -18,7 +18,11 @@ struct V2PlanAgentView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 16) {
                         if store.state.planConversationPhase == .empty {
-                            V2PlanOpeningPrompt(onSelect: beginConversation)
+                            V2PlanOpeningPrompt(
+                                suggestions: store.dreamingCandidates,
+                                onSelect: beginConversation,
+                                onOpenSuggestion: store.openDreamingCandidate
+                            )
                         } else {
                             conversation
                         }
@@ -223,7 +227,9 @@ struct V2PlanAgentView: View {
 }
 
 private struct V2PlanOpeningPrompt: View {
+    let suggestions: [V2DreamingCandidate]
     let onSelect: (String) -> Void
+    let onOpenSuggestion: (V2DreamingCandidate) -> Void
 
     private let firstRow = ["这周想跑 10 公里", "明天安排得轻一点"]
     private let secondRow = ["帮我拆解论文写作"]
@@ -246,6 +252,49 @@ private struct V2PlanOpeningPrompt: View {
                         promptButton(prompt)
                     }
                 }
+            }
+
+            if !suggestions.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("可以顺手看看")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(V2Theme.tertiary)
+                        .padding(.bottom, 5)
+
+                    ForEach(suggestions) { suggestion in
+                        Button {
+                            onOpenSuggestion(suggestion)
+                        } label: {
+                            HStack(spacing: 11) {
+                                Image(systemName: suggestion.kind == .schedule
+                                    ? "calendar.badge.clock"
+                                    : "arrow.triangle.branch")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(V2Theme.violet)
+                                    .frame(width: 28)
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(suggestion.title)
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundStyle(V2Theme.ink)
+                                    Text(suggestion.summary)
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundStyle(V2Theme.tertiary)
+                                        .lineLimit(1)
+                                }
+
+                                Spacer(minLength: 4)
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(V2Theme.tertiary)
+                            }
+                            .frame(minHeight: 52)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.top, 10)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -623,6 +672,7 @@ private struct V2MemoryRow: View {
         switch record.kind {
         case .preference: "heart"
         case .routine: "repeat"
+        case .availability: "calendar.badge.clock"
         case .constraint: "exclamationmark.shield"
         }
     }
@@ -632,6 +682,7 @@ private struct V2MemoryRow: View {
         switch record.kind {
         case .preference: kind = "偏好"
         case .routine: kind = "日常"
+        case .availability: kind = "空闲"
         case .constraint: kind = "约束"
         }
         let source: String
@@ -651,6 +702,9 @@ private struct V2MemoryEditorSheet: View {
     @State private var statement: String
     @State private var kind: V2UserMemoryRecord.Kind
     @State private var isTemporary: Bool
+    @State private var availabilityWeekday: Int
+    @State private var availabilityStart: Date
+    @State private var availabilityDuration: Int
 
     init(store: V2AppStore, record: V2UserMemoryRecord?) {
         self.store = store
@@ -658,6 +712,20 @@ private struct V2MemoryEditorSheet: View {
         _statement = State(initialValue: record?.statement ?? "")
         _kind = State(initialValue: record?.kind ?? .preference)
         _isTemporary = State(initialValue: record?.origin == .temporaryContext)
+        let availability = record?.availability
+        _availabilityWeekday = State(initialValue: availability?.weekday ?? 7)
+        _availabilityStart = State(
+            initialValue: Calendar.current.date(
+                from: DateComponents(
+                    year: 2001,
+                    month: 1,
+                    day: 1,
+                    hour: (availability?.startMinute ?? 9 * 60) / 60,
+                    minute: (availability?.startMinute ?? 9 * 60) % 60
+                )
+            ) ?? Date()
+        )
+        _availabilityDuration = State(initialValue: availability?.durationMinutes ?? 60)
     }
 
     var body: some View {
@@ -676,9 +744,31 @@ private struct V2MemoryEditorSheet: View {
                     Picker("类型", selection: $kind) {
                         Text("偏好").tag(V2UserMemoryRecord.Kind.preference)
                         Text("日常").tag(V2UserMemoryRecord.Kind.routine)
+                        Text("空闲").tag(V2UserMemoryRecord.Kind.availability)
                         Text("约束").tag(V2UserMemoryRecord.Kind.constraint)
                     }
                     .pickerStyle(.segmented)
+                }
+
+                if kind == .availability {
+                    Section("明确的空闲窗口") {
+                        Picker("星期", selection: $availabilityWeekday) {
+                            ForEach(Array(Self.weekdays.enumerated()), id: \.offset) { index, title in
+                                Text(title).tag(index + 1)
+                            }
+                        }
+                        DatePicker(
+                            "开始",
+                            selection: $availabilityStart,
+                            displayedComponents: .hourAndMinute
+                        )
+                        Stepper(
+                            "可用 \(availabilityDuration) 分钟",
+                            value: $availabilityDuration,
+                            in: 15...180,
+                            step: 15
+                        )
+                    }
                 }
 
                 Section {
@@ -701,13 +791,15 @@ private struct V2MemoryEditorSheet: View {
                                 id: record.id,
                                 statement: statement,
                                 kind: kind,
-                                isTemporary: isTemporary
+                                isTemporary: isTemporary,
+                                availability: availability
                             )
                         } else {
                             saved = store.addMemory(
                                 statement: statement,
                                 kind: kind,
-                                isTemporary: isTemporary
+                                isTemporary: isTemporary,
+                                availability: availability
                             )
                         }
                         if saved {
@@ -719,6 +811,18 @@ private struct V2MemoryEditorSheet: View {
             }
         }
     }
+
+    private var availability: V2WeeklyAvailability? {
+        guard kind == .availability else { return nil }
+        let components = Calendar.current.dateComponents([.hour, .minute], from: availabilityStart)
+        return V2WeeklyAvailability(
+            weekday: availabilityWeekday,
+            startMinute: (components.hour ?? 0) * 60 + (components.minute ?? 0),
+            durationMinutes: availabilityDuration
+        )
+    }
+
+    private static let weekdays = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"]
 }
 
 private struct V2PlanHistorySheet: View {

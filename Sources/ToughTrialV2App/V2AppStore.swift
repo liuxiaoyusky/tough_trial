@@ -20,6 +20,7 @@ final class V2AppStore: ObservableObject {
     @Published private(set) var planningSuggestedReplies: [String] = []
     @Published private(set) var memoryRecords: [V2UserMemoryRecord] = []
     @Published private(set) var memoryIssueMessage: String?
+    @Published private(set) var dreamingCandidates: [V2DreamingCandidate] = []
 
     private let engine: V2Engine
     private let planningClient: any V2PlanningClient
@@ -176,6 +177,7 @@ final class V2AppStore: ObservableObject {
         statement: String,
         kind: V2UserMemoryRecord.Kind,
         isTemporary: Bool,
+        availability: V2WeeklyAvailability? = nil,
         at date: Date = Date()
     ) -> Bool {
         let result = mutateMemory(at: date) {
@@ -186,6 +188,7 @@ final class V2AppStore: ObservableObject {
                 expiresAt: isTemporary
                     ? calendar.date(byAdding: .day, value: 7, to: date)
                     : nil,
+                availability: availability,
                 at: date
             )
         }
@@ -198,6 +201,7 @@ final class V2AppStore: ObservableObject {
         statement: String,
         kind: V2UserMemoryRecord.Kind,
         isTemporary: Bool,
+        availability: V2WeeklyAvailability? = nil,
         at date: Date = Date()
     ) -> Bool {
         let result = mutateMemory(at: date) {
@@ -209,6 +213,7 @@ final class V2AppStore: ObservableObject {
                 expiresAt: isTemporary
                     ? calendar.date(byAdding: .day, value: 7, to: date)
                     : nil,
+                availability: availability,
                 at: date
             )
         }
@@ -221,6 +226,15 @@ final class V2AppStore: ObservableObject {
             try memoryEngine.forget(id: id)
         }
         return result != nil
+    }
+
+    func openDreamingCandidate(_ candidate: V2DreamingCandidate) {
+        activePlanningPrompt = candidate.draft.userPrompt
+        state.currentPlanDraft = candidate.draft
+        state.planConversationPhase = .reviewingDraft
+        appendPlanAgentMessage(
+            "\(candidate.summary)\n\n我先把它放成草稿；只有你点“加入计划”后才会保存。"
+        )
     }
 
     func selectRecallDate(_ date: Date, now: Date = Date()) {
@@ -516,6 +530,7 @@ final class V2AppStore: ObservableObject {
             next.selectedTimelineItemID = nil
         }
         state = next
+        refreshDreaming(at: now)
 
         if let zenSessionID {
             zenSession = sessions.first(where: { $0.id == zenSessionID })
@@ -790,6 +805,7 @@ final class V2AppStore: ObservableObject {
         do {
             let result = try operation()
             memoryRecords = memoryEngine.activeRecords(at: date)
+            refreshDreaming(at: date)
             memoryIssueMessage = nil
             errorMessage = nil
             return result
@@ -797,6 +813,15 @@ final class V2AppStore: ObservableObject {
             errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             return nil
         }
+    }
+
+    private func refreshDreaming(at date: Date) {
+        dreamingCandidates = V2DreamingEngine.candidates(
+            snapshot: engine.snapshot,
+            memoryRecords: memoryEngine.activeRecords(at: date),
+            now: date,
+            calendar: calendar
+        )
     }
 
     private static func prototypeStatus(_ status: V2Task.Status) -> V2TaskNode.Status {

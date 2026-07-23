@@ -1,9 +1,22 @@
 import Foundation
 
+public struct V2WeeklyAvailability: Codable, Equatable, Sendable {
+    public var weekday: Int
+    public var startMinute: Int
+    public var durationMinutes: Int
+
+    public init(weekday: Int, startMinute: Int, durationMinutes: Int) {
+        self.weekday = weekday
+        self.startMinute = startMinute
+        self.durationMinutes = durationMinutes
+    }
+}
+
 public struct V2UserMemoryRecord: Identifiable, Codable, Equatable, Sendable {
     public enum Kind: String, Codable, CaseIterable, Equatable, Sendable {
         case preference
         case routine
+        case availability
         case constraint
     }
 
@@ -30,6 +43,7 @@ public struct V2UserMemoryRecord: Identifiable, Codable, Equatable, Sendable {
     public var createdAt: Date
     public var updatedAt: Date
     public var expiresAt: Date?
+    public var availability: V2WeeklyAvailability?
 
     public init(
         id: String = UUID().uuidString,
@@ -42,7 +56,8 @@ public struct V2UserMemoryRecord: Identifiable, Codable, Equatable, Sendable {
         supersedesID: String? = nil,
         createdAt: Date,
         updatedAt: Date,
-        expiresAt: Date? = nil
+        expiresAt: Date? = nil,
+        availability: V2WeeklyAvailability? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -55,6 +70,7 @@ public struct V2UserMemoryRecord: Identifiable, Codable, Equatable, Sendable {
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.expiresAt = expiresAt
+        self.availability = availability
     }
 }
 
@@ -78,6 +94,7 @@ public enum V2MemoryError: Error, Equatable, LocalizedError, Sendable {
     case blankStatement
     case recordNotFound(String)
     case recordAlreadySuperseded(String)
+    case invalidAvailability
 
     public var errorDescription: String? {
         switch self {
@@ -87,6 +104,8 @@ public enum V2MemoryError: Error, Equatable, LocalizedError, Sendable {
             "这条记忆已经不存在。"
         case .recordAlreadySuperseded:
             "这条记忆已有更新版本，请刷新后再修改。"
+        case .invalidAvailability:
+            "空闲时间需要有效的星期、开始时间和时长。"
         }
     }
 }
@@ -171,9 +190,11 @@ public final class V2MemoryEngine {
         origin: V2UserMemoryRecord.Origin,
         evidenceIDs: [String] = [],
         expiresAt: Date? = nil,
+        availability: V2WeeklyAvailability? = nil,
         at date: Date = Date()
     ) throws -> V2UserMemoryRecord {
         let statement = try normalized(statement)
+        let availability = try validatedAvailability(availability, for: kind)
         let record = V2UserMemoryRecord(
             kind: kind,
             scope: scope,
@@ -183,7 +204,8 @@ public final class V2MemoryEngine {
             evidenceIDs: unique(evidenceIDs),
             createdAt: date,
             updatedAt: date,
-            expiresAt: expiresAt
+            expiresAt: expiresAt,
+            availability: availability
         )
         return try commit { snapshot in
             snapshot.records.append(record)
@@ -199,6 +221,7 @@ public final class V2MemoryEngine {
         origin: V2UserMemoryRecord.Origin? = nil,
         evidenceIDs: [String]? = nil,
         expiresAt: Date? = nil,
+        availability: V2WeeklyAvailability? = nil,
         at date: Date = Date()
     ) throws -> V2UserMemoryRecord {
         let statement = try normalized(statement)
@@ -209,8 +232,13 @@ public final class V2MemoryEngine {
             guard !snapshot.records.contains(where: { $0.supersedesID == id }) else {
                 throw V2MemoryError.recordAlreadySuperseded(id)
             }
+            let correctedKind = kind ?? original.kind
+            let correctedAvailability = try validatedAvailability(
+                availability ?? original.availability,
+                for: correctedKind
+            )
             let corrected = V2UserMemoryRecord(
-                kind: kind ?? original.kind,
+                kind: correctedKind,
                 scope: original.scope,
                 scopeID: original.scopeID,
                 statement: statement,
@@ -219,7 +247,8 @@ public final class V2MemoryEngine {
                 supersedesID: original.id,
                 createdAt: original.createdAt,
                 updatedAt: date,
-                expiresAt: expiresAt
+                expiresAt: expiresAt,
+                availability: correctedAvailability
             )
             snapshot.records.append(corrected)
             return corrected
@@ -307,5 +336,20 @@ public final class V2MemoryEngine {
     private func unique(_ values: [String]) -> [String] {
         var seen = Set<String>()
         return values.filter { seen.insert($0).inserted }
+    }
+
+    private func validatedAvailability(
+        _ availability: V2WeeklyAvailability?,
+        for kind: V2UserMemoryRecord.Kind
+    ) throws -> V2WeeklyAvailability? {
+        guard kind == .availability else { return nil }
+        guard let availability,
+              (1...7).contains(availability.weekday),
+              (0...1_439).contains(availability.startMinute),
+              (15...720).contains(availability.durationMinutes)
+        else {
+            throw V2MemoryError.invalidAvailability
+        }
+        return availability
     }
 }
