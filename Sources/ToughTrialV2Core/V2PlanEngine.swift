@@ -110,7 +110,32 @@ public extension V2Engine {
                 )
                 createdPlanItems = []
             case .mixed:
-                throw V2EngineError.unsupportedPlanMode(.mixed)
+                guard !draft.proposedTaskChanges.isEmpty,
+                      !draft.proposedPlanItems.isEmpty else {
+                    throw V2EngineError.invalidPlanDraft("mixed requires task changes and plan items")
+                }
+                createdTasks = try Self.materializeTaskProposals(
+                    draft.proposedTaskChanges,
+                    at: date,
+                    snapshot: &snapshot
+                )
+                let taskIDByProposalID = Dictionary(
+                    uniqueKeysWithValues: zip(
+                        draft.proposedTaskChanges.map(\.id),
+                        createdTasks.map(\.id)
+                    )
+                )
+                let resolvedPlanItems = try Self.resolvePlanItemTaskReferences(
+                    draft.proposedPlanItems,
+                    taskIDByProposalID: taskIDByProposalID
+                )
+                createdPlanItems = try Self.materializePlanItems(
+                    resolvedPlanItems,
+                    sourceDraftID: draft.id,
+                    calendar: calendar,
+                    snapshot: snapshot
+                )
+                snapshot.planItems.append(contentsOf: createdPlanItems)
             }
 
             snapshot.planDrafts[draftIndex].status = .accepted
@@ -215,7 +240,32 @@ private extension V2Engine {
                 snapshot: &validationSnapshot
             )
         case .mixed:
-            throw V2EngineError.unsupportedPlanMode(.mixed)
+            guard !draft.proposedTaskChanges.isEmpty,
+                  !draft.proposedPlanItems.isEmpty else {
+                throw V2EngineError.invalidPlanDraft("mixed requires task changes and plan items")
+            }
+            var validationSnapshot = snapshot
+            let createdTasks = try materializeTaskProposals(
+                draft.proposedTaskChanges,
+                at: date,
+                snapshot: &validationSnapshot
+            )
+            let taskIDByProposalID = Dictionary(
+                uniqueKeysWithValues: zip(
+                    draft.proposedTaskChanges.map(\.id),
+                    createdTasks.map(\.id)
+                )
+            )
+            let resolvedPlanItems = try resolvePlanItemTaskReferences(
+                draft.proposedPlanItems,
+                taskIDByProposalID: taskIDByProposalID
+            )
+            _ = try materializePlanItems(
+                resolvedPlanItems,
+                sourceDraftID: draft.id,
+                calendar: calendar,
+                snapshot: validationSnapshot
+            )
         }
     }
 
@@ -290,6 +340,9 @@ private extension V2Engine {
         _ = try uniqueProposalIDs(proposals.map(\.id))
 
         return try proposals.map { proposal in
+            guard proposal.proposedTaskID == nil else {
+                throw V2EngineError.invalidPlanDraft("unresolved proposed task reference")
+            }
             let linkedTask: V2Task?
             if let taskID = proposal.taskID {
                 guard let task = snapshot.tasks.first(where: { $0.id == taskID }) else {
@@ -323,6 +376,27 @@ private extension V2Engine {
                 title: title,
                 sourceDraftID: sourceDraftID
             )
+        }
+    }
+
+    static func resolvePlanItemTaskReferences(
+        _ proposals: [V2ProposedPlanItem],
+        taskIDByProposalID: [String: String]
+    ) throws -> [V2ProposedPlanItem] {
+        try proposals.map { proposal in
+            guard !(proposal.taskID != nil && proposal.proposedTaskID != nil) else {
+                throw V2EngineError.invalidPlanDraft("plan item has two task references")
+            }
+            guard let proposedTaskID = proposal.proposedTaskID else {
+                return proposal
+            }
+            guard let taskID = taskIDByProposalID[proposedTaskID] else {
+                throw V2EngineError.invalidPlanDraft("unknown proposed task reference")
+            }
+            var resolved = proposal
+            resolved.taskID = taskID
+            resolved.proposedTaskID = nil
+            return resolved
         }
     }
 

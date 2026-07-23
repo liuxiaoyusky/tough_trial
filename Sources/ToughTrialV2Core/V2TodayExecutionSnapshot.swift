@@ -24,6 +24,7 @@ public struct V2TodayItemSnapshot: Identifiable, Equatable, Sendable {
 
     public var id: String
     public var kind: Kind
+    public var planItemID: String?
     public var taskID: String?
     public var title: String
     public var plannedAt: Date?
@@ -33,6 +34,7 @@ public struct V2TodayItemSnapshot: Identifiable, Equatable, Sendable {
     public init(
         id: String,
         kind: Kind,
+        planItemID: String? = nil,
         taskID: String?,
         title: String,
         plannedAt: Date?,
@@ -41,6 +43,7 @@ public struct V2TodayItemSnapshot: Identifiable, Equatable, Sendable {
     ) {
         self.id = id
         self.kind = kind
+        self.planItemID = planItemID
         self.taskID = taskID
         self.title = title
         self.plannedAt = plannedAt
@@ -57,6 +60,7 @@ public struct V2ExecutionSessionSnapshot: Identifiable, Equatable, Sendable {
 
     public var id: String
     public var latestSegmentID: String
+    public var planItemID: String?
     public var taskID: String?
     public var title: String
     public var startedAt: Date
@@ -68,6 +72,7 @@ public struct V2ExecutionSessionSnapshot: Identifiable, Equatable, Sendable {
     public init(
         id: String,
         latestSegmentID: String,
+        planItemID: String? = nil,
         taskID: String?,
         title: String,
         startedAt: Date,
@@ -78,6 +83,7 @@ public struct V2ExecutionSessionSnapshot: Identifiable, Equatable, Sendable {
     ) {
         self.id = id
         self.latestSegmentID = latestSegmentID
+        self.planItemID = planItemID
         self.taskID = taskID
         self.title = title
         self.startedAt = startedAt
@@ -109,16 +115,27 @@ public extension V2Engine {
                 return nil
             }
             let task = item.taskID.flatMap { taskByID[$0] }
-            let itemSegments = item.taskID.map { taskID in
-                segmentsToday.filter { $0.taskID == taskID }
-            } ?? []
+            var itemSegments = segmentsToday.filter { $0.createdFromPlanItemID == item.id }
+            if itemSegments.isEmpty, let taskID = item.taskID {
+                let sameDayPlanCount = snapshot.planItems.filter {
+                    $0.status != .canceled &&
+                        $0.taskID == taskID &&
+                        calendar.isDate($0.date, inSameDayAs: dayStart)
+                }.count
+                if sameDayPlanCount == 1 {
+                    itemSegments = segmentsToday.filter {
+                        $0.taskID == taskID && $0.createdFromPlanItemID == nil
+                    }
+                }
+            }
             return V2TodayItemSnapshot(
                 id: item.id,
                 kind: .task,
+                planItemID: item.id,
                 taskID: item.taskID,
-                title: task?.title ?? item.title,
+                title: item.title,
                 plannedAt: item.startAt,
-                isDone: task?.status == .done,
+                isDone: item.status == .completed || task?.status == .done,
                 spentDuration: Self.duration(
                     of: itemSegments,
                     dayStart: dayStart,
@@ -142,6 +159,7 @@ public extension V2Engine {
                 V2TodayItemSnapshot(
                     id: "execution-task-\(taskID)-\(Int(dayStart.timeIntervalSince1970))",
                     kind: .task,
+                    planItemID: nil,
                     taskID: taskID,
                     title: task.title,
                     plannedAt: segments.map(\.startAt).min(),
@@ -166,6 +184,7 @@ public extension V2Engine {
                 V2TodayItemSnapshot(
                     id: "execution-session-\(sessionID)-\(Int(dayStart.timeIntervalSince1970))",
                     kind: .executionRecord,
+                    planItemID: latest.createdFromPlanItemID,
                     taskID: nil,
                     title: latest.titleSnapshot,
                     plannedAt: segments.map(\.startAt).min(),
@@ -204,6 +223,7 @@ public extension V2Engine {
             return V2ExecutionSessionSnapshot(
                 id: sessionID,
                 latestSegmentID: latest.id,
+                planItemID: latest.createdFromPlanItemID,
                 taskID: latest.taskID,
                 title: latest.titleSnapshot,
                 startedAt: latest.startAt,

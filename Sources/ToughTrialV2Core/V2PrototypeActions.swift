@@ -447,6 +447,8 @@ private extension V2PrototypeState {
         }
 
         let baseDate = planBaseDate(for: scope, at: date, calendar: calendar)
+        let rootProposalID = "\(id)-task-root"
+        let leafProposalIDs = distances.indices.map { "\(id)-task-\($0 + 1)" }
         let items = distances.indices.map { index -> V2PlanDraftScheduleItem in
             let runDate = calendar.date(byAdding: .day, value: offsets[index], to: baseDate) ?? baseDate
             let pace = index == distances.indices.last ? "慢跑" : "轻松跑"
@@ -455,8 +457,22 @@ private extension V2PrototypeState {
                 date: runDate,
                 hour: times[index].0,
                 minute: times[index].1,
+                proposedTaskID: leafProposalIDs[index],
                 title: "\(pace) \(distances[index]) 公里",
                 calendar: calendar
+            )
+        }
+        let taskChanges = [
+            V2PlanDraftTaskChange(
+                id: rootProposalID,
+                title: "\(scope ?? "近期")跑步 \(target) 公里",
+                kind: .maintenance
+            )
+        ] + items.indices.map { index in
+            V2PlanDraftTaskChange(
+                id: leafProposalIDs[index],
+                title: items[index].title,
+                parentID: rootProposalID
             )
         }
 
@@ -466,6 +482,7 @@ private extension V2PrototypeState {
             title: "\(scope ?? "近期")跑步 · \(items.count) 次",
             summary: "合计 \(target) 公里，保留两天空档",
             decisions: ["按轻量节奏拆分", "最长的一次放在周末附近"],
+            taskChanges: taskChanges,
             scheduleItems: items
         )
     }
@@ -475,6 +492,7 @@ private extension V2PrototypeState {
         date: Date,
         hour: Int,
         minute: Int,
+        proposedTaskID: String? = nil,
         title: String,
         calendar: Calendar
     ) -> V2PlanDraftScheduleItem {
@@ -484,6 +502,7 @@ private extension V2PrototypeState {
             date: calendar.startOfDay(for: date),
             startAt: startAt,
             endAt: startAt.flatMap { calendar.date(byAdding: .minute, value: 45, to: $0) },
+            proposedTaskID: proposedTaskID,
             title: title
         )
     }

@@ -57,6 +57,9 @@ struct V2RootView: View {
                 if newTab == .plan {
                     store.openPlanAgent()
                 } else {
+                    if newTab == .recall {
+                        store.refreshRecallEvidence()
+                    }
                     selectedTab = newTab
                 }
             }

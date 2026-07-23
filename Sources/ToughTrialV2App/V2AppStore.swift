@@ -10,10 +10,11 @@ final class V2AppStore: ObservableObject {
     @Published var errorMessage: String?
     @Published private(set) var pendingPlanDrafts: [V2PlanDraftRecord] = []
     @Published private(set) var recallDate = Date()
-    @Published var recallText = ""
+    @Published private(set) var recallText = ""
     @Published private(set) var recallCandidates: [V2RecallReferenceCandidate] = []
     @Published private(set) var selectedRecallCandidateIDs = Set<String>()
     @Published private(set) var savedRecallEntry: V2RecallEntry?
+    @Published private(set) var isRecallDirty = false
 
     private let engine: V2Engine
     private let calendar: Calendar
@@ -21,6 +22,8 @@ final class V2AppStore: ObservableObject {
     private let startupErrorMessage: String?
     private var focusedSessionID: String?
     private var zenSessionID: String?
+    private var baseRecallReferences = V2RecallReferences()
+    private var recallWorkingDrafts: [Date: V2RecallWorkingDraft] = [:]
 
     init(
         engine injectedEngine: V2Engine? = nil,
@@ -78,7 +81,7 @@ final class V2AppStore: ObservableObject {
 
     func saveCurrentPlanDraft(at date: Date = Date()) {
         guard let draft = state.currentPlanDraft else { return }
-        let record = planDraftRecord(from: draft, at: date)
+        let record = draft.durableRecord(at: date)
         guard mutate(at: date, {
             try engine.savePlanDraft(record, at: date, calendar: calendar)
         }) != nil else {
@@ -89,7 +92,7 @@ final class V2AppStore: ObservableObject {
 
     func acceptCurrentPlanDraft(at date: Date = Date()) {
         guard let draft = state.currentPlanDraft else { return }
-        let record = planDraftRecord(from: draft, at: date)
+        let record = draft.durableRecord(at: date)
         guard mutate(at: date, {
             _ = try engine.savePlanDraft(record, at: date, calendar: calendar)
             return try engine.acceptPlanDraft(id: record.id, at: date, calendar: calendar)
@@ -100,7 +103,18 @@ final class V2AppStore: ObservableObject {
     }
 
     func selectRecallDate(_ date: Date, now: Date = Date()) {
+        cacheCurrentRecallWork()
         loadRecallDay(date, now: now)
+    }
+
+    func updateRecallText(_ text: String) {
+        recallText = text
+        isRecallDirty = true
+    }
+
+    func refreshRecallEvidence(now: Date = Date()) {
+        cacheCurrentRecallWork()
+        loadRecallDay(recallDate, now: now)
     }
 
     func toggleRecallReference(_ candidate: V2RecallReferenceCandidate) {
@@ -109,6 +123,7 @@ final class V2AppStore: ObservableObject {
         } else {
             selectedRecallCandidateIDs.insert(candidate.id)
         }
+        isRecallDirty = true
     }
 
     func isRecallReferenceSelected(_ candidate: V2RecallReferenceCandidate) -> Bool {
@@ -130,6 +145,16 @@ final class V2AppStore: ObservableObject {
             return false
         }
         savedRecallEntry = entry
+        baseRecallReferences = Self.subtract(
+            V2RecallReferences(
+                taskIDs: entry.referencedTaskIDs,
+                segmentIDs: entry.referencedSegmentIDs,
+                planItemIDs: entry.referencedPlanItemIDs
+            ),
+            referencesFromSelectedRecallCandidates()
+        )
+        isRecallDirty = false
+        cacheCurrentRecallWork()
         return true
     }
 
@@ -150,16 +175,24 @@ final class V2AppStore: ObservableObject {
 
     func selectTodayItem(_ item: V2TimelineItem) {
         state.selectedTaskID = item.kind == .task ? item.taskID : nil
+        state.selectedTimelineItemID = item.kind == .task ? item.id : nil
     }
 
     func clearTodaySelection() {
         state.selectedTaskID = nil
+        state.selectedTimelineItemID = nil
     }
 
     func focusSession(_ id: String) {
         focusedSessionID = id
         if let session = state.activeSessions.first(where: { $0.id == id }) {
             state.selectedTaskID = session.taskID
+            state.selectedTimelineItemID = state.timelineItems.first {
+                if let planItemID = session.planItemID {
+                    return $0.planItemID == planItemID
+                }
+                return $0.taskID == session.taskID
+            }?.id
         }
         refreshProjection(at: Date())
     }
@@ -172,6 +205,7 @@ final class V2AppStore: ObservableObject {
             return false
         }
         state.selectedTaskID = created.task.id
+        state.selectedTimelineItemID = created.planItem.id
         return true
     }
 
@@ -197,13 +231,15 @@ final class V2AppStore: ObservableObject {
                 taskID: item.taskID,
                 title: item.title,
                 source: source,
-                at: date
+                at: date,
+                createdFromPlanItemID: item.planItemID
             )
         }) else {
             return
         }
         focusedSessionID = segment.logicalSessionID
         state.selectedTaskID = item.taskID
+        state.selectedTimelineItemID = item.id
         refreshProjection(at: date)
     }
 
@@ -230,23 +266,41 @@ final class V2AppStore: ObservableObject {
     }
 
     func completeTodayItem(_ item: V2TimelineItem, at date: Date = Date()) {
-        guard item.kind == .task, let taskID = item.taskID else { return }
+        guard item.kind == .task else { return }
         _ = mutate(at: date) {
-            try engine.completeTask(id: taskID, at: date)
+            try engine.completeTodayItem(
+                planItemID: item.planItemID,
+                taskID: item.taskID,
+                at: date
+            )
         }
     }
 
     func restoreTodayItem(_ item: V2TimelineItem, at date: Date = Date()) {
-        guard item.kind == .task, let taskID = item.taskID else { return }
+        guard item.kind == .task else { return }
         _ = mutate(at: date) {
-            try engine.restoreTask(id: taskID, at: date)
+            try engine.restoreTodayItem(
+                planItemID: item.planItemID,
+                taskID: item.taskID,
+                at: date
+            )
         }
-        state.selectedTaskID = taskID
+        state.selectedTaskID = item.taskID
+        state.selectedTimelineItemID = item.id
     }
 
-    func startZen(taskID: String?, title: String, at date: Date = Date()) {
-        if let taskID,
-           let existing = state.activeSessions.first(where: { $0.taskID == taskID }) {
+    func startZen(
+        planItemID: String? = nil,
+        taskID: String?,
+        title: String,
+        at date: Date = Date()
+    ) {
+        if let existing = state.activeSessions.first(where: {
+            if let planItemID {
+                return $0.planItemID == planItemID
+            }
+            return taskID != nil && $0.taskID == taskID
+        }) {
             focusedSessionID = existing.id
             zenSessionID = existing.id
             zenSession = existing
@@ -258,7 +312,8 @@ final class V2AppStore: ObservableObject {
                 taskID: taskID,
                 title: title,
                 source: .zen,
-                at: date
+                at: date,
+                createdFromPlanItemID: planItemID
             )
         }) else {
             return
@@ -296,6 +351,7 @@ final class V2AppStore: ObservableObject {
             V2TimelineItem(
                 id: item.id,
                 kind: item.kind == .task ? .task : .executionRecord,
+                planItemID: item.planItemID,
                 timeLabel: item.plannedAt.map(Self.shortTime) ?? "今天",
                 title: item.title,
                 detail: Self.todayDetail(for: item),
@@ -310,6 +366,7 @@ final class V2AppStore: ObservableObject {
             let totalSeconds = max(0, Int(session.totalDuration.rounded(.down)))
             return V2ActiveSession(
                 id: session.id,
+                planItemID: session.planItemID,
                 taskID: session.taskID,
                 title: session.title,
                 startedAtLabel: Self.shortTime(session.startedAt),
@@ -333,6 +390,10 @@ final class V2AppStore: ObservableObject {
            !next.flattenTasks().contains(where: { $0.id == selectedTaskID }) {
             next.selectedTaskID = nil
         }
+        if let selectedTimelineItemID = next.selectedTimelineItemID,
+           !next.timelineItems.contains(where: { $0.id == selectedTimelineItemID }) {
+            next.selectedTimelineItemID = nil
+        }
         state = next
 
         if let zenSessionID {
@@ -344,7 +405,8 @@ final class V2AppStore: ObservableObject {
     }
 
     private func loadRecallDay(_ date: Date, now: Date) {
-        recallDate = calendar.startOfDay(for: date)
+        let day = calendar.startOfDay(for: date)
+        recallDate = day
         let evidence = engine.recallEvidence(date: recallDate, now: now, calendar: calendar)
         recallCandidates = engine.recallReferenceCandidates(
             date: recallDate,
@@ -352,8 +414,19 @@ final class V2AppStore: ObservableObject {
             calendar: calendar
         )
         savedRecallEntry = evidence.savedEntry
+
+        if let working = recallWorkingDrafts[day] {
+            recallText = working.text
+            selectedRecallCandidateIDs = working.selectedCandidateIDs.intersection(
+                Set(recallCandidates.map(\.id))
+            )
+            baseRecallReferences = working.baseReferences
+            isRecallDirty = working.isDirty
+            return
+        }
+
         recallText = evidence.savedEntry?.text ?? ""
-        selectedRecallCandidateIDs = Set(
+        let selectedIDs = Set(
             recallCandidates
                 .filter { candidate in
                     guard let entry = evidence.savedEntry else { return false }
@@ -361,9 +434,30 @@ final class V2AppStore: ObservableObject {
                 }
                 .map(\.id)
         )
+        selectedRecallCandidateIDs = selectedIDs
+        let savedReferences = V2RecallReferences(
+            taskIDs: evidence.savedEntry?.referencedTaskIDs ?? [],
+            segmentIDs: evidence.savedEntry?.referencedSegmentIDs ?? [],
+            planItemIDs: evidence.savedEntry?.referencedPlanItemIDs ?? []
+        )
+        baseRecallReferences = Self.subtract(
+            savedReferences,
+            referencesFromSelectedRecallCandidates()
+        )
+        isRecallDirty = false
+        cacheCurrentRecallWork()
     }
 
     private func selectedRecallReferences() -> V2RecallReferences {
+        let selected = referencesFromSelectedRecallCandidates()
+        return V2RecallReferences(
+            taskIDs: Self.unique(baseRecallReferences.taskIDs + selected.taskIDs),
+            segmentIDs: Self.unique(baseRecallReferences.segmentIDs + selected.segmentIDs),
+            planItemIDs: Self.unique(baseRecallReferences.planItemIDs + selected.planItemIDs)
+        )
+    }
+
+    private func referencesFromSelectedRecallCandidates() -> V2RecallReferences {
         let selected = recallCandidates.filter { selectedRecallCandidateIDs.contains($0.id) }
         return V2RecallReferences(
             taskIDs: Self.unique(selected.flatMap(\.references.taskIDs)),
@@ -372,23 +466,13 @@ final class V2AppStore: ObservableObject {
         )
     }
 
-    private func planDraftRecord(from draft: V2PlanDraft, at date: Date) -> V2PlanDraftRecord {
-        V2PlanDraftRecord(
-            id: draft.id,
-            mode: .scheduleOnly,
-            userPrompt: draft.userPrompt,
-            summary: "\(draft.title)：\(draft.summary)",
-            proposedPlanItems: draft.scheduleItems.map { item in
-                V2ProposedPlanItem(
-                    id: item.id,
-                    date: item.date,
-                    startAt: item.startAt,
-                    endAt: item.endAt,
-                    title: item.title
-                )
-            },
-            createdAt: date,
-            updatedAt: date
+    private func cacheCurrentRecallWork() {
+        let day = calendar.startOfDay(for: recallDate)
+        recallWorkingDrafts[day] = V2RecallWorkingDraft(
+            text: recallText,
+            selectedCandidateIDs: selectedRecallCandidateIDs,
+            baseReferences: baseRecallReferences,
+            isDirty: isRecallDirty
         )
     }
 
@@ -447,7 +531,7 @@ final class V2AppStore: ObservableObject {
             }
             return V2ScheduledTask(
                 id: item.id,
-                title: task?.title ?? item.title,
+                title: item.title,
                 detail: item.startAt == nil ? "仅确定日期，时间可以之后再安排。" : "已放在时间轴。",
                 taskID: item.taskID,
                 date: item.date,
@@ -508,6 +592,20 @@ final class V2AppStore: ObservableObject {
         return ids.filter { seen.insert($0).inserted }
     }
 
+    private static func subtract(
+        _ references: V2RecallReferences,
+        _ removed: V2RecallReferences
+    ) -> V2RecallReferences {
+        let removedTaskIDs = Set(removed.taskIDs)
+        let removedSegmentIDs = Set(removed.segmentIDs)
+        let removedPlanItemIDs = Set(removed.planItemIDs)
+        return V2RecallReferences(
+            taskIDs: references.taskIDs.filter { !removedTaskIDs.contains($0) },
+            segmentIDs: references.segmentIDs.filter { !removedSegmentIDs.contains($0) },
+            planItemIDs: references.planItemIDs.filter { !removedPlanItemIDs.contains($0) }
+        )
+    }
+
     private static func references(
         _ references: V2RecallReferences,
         areIncludedIn entry: V2RecallEntry
@@ -546,4 +644,11 @@ final class V2AppStore: ObservableObject {
             return "操作没有保存，请稍后再试。"
         }
     }
+}
+
+private struct V2RecallWorkingDraft {
+    var text: String
+    var selectedCandidateIDs: Set<String>
+    var baseReferences: V2RecallReferences
+    var isDirty: Bool
 }

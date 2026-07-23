@@ -20,6 +20,7 @@ public enum V2EngineError: Error, Equatable, Sendable {
     case duplicateProposalID(String)
     case invalidPlanTimeRange(String)
     case planItemNotFound(String)
+    case planExecutionMismatch(String)
     case recallEntryNotFound(String)
     case blankRecallText
 }
@@ -233,6 +234,95 @@ public final class V2Engine {
     }
 
     @discardableResult
+    public func completePlanItem(id: String) throws -> V2PlanItem {
+        try commit { snapshot in
+            guard let index = snapshot.planItems.firstIndex(where: { $0.id == id }) else {
+                throw V2EngineError.planItemNotFound(id)
+            }
+            guard snapshot.planItems[index].status != .canceled else {
+                throw V2EngineError.planItemNotFound(id)
+            }
+            snapshot.planItems[index].status = .completed
+            return snapshot.planItems[index]
+        }
+    }
+
+    @discardableResult
+    public func restorePlanItem(id: String) throws -> V2PlanItem {
+        try commit { snapshot in
+            guard let index = snapshot.planItems.firstIndex(where: { $0.id == id }) else {
+                throw V2EngineError.planItemNotFound(id)
+            }
+            guard snapshot.planItems[index].status != .canceled else {
+                throw V2EngineError.planItemNotFound(id)
+            }
+            snapshot.planItems[index].status = .planned
+            return snapshot.planItems[index]
+        }
+    }
+
+    public func completeTodayItem(
+        planItemID: String?,
+        taskID: String?,
+        at date: Date = Date()
+    ) throws {
+        try commit { snapshot in
+            if let planItemID {
+                guard let index = snapshot.planItems.firstIndex(where: {
+                    $0.id == planItemID && $0.status != .canceled
+                }) else {
+                    throw V2EngineError.planItemNotFound(planItemID)
+                }
+                guard snapshot.planItems[index].taskID == taskID else {
+                    throw V2EngineError.planExecutionMismatch(planItemID)
+                }
+                snapshot.planItems[index].status = .completed
+            }
+
+            if let taskID {
+                guard let index = snapshot.tasks.firstIndex(where: { $0.id == taskID }) else {
+                    throw V2EngineError.taskNotFound(taskID)
+                }
+                snapshot.tasks[index].status = .done
+                snapshot.tasks[index].completedAt = date
+                snapshot.tasks[index].updatedAt = date
+            }
+        }
+    }
+
+    public func restoreTodayItem(
+        planItemID: String?,
+        taskID: String?,
+        at date: Date = Date()
+    ) throws {
+        try commit { snapshot in
+            if let planItemID {
+                guard let index = snapshot.planItems.firstIndex(where: {
+                    $0.id == planItemID && $0.status != .canceled
+                }) else {
+                    throw V2EngineError.planItemNotFound(planItemID)
+                }
+                guard snapshot.planItems[index].taskID == taskID else {
+                    throw V2EngineError.planExecutionMismatch(planItemID)
+                }
+                snapshot.planItems[index].status = .planned
+            }
+
+            if let taskID {
+                guard let index = snapshot.tasks.firstIndex(where: { $0.id == taskID }) else {
+                    throw V2EngineError.taskNotFound(taskID)
+                }
+                let hasOpenExecution = snapshot.executionSegments.contains {
+                    $0.taskID == taskID && $0.endAt == nil
+                }
+                snapshot.tasks[index].status = hasOpenExecution ? .active : .notStarted
+                snapshot.tasks[index].completedAt = nil
+                snapshot.tasks[index].updatedAt = date
+            }
+        }
+    }
+
+    @discardableResult
     public func quickInsertTodayTask(
         title: String,
         at date: Date = Date(),
@@ -296,6 +386,16 @@ public final class V2Engine {
         note: String = ""
     ) throws -> V2ExecutionSegment {
         try commit { snapshot in
+            if let createdFromPlanItemID {
+                guard let planItem = snapshot.planItems.first(where: {
+                    $0.id == createdFromPlanItemID && $0.status != .canceled
+                }) else {
+                    throw V2EngineError.planItemNotFound(createdFromPlanItemID)
+                }
+                guard planItem.taskID == taskID else {
+                    throw V2EngineError.planExecutionMismatch(createdFromPlanItemID)
+                }
+            }
             let linkedTaskIndex = try Self.executableTaskIndex(taskID: taskID, snapshot: snapshot)
             if let taskID,
                snapshot.executionSegments.contains(where: { $0.taskID == taskID && $0.endAt == nil }) {

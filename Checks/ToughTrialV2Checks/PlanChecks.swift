@@ -191,19 +191,97 @@ func checkPlanDraftFailureRollsBackAndDiscardStaysClean() throws {
     }
 
     let mixedDraft = V2PlanDraftRecord(
-        id: "mixed-not-yet-supported",
+        id: "mixed-missing-content",
         mode: .mixed,
         userPrompt: "Break it down and schedule it",
-        summary: "A future phase",
+        summary: "An invalid empty mixed draft",
         createdAt: base,
         updatedAt: base
     )
     let snapshotBeforeMixed = engine.snapshot
     do {
         _ = try engine.savePlanDraft(mixedDraft, at: base.addingTimeInterval(60))
-        fatalError("Expected mixed mode boundary")
+        fatalError("Expected mixed content validation")
     } catch let error as V2EngineError {
-        require(error == .unsupportedPlanMode(.mixed), "Mixed mode should remain an explicit later phase")
+        require(
+            error == .invalidPlanDraft("mixed requires task changes and plan items"),
+            "Mixed mode should require both task and plan proposals"
+        )
     }
-    require(engine.snapshot == snapshotBeforeMixed, "Unsupported modes must not mutate durable state")
+    require(engine.snapshot == snapshotBeforeMixed, "Invalid mixed drafts must not mutate durable state")
+}
+
+func checkMixedPlanDraftCreatesLinkedTreeAndScheduleAtomically() throws {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+    let base = calendar.date(from: DateComponents(
+        year: 2027,
+        month: 4,
+        day: 5,
+        hour: 9
+    ))!
+    let engine = V2Engine()
+    let draft = V2PlanDraftRecord(
+        id: "weekly-running-mixed",
+        mode: .mixed,
+        userPrompt: "This week I want to run 10 km",
+        summary: "Create one parent, three runs, and three dates",
+        proposedTaskChanges: [
+            V2ProposedTaskChange(
+                id: "run-root",
+                title: "Run 10 km this week",
+                kind: .maintenance
+            ),
+            V2ProposedTaskChange(id: "run-3-a", title: "Easy run 3 km", parentID: "run-root"),
+            V2ProposedTaskChange(id: "run-3-b", title: "Easy run 3 km", parentID: "run-root"),
+            V2ProposedTaskChange(id: "run-4", title: "Long run 4 km", parentID: "run-root")
+        ],
+        proposedPlanItems: [
+            V2ProposedPlanItem(
+                id: "run-plan-a",
+                date: base,
+                proposedTaskID: "run-3-a",
+                title: "Easy run 3 km"
+            ),
+            V2ProposedPlanItem(
+                id: "run-plan-b",
+                date: base.addingTimeInterval(2 * 86_400),
+                proposedTaskID: "run-3-b",
+                title: "Easy run 3 km"
+            ),
+            V2ProposedPlanItem(
+                id: "run-plan-c",
+                date: base.addingTimeInterval(5 * 86_400),
+                proposedTaskID: "run-4",
+                title: "Long run 4 km"
+            )
+        ],
+        createdAt: base,
+        updatedAt: base
+    )
+
+    let snapshotBeforeSave = engine.snapshot
+    _ = try engine.savePlanDraft(draft, at: base, calendar: calendar)
+    require(engine.snapshot.tasks == snapshotBeforeSave.tasks, "Saving mixed draft must not create tasks")
+    require(engine.snapshot.planItems == snapshotBeforeSave.planItems, "Saving mixed draft must not create plan items")
+
+    let acceptance = try engine.acceptPlanDraft(
+        id: draft.id,
+        at: base.addingTimeInterval(10),
+        calendar: calendar
+    )
+    require(acceptance.createdTasks.count == 4, "Mixed acceptance should create the task tree")
+    require(acceptance.createdPlanItems.count == 3, "Mixed acceptance should create all scheduled leaves")
+
+    let root = acceptance.createdTasks.first { $0.title == "Run 10 km this week" }
+    let leaves = acceptance.createdTasks.filter { $0.parentID == root?.id }
+    require(leaves.count == 3, "Each scheduled run should be a leaf under the weekly task")
+    require(
+        Set(acceptance.createdPlanItems.compactMap(\.taskID)) == Set(leaves.map(\.id)),
+        "Every plan item should resolve to its newly created leaf"
+    )
+    require(
+        acceptance.createdPlanItems.allSatisfy { $0.sourceDraftID == draft.id },
+        "Mixed plan items should keep draft provenance"
+    )
 }

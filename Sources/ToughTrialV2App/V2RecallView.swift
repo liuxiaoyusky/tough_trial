@@ -132,7 +132,7 @@ struct V2RecallView: View {
     private var editor: some View {
         VStack(alignment: .leading, spacing: 0) {
             ZStack(alignment: .topLeading) {
-                TextEditor(text: $store.recallText)
+                TextEditor(text: recallTextBinding)
                     .font(.system(size: 19, weight: .regular, design: .serif))
                     .foregroundStyle(V2Theme.ColorRole.textPrimary)
                     .lineSpacing(7)
@@ -143,7 +143,7 @@ struct V2RecallView: View {
                     .background(.clear)
 
                 if store.recallText.isEmpty {
-                    Text("写下今天真正发生了什么...")
+                    Text(recallPlaceholder)
                         .font(.system(size: 19, weight: .regular, design: .serif))
                         .foregroundStyle(V2Theme.ColorRole.textTertiary)
                         .padding(.top, 1)
@@ -322,14 +322,6 @@ struct V2RecallView: View {
                 .buttonStyle(RecallToolbarButtonStyle(isPrimary: false))
             }
 
-            Button {
-                organizeDraft()
-            } label: {
-                Label("整理", systemImage: "sparkles")
-            }
-            .buttonStyle(RecallToolbarButtonStyle(isPrimary: false))
-            .disabled(store.recallText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
             Spacer(minLength: 0)
 
             Button {
@@ -379,13 +371,20 @@ struct V2RecallView: View {
         )
     }
 
-    private func organizeDraft() {
-        let text = store.recallText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
-        if !text.contains("\n\n下一步：") {
-            store.recallText = "\(store.recallText)\n\n下一步："
-        }
-        saveStatus = "已整理"
+    private var recallTextBinding: Binding<String> {
+        Binding(
+            get: { store.recallText },
+            set: {
+                store.updateRecallText($0)
+                saveStatus = ""
+            }
+        )
+    }
+
+    private var recallPlaceholder: String {
+        calendar.isDateInToday(store.recallDate)
+            ? "写下今天真正发生了什么..."
+            : "写下这一天真正发生了什么..."
     }
 
     private static let weekdayFormatter: DateFormatter = {

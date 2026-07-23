@@ -327,6 +327,15 @@ private struct V2PlanInlineDraft: View {
                         .foregroundStyle(V2Theme.tertiary)
                 }
 
+                if !draft.taskChanges.isEmpty {
+                    Label(
+                        "同时建立 \(draft.taskChanges.count) 个任务节点",
+                        systemImage: "arrow.triangle.branch"
+                    )
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(V2Theme.secondary)
+                }
+
                 VStack(spacing: 0) {
                     ForEach(Array(draft.scheduleItems.enumerated()), id: \.element.id) { index, item in
                         V2PlanDraftRow(item: item)

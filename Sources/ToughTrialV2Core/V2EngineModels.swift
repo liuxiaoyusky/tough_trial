@@ -184,6 +184,7 @@ public struct V2ProposedPlanItem: Identifiable, Codable, Equatable, Sendable {
     public var startAt: Date?
     public var endAt: Date?
     public var taskID: String?
+    public var proposedTaskID: String?
     public var title: String
 
     public init(
@@ -192,6 +193,7 @@ public struct V2ProposedPlanItem: Identifiable, Codable, Equatable, Sendable {
         startAt: Date? = nil,
         endAt: Date? = nil,
         taskID: String? = nil,
+        proposedTaskID: String? = nil,
         title: String
     ) {
         self.id = id
@@ -199,6 +201,7 @@ public struct V2ProposedPlanItem: Identifiable, Codable, Equatable, Sendable {
         self.startAt = startAt
         self.endAt = endAt
         self.taskID = taskID
+        self.proposedTaskID = proposedTaskID
         self.title = title
     }
 }
@@ -257,6 +260,7 @@ public struct V2PlanItem: Identifiable, Codable, Equatable, Sendable {
         case planned
         case canceled
         case convertedToExecution
+        case completed
     }
 
     public var id: String

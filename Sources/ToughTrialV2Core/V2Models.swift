@@ -61,6 +61,7 @@ public struct V2TimelineItem: Equatable, Sendable {
 
     public var id: String
     public var kind: Kind
+    public var planItemID: String?
     public var timeLabel: String
     public var title: String
     public var detail: String
@@ -70,6 +71,7 @@ public struct V2TimelineItem: Equatable, Sendable {
     public init(
         id: String,
         kind: Kind = .task,
+        planItemID: String? = nil,
         timeLabel: String,
         title: String,
         detail: String,
@@ -78,6 +80,7 @@ public struct V2TimelineItem: Equatable, Sendable {
     ) {
         self.id = id
         self.kind = kind
+        self.planItemID = planItemID
         self.timeLabel = timeLabel
         self.title = title
         self.detail = detail
@@ -126,6 +129,7 @@ public struct V2ActiveSession: Equatable, Sendable {
     }
 
     public var id: String
+    public var planItemID: String?
     public var taskID: String?
     public var title: String
     public var startedAtLabel: String
@@ -137,6 +141,7 @@ public struct V2ActiveSession: Equatable, Sendable {
 
     public init(
         id: String,
+        planItemID: String? = nil,
         taskID: String?,
         title: String,
         startedAtLabel: String,
@@ -147,6 +152,7 @@ public struct V2ActiveSession: Equatable, Sendable {
         status: Status
     ) {
         self.id = id
+        self.planItemID = planItemID
         self.taskID = taskID
         self.title = title
         self.startedAtLabel = startedAtLabel
@@ -187,6 +193,7 @@ public struct V2PlanDraftScheduleItem: Identifiable, Equatable, Sendable {
     public var date: Date
     public var startAt: Date?
     public var endAt: Date?
+    public var proposedTaskID: String?
     public var title: String
 
     public init(
@@ -194,13 +201,37 @@ public struct V2PlanDraftScheduleItem: Identifiable, Equatable, Sendable {
         date: Date,
         startAt: Date? = nil,
         endAt: Date? = nil,
+        proposedTaskID: String? = nil,
         title: String
     ) {
         self.id = id
         self.date = date
         self.startAt = startAt
         self.endAt = endAt
+        self.proposedTaskID = proposedTaskID
         self.title = title
+    }
+}
+
+public struct V2PlanDraftTaskChange: Identifiable, Equatable, Sendable {
+    public var id: String
+    public var title: String
+    public var parentID: String?
+    public var contextID: String?
+    public var kind: V2Task.Kind?
+
+    public init(
+        id: String,
+        title: String,
+        parentID: String? = nil,
+        contextID: String? = nil,
+        kind: V2Task.Kind? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.parentID = parentID
+        self.contextID = contextID
+        self.kind = kind
     }
 }
 
@@ -210,6 +241,7 @@ public struct V2PlanDraft: Equatable, Sendable {
     public var title: String
     public var summary: String
     public var decisions: [String]
+    public var taskChanges: [V2PlanDraftTaskChange]
     public var scheduleItems: [V2PlanDraftScheduleItem]
 
     public init(
@@ -218,6 +250,7 @@ public struct V2PlanDraft: Equatable, Sendable {
         title: String,
         summary: String,
         decisions: [String],
+        taskChanges: [V2PlanDraftTaskChange] = [],
         scheduleItems: [V2PlanDraftScheduleItem]
     ) {
         self.id = id
@@ -225,6 +258,7 @@ public struct V2PlanDraft: Equatable, Sendable {
         self.title = title
         self.summary = summary
         self.decisions = decisions
+        self.taskChanges = taskChanges
         self.scheduleItems = scheduleItems
     }
 }

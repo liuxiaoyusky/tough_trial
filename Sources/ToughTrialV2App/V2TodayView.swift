@@ -29,18 +29,30 @@ struct V2TodayView: View {
                         onExpand: expandFocus,
                         onToggle: { store.toggleSession($0.id) },
                         onEnd: endSession,
-                        onZen: { store.startZen(taskID: $0.taskID, title: $0.title) }
+                        onZen: {
+                            store.startZen(
+                                planItemID: $0.planItemID,
+                                taskID: $0.taskID,
+                                title: $0.title
+                            )
+                        }
                     )
 
                     V2TodayFlowStrip(
                         items: store.state.timelineItems,
-                        selectedTaskID: store.state.selectedTaskID,
+                        selectedItemID: store.state.selectedTimelineItemID,
                         focusedTaskID: store.state.activeSessions.first?.taskID,
                         onSelect: selectTimelineItem,
                         onStart: startTimelineItem,
                         onComplete: completeTimelineItem,
                         onRestore: restoreTimelineItem,
-                        onZen: { store.startZen(taskID: $0.taskID, title: $0.title) }
+                        onZen: {
+                            store.startZen(
+                                planItemID: $0.planItemID,
+                                taskID: $0.taskID,
+                                title: $0.title
+                            )
+                        }
                     )
                     .frame(maxHeight: .infinity)
                 }
@@ -445,7 +457,7 @@ private struct V2TodaySessionPill: View {
 
 private struct V2TodayFlowStrip: View {
     let items: [V2TimelineItem]
-    let selectedTaskID: String?
+    let selectedItemID: String?
     let focusedTaskID: String?
     let onSelect: (V2TimelineItem) -> Void
     let onStart: (V2TimelineItem) -> Void
@@ -496,11 +508,7 @@ private struct V2TodayFlowStrip: View {
     }
 
     private func isSelected(_ item: V2TimelineItem) -> Bool {
-        guard item.kind == .task else { return false }
-        guard let selectedTaskID else {
-            return item.taskID == nil && !item.isDone
-        }
-        return item.taskID == selectedTaskID
+        item.kind == .task && item.id == selectedItemID
     }
 }
 
