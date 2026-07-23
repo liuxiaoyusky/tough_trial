@@ -18,11 +18,15 @@ final class V2AppStore: ObservableObject {
     @Published private(set) var isPlanning = false
     @Published private(set) var planningProviderLabel = "本地基础规划"
     @Published private(set) var planningSuggestedReplies: [String] = []
+    @Published private(set) var memoryRecords: [V2UserMemoryRecord] = []
+    @Published private(set) var memoryIssueMessage: String?
 
     private let engine: V2Engine
     private let planningClient: any V2PlanningClient
+    private let memoryEngine: V2MemoryEngine
     private let calendar: Calendar
     private let canWrite: Bool
+    private let canWriteMemory: Bool
     private let startupErrorMessage: String?
     private var focusedSessionID: String?
     private var zenSessionID: String?
@@ -33,6 +37,7 @@ final class V2AppStore: ObservableObject {
     init(
         engine injectedEngine: V2Engine? = nil,
         planningClient injectedPlanningClient: (any V2PlanningClient)? = nil,
+        memoryEngine injectedMemoryEngine: V2MemoryEngine? = nil,
         initialState: V2PrototypeState = .empty(),
         calendar: Calendar = .current
     ) {
@@ -63,6 +68,24 @@ final class V2AppStore: ObservableObject {
                 self.errorMessage = message
             }
         }
+
+        if let injectedMemoryEngine {
+            self.memoryEngine = injectedMemoryEngine
+            self.canWriteMemory = true
+            self.memoryIssueMessage = nil
+        } else {
+            do {
+                let url = try V2MemoryJSONStore.defaultFileURL()
+                self.memoryEngine = try V2MemoryEngine.load(from: V2MemoryJSONStore(fileURL: url))
+                self.canWriteMemory = true
+                self.memoryIssueMessage = nil
+            } catch {
+                self.memoryEngine = V2MemoryEngine()
+                self.canWriteMemory = false
+                self.memoryIssueMessage = "记忆数据无法读取，原文件已保留。修复前不会覆盖。"
+            }
+        }
+        self.memoryRecords = self.memoryEngine.activeRecords()
 
         refreshProjection(at: Date())
         loadRecallDay(Date(), now: Date())
@@ -146,6 +169,58 @@ final class V2AppStore: ObservableObject {
             return
         }
         state.completeCurrentPlanDraftAcceptance()
+    }
+
+    @discardableResult
+    func addMemory(
+        statement: String,
+        kind: V2UserMemoryRecord.Kind,
+        isTemporary: Bool,
+        at date: Date = Date()
+    ) -> Bool {
+        let result = mutateMemory(at: date) {
+            try memoryEngine.add(
+                statement: statement,
+                kind: kind,
+                origin: isTemporary ? .temporaryContext : .explicitUser,
+                expiresAt: isTemporary
+                    ? calendar.date(byAdding: .day, value: 7, to: date)
+                    : nil,
+                at: date
+            )
+        }
+        return result != nil
+    }
+
+    @discardableResult
+    func correctMemory(
+        id: String,
+        statement: String,
+        kind: V2UserMemoryRecord.Kind,
+        isTemporary: Bool,
+        at date: Date = Date()
+    ) -> Bool {
+        let result = mutateMemory(at: date) {
+            try memoryEngine.correct(
+                id: id,
+                statement: statement,
+                kind: kind,
+                origin: isTemporary ? .temporaryContext : .explicitUser,
+                expiresAt: isTemporary
+                    ? calendar.date(byAdding: .day, value: 7, to: date)
+                    : nil,
+                at: date
+            )
+        }
+        return result != nil
+    }
+
+    @discardableResult
+    func forgetMemory(id: String, at date: Date = Date()) -> Bool {
+        let result: Void? = mutateMemory(at: date) {
+            try memoryEngine.forget(id: id)
+        }
+        return result != nil
     }
 
     func selectRecallDate(_ date: Date, now: Date = Date()) {
@@ -644,6 +719,7 @@ final class V2AppStore: ObservableObject {
                         status: $0.status
                     )
                 },
+            memoryStatements: memoryEngine.activeStatements(at: date),
             currentDraft: currentDraft
         )
 
@@ -701,6 +777,26 @@ final class V2AppStore: ObservableObject {
             model: environment["TOUGH_TRIAL_AI_MODEL"] ?? "gpt-5-mini"
         )
         return V2RemotePlanningClient(configuration: configuration)
+    }
+
+    private func mutateMemory<Result>(
+        at date: Date,
+        _ operation: () throws -> Result
+    ) -> Result? {
+        guard canWriteMemory else {
+            errorMessage = memoryIssueMessage
+            return nil
+        }
+        do {
+            let result = try operation()
+            memoryRecords = memoryEngine.activeRecords(at: date)
+            memoryIssueMessage = nil
+            errorMessage = nil
+            return result
+        } catch {
+            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            return nil
+        }
     }
 
     private static func prototypeStatus(_ status: V2Task.Status) -> V2TaskNode.Status {

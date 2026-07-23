@@ -5,6 +5,7 @@ struct V2PlanAgentView: View {
     @ObservedObject var store: V2AppStore
     @State private var promptText = ""
     @State private var showHistory = false
+    @State private var showMemory = false
     @FocusState private var isComposerFocused: Bool
 
     private let quickReplies = ["可以", "想分两次", "先看看时间"]
@@ -51,6 +52,9 @@ struct V2PlanAgentView: View {
         }
         .sheet(isPresented: $showHistory) {
             V2PlanHistorySheet(drafts: store.pendingPlanDrafts)
+        }
+        .sheet(isPresented: $showMemory) {
+            V2MemorySheet(store: store)
         }
         .alert("操作未完成", isPresented: errorBinding) {
             Button("知道了") {
@@ -133,12 +137,25 @@ struct V2PlanAgentView: View {
 
             Spacer()
 
-            Button("历史") {
-                showHistory = true
+            Menu {
+                Button {
+                    showHistory = true
+                } label: {
+                    Label("草稿历史", systemImage: "clock")
+                }
+                Button {
+                    showMemory = true
+                } label: {
+                    Label("记忆", systemImage: "brain")
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(V2Theme.secondary)
+                    .frame(width: 40, height: 40)
+                    .contentShape(Rectangle())
             }
-            .font(.system(size: 15, weight: .semibold))
-            .foregroundStyle(V2Theme.secondary)
-            .buttonStyle(.plain)
+            .accessibilityLabel("计划选项")
         }
         .padding(.horizontal, 18)
         .padding(.top, 10)
@@ -500,6 +517,207 @@ private struct V2PlanComposer: View {
                         .frame(height: 1)
                 }
         )
+    }
+}
+
+private struct V2MemorySheet: View {
+    @ObservedObject var store: V2AppStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var editingRecord: V2UserMemoryRecord?
+    @State private var isAdding = false
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if let issue = store.memoryIssueMessage {
+                    ContentUnavailableView(
+                        "记忆暂不可用",
+                        systemImage: "externaldrive.badge.exclamationmark",
+                        description: Text(issue)
+                    )
+                } else if store.memoryRecords.isEmpty {
+                    ContentUnavailableView(
+                        "还没有记忆",
+                        systemImage: "brain",
+                        description: Text("记录你愿意让计划助手参考的习惯、偏好或约束。")
+                    )
+                } else {
+                    List {
+                        ForEach(store.memoryRecords) { record in
+                            Button {
+                                editingRecord = record
+                            } label: {
+                                V2MemoryRow(record: record)
+                            }
+                            .buttonStyle(.plain)
+                            .swipeActions {
+                                Button("忘记", role: .destructive) {
+                                    _ = store.forgetMemory(id: record.id)
+                                }
+                            }
+                        }
+                    }
+                    .listStyle(.plain)
+                }
+            }
+            .navigationTitle("记忆")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("完成") { dismiss() }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        isAdding = true
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    .disabled(store.memoryIssueMessage != nil)
+                    .accessibilityLabel("新增记忆")
+                }
+            }
+        }
+        .sheet(isPresented: $isAdding) {
+            V2MemoryEditorSheet(store: store, record: nil)
+        }
+        .sheet(item: $editingRecord) { record in
+            V2MemoryEditorSheet(store: store, record: record)
+        }
+        .presentationDetents([.medium, .large])
+    }
+}
+
+private struct V2MemoryRow: View {
+    let record: V2UserMemoryRecord
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: iconName)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(V2Theme.violet)
+                .frame(width: 30, height: 30)
+                .background(V2Theme.violet.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(record.statement)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(V2Theme.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(detail)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(V2Theme.tertiary)
+            }
+
+            Spacer(minLength: 4)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(V2Theme.tertiary)
+                .padding(.top, 8)
+        }
+        .padding(.vertical, 5)
+    }
+
+    private var iconName: String {
+        switch record.kind {
+        case .preference: "heart"
+        case .routine: "repeat"
+        case .constraint: "exclamationmark.shield"
+        }
+    }
+
+    private var detail: String {
+        let kind: String
+        switch record.kind {
+        case .preference: kind = "偏好"
+        case .routine: kind = "日常"
+        case .constraint: kind = "约束"
+        }
+        let source: String
+        switch record.origin {
+        case .explicitUser: source = "你记录的"
+        case .confirmedInference: source = "你确认的推断"
+        case .temporaryContext: source = "7 天临时上下文"
+        }
+        return "\(kind) · \(source)"
+    }
+}
+
+private struct V2MemoryEditorSheet: View {
+    @ObservedObject var store: V2AppStore
+    let record: V2UserMemoryRecord?
+    @Environment(\.dismiss) private var dismiss
+    @State private var statement: String
+    @State private var kind: V2UserMemoryRecord.Kind
+    @State private var isTemporary: Bool
+
+    init(store: V2AppStore, record: V2UserMemoryRecord?) {
+        self.store = store
+        self.record = record
+        _statement = State(initialValue: record?.statement ?? "")
+        _kind = State(initialValue: record?.kind ?? .preference)
+        _isTemporary = State(initialValue: record?.origin == .temporaryContext)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("计划助手可以参考") {
+                    TextField(
+                        "例如：工作日晚上最多安排 30 分钟运动",
+                        text: $statement,
+                        axis: .vertical
+                    )
+                    .lineLimit(3...6)
+                }
+
+                Section("类型") {
+                    Picker("类型", selection: $kind) {
+                        Text("偏好").tag(V2UserMemoryRecord.Kind.preference)
+                        Text("日常").tag(V2UserMemoryRecord.Kind.routine)
+                        Text("约束").tag(V2UserMemoryRecord.Kind.constraint)
+                    }
+                    .pickerStyle(.segmented)
+                }
+
+                Section {
+                    Toggle("仅作为 7 天临时上下文", isOn: $isTemporary)
+                } footer: {
+                    Text("记忆只影响建议；任何任务或计划仍需你确认。")
+                }
+            }
+            .navigationTitle(record == nil ? "新增记忆" : "纠正记忆")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("保存") {
+                        let saved: Bool
+                        if let record {
+                            saved = store.correctMemory(
+                                id: record.id,
+                                statement: statement,
+                                kind: kind,
+                                isTemporary: isTemporary
+                            )
+                        } else {
+                            saved = store.addMemory(
+                                statement: statement,
+                                kind: kind,
+                                isTemporary: isTemporary
+                            )
+                        }
+                        if saved {
+                            dismiss()
+                        }
+                    }
+                    .disabled(statement.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
     }
 }
 

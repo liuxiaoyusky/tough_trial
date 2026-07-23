@@ -410,5 +410,7 @@ try checkRecallDeviationWaitsUntilPlansAreDue()
 try checkRecallReferenceCandidatesStayEvidenceBacked()
 try checkWeeklyRunningPlanExecutionRecallLoop()
 try await checkAIPlanningClients()
+try checkMemoryPersistenceCorrectionAndForget()
+try checkTemporaryMemoryExpiryAndCorruptionBoundary()
 
 print("ToughTrialV2Checks passed")
