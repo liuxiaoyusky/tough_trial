@@ -15,8 +15,12 @@ final class V2AppStore: ObservableObject {
     @Published private(set) var selectedRecallCandidateIDs = Set<String>()
     @Published private(set) var savedRecallEntry: V2RecallEntry?
     @Published private(set) var isRecallDirty = false
+    @Published private(set) var isPlanning = false
+    @Published private(set) var planningProviderLabel = "本地基础规划"
+    @Published private(set) var planningSuggestedReplies: [String] = []
 
     private let engine: V2Engine
+    private let planningClient: any V2PlanningClient
     private let calendar: Calendar
     private let canWrite: Bool
     private let startupErrorMessage: String?
@@ -24,14 +28,20 @@ final class V2AppStore: ObservableObject {
     private var zenSessionID: String?
     private var baseRecallReferences = V2RecallReferences()
     private var recallWorkingDrafts: [Date: V2RecallWorkingDraft] = [:]
+    private var activePlanningPrompt: String?
 
     init(
         engine injectedEngine: V2Engine? = nil,
+        planningClient injectedPlanningClient: (any V2PlanningClient)? = nil,
         initialState: V2PrototypeState = .empty(),
         calendar: Calendar = .current
     ) {
         self.state = initialState
         self.calendar = calendar
+        let resolvedPlanningClient = injectedPlanningClient ?? Self.configuredPlanningClient()
+        self.planningClient = resolvedPlanningClient
+        self.planningProviderLabel = resolvedPlanningClient.providerLabel
+        self.activePlanningPrompt = initialState.planMessages.first(where: { $0.role == .user })?.text
 
         if let injectedEngine {
             self.engine = injectedEngine
@@ -71,12 +81,48 @@ final class V2AppStore: ObservableObject {
         state.setPlanScope(scope)
     }
 
-    func beginPlanPrompt(_ prompt: String, at date: Date = Date()) {
-        state.beginPlanPrompt(prompt, scope: state.planScope, at: date, calendar: calendar)
+    func submitPlanPrompt(_ prompt: String, at date: Date = Date()) async {
+        let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !isPlanning else { return }
+
+        if let draft = state.currentPlanDraft {
+            await requestPlan(
+                visibleUserText: trimmed,
+                userPrompt: draft.userPrompt,
+                clarificationResponse: trimmed,
+                currentDraft: draft,
+                at: date
+            )
+            return
+        }
+
+        activePlanningPrompt = trimmed
+        await requestPlan(
+            visibleUserText: trimmed,
+            userPrompt: trimmed,
+            clarificationResponse: nil,
+            currentDraft: nil,
+            at: date
+        )
     }
 
-    func confirmPlanClarification(_ response: String, at date: Date = Date()) {
-        state.confirmPlanClarification(response, at: date, calendar: calendar)
+    func submitPlanClarification(_ response: String, at date: Date = Date()) async {
+        let trimmed = response.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !isPlanning else { return }
+        guard let prompt = activePlanningPrompt
+            ?? state.planMessages.first(where: { $0.role == .user })?.text
+        else {
+            errorMessage = "找不到这次规划的原始输入，请重新开始。"
+            return
+        }
+
+        await requestPlan(
+            visibleUserText: trimmed,
+            userPrompt: prompt,
+            clarificationResponse: trimmed,
+            currentDraft: state.currentPlanDraft,
+            at: date
+        )
     }
 
     func saveCurrentPlanDraft(at date: Date = Date()) {
@@ -557,6 +603,106 @@ final class V2AppStore: ObservableObject {
         }
     }
 
+    private func requestPlan(
+        visibleUserText: String,
+        userPrompt: String,
+        clarificationResponse: String?,
+        currentDraft: V2PlanDraft?,
+        at date: Date
+    ) async {
+        let previousPhase = state.planConversationPhase
+        state.planMessages.append(
+            V2PlanMessage(
+                id: "plan-user-\(state.planMessages.count + 1)-\(UUID().uuidString)",
+                role: .user,
+                text: visibleUserText
+            )
+        )
+        if previousPhase == .empty || previousPhase == .complete {
+            state.planConversationPhase = .clarifying
+        }
+        planningSuggestedReplies = []
+        isPlanning = true
+        defer { isPlanning = false }
+
+        let request = V2PlanningRequest(
+            userPrompt: userPrompt,
+            clarificationResponse: clarificationResponse,
+            scope: state.planScope,
+            referenceDate: date,
+            timeZoneIdentifier: calendar.timeZone.identifier,
+            tasks: engine.snapshot.tasks
+                .filter { $0.status != .archived }
+                .prefix(100)
+                .map {
+                    V2PlanningTaskContext(
+                        id: $0.id,
+                        title: $0.title,
+                        parentID: $0.parentID,
+                        contextID: $0.contextID,
+                        kind: $0.kind,
+                        status: $0.status
+                    )
+                },
+            currentDraft: currentDraft
+        )
+
+        do {
+            let outcome = try await planningClient.generate(request)
+            switch outcome {
+            case .clarification(let clarification):
+                state.currentPlanDraft = nil
+                state.planConversationPhase = .clarifying
+                planningSuggestedReplies = clarification.suggestedReplies
+                appendPlanAgentMessage(clarification.question)
+            case .proposal(let proposal):
+                state.currentPlanDraft = proposal.draft
+                state.planConversationPhase = .reviewingDraft
+                planningSuggestedReplies = []
+                appendPlanAgentMessage(proposal.message)
+            }
+            errorMessage = nil
+        } catch {
+            state.planConversationPhase = previousPhase == .empty ? .complete : previousPhase
+            planningSuggestedReplies = []
+            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    private func appendPlanAgentMessage(_ text: String) {
+        state.planMessages.append(
+            V2PlanMessage(
+                id: "plan-agent-\(state.planMessages.count + 1)-\(UUID().uuidString)",
+                role: .agent,
+                text: text
+            )
+        )
+    }
+
+    private static func configuredPlanningClient() -> any V2PlanningClient {
+        let environment = ProcessInfo.processInfo.environment
+        guard let apiKey = environment["TOUGH_TRIAL_AI_API_KEY"], !apiKey.isEmpty else {
+            return V2DeterministicPlanningClient()
+        }
+
+        let endpoint: URL
+        if let value = environment["TOUGH_TRIAL_AI_ENDPOINT"] {
+            guard let configuredURL = URL(string: value) else {
+                return V2UnavailablePlanningClient(message: "TOUGH_TRIAL_AI_ENDPOINT 不是有效 URL")
+            }
+            endpoint = configuredURL
+        } else {
+            endpoint = URL(string: "https://api.openai.com/v1/responses")!
+        }
+
+        let configuration = V2RemotePlanningConfiguration(
+            endpoint: endpoint,
+            apiKey: apiKey,
+            model: environment["TOUGH_TRIAL_AI_MODEL"] ?? "gpt-5-mini"
+        )
+        return V2RemotePlanningClient(configuration: configuration)
+    }
+
     private static func prototypeStatus(_ status: V2Task.Status) -> V2TaskNode.Status {
         switch status {
         case .notStarted, .archived:
@@ -651,4 +797,13 @@ private struct V2RecallWorkingDraft {
     var selectedCandidateIDs: Set<String>
     var baseReferences: V2RecallReferences
     var isDirty: Bool
+}
+
+private struct V2UnavailablePlanningClient: V2PlanningClient {
+    let providerLabel = "AI 配置错误"
+    let message: String
+
+    func generate(_ request: V2PlanningRequest) async throws -> V2PlanningOutcome {
+        throw V2PlanningClientError.invalidConfiguration(message)
+    }
 }

@@ -31,6 +31,7 @@ public extension V2PlanDraft {
                     date: item.date,
                     startAt: item.startAt,
                     endAt: item.endAt,
+                    taskID: item.taskID,
                     proposedTaskID: item.proposedTaskID,
                     title: item.title
                 )

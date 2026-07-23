@@ -64,6 +64,17 @@ QA，不把自动检查提前表述为最终体验验收。
 - 模型失败时保留用户输入和草稿，不产生静默写入。
 - 真实模型与本地确定性测试替身分离，保证核心检查可重复。
 
+状态：代码与契约已完成。App 通过 `V2PlanningClient` 调用规划器，Responses API
+请求使用严格 JSON Schema 且关闭服务端存储；模型返回的日期、时间、任务引用会
+先在 Core 中验证。未配置开发环境变量时明确使用“本地基础规划”，远程错误直接
+呈现，不静默替换结果。真实供应商联调仍需要外部 API 凭据，不纳入本地通过结论。
+
+开发联调配置：
+
+- `TOUGH_TRIAL_AI_API_KEY`
+- `TOUGH_TRIAL_AI_MODEL`，未指定时使用 `gpt-5-mini`
+- `TOUGH_TRIAL_AI_ENDPOINT`，未指定时使用 OpenAI Responses API
+
 ## Phase 4：用户记忆与上下文
 
 目标：让计划建议逐步理解用户，而不是要求用户反复填写约束。

@@ -409,5 +409,6 @@ try checkRecallEvidenceClipsCrossDayExecution()
 try checkRecallDeviationWaitsUntilPlansAreDue()
 try checkRecallReferenceCandidatesStayEvidenceBacked()
 try checkWeeklyRunningPlanExecutionRecallLoop()
+try await checkAIPlanningClients()
 
 print("ToughTrialV2Checks passed")

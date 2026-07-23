@@ -45,6 +45,7 @@ struct V2PlanAgentView: View {
                 promptText: $promptText,
                 placeholder: composerPlaceholder,
                 isFocused: $isComposerFocused,
+                isBusy: store.isPlanning,
                 onSend: sendPrompt
             )
         }
@@ -79,10 +80,19 @@ struct V2PlanAgentView: View {
                     .id(message.id)
             }
 
-            if store.state.planConversationPhase == .clarifying {
-                V2PlanQuickReplies(replies: quickReplies) { reply in
-                    withAnimation(.snappy(duration: 0.25)) {
-                        store.confirmPlanClarification(reply)
+            if store.isPlanning {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("\(store.planningProviderLabel)正在整理...")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(V2Theme.tertiary)
+                }
+                .id("plan-loading")
+            } else if store.state.planConversationPhase == .clarifying {
+                V2PlanQuickReplies(replies: displayedQuickReplies) { reply in
+                    Task { @MainActor in
+                        await store.submitPlanClarification(reply)
                     }
                 }
                 .id("plan-quick-replies")
@@ -140,7 +150,11 @@ struct V2PlanAgentView: View {
         if store.state.planConversationPhase == .reviewingDraft {
             return "\(max(1, store.planDraftCount))个草稿"
         }
-        return store.state.planScope
+        return store.state.planScope ?? store.planningProviderLabel
+    }
+
+    private var displayedQuickReplies: [String] {
+        store.planningSuggestedReplies.isEmpty ? quickReplies : store.planningSuggestedReplies
     }
 
     private var composerPlaceholder: String {
@@ -158,8 +172,8 @@ struct V2PlanAgentView: View {
 
     private func beginConversation(_ prompt: String) {
         promptText = ""
-        withAnimation(.snappy(duration: 0.25)) {
-            store.beginPlanPrompt(prompt)
+        Task { @MainActor in
+            await store.submitPlanPrompt(prompt)
         }
     }
 
@@ -169,11 +183,11 @@ struct V2PlanAgentView: View {
 
         promptText = ""
         isComposerFocused = false
-        withAnimation(.snappy(duration: 0.25)) {
+        Task { @MainActor in
             if store.state.planConversationPhase == .clarifying {
-                store.confirmPlanClarification(trimmed)
+                await store.submitPlanClarification(trimmed)
             } else {
-                store.beginPlanPrompt(trimmed)
+                await store.submitPlanPrompt(trimmed)
             }
         }
     }
@@ -420,12 +434,13 @@ private struct V2PlanComposer: View {
     @Binding var promptText: String
     let placeholder: String
     var isFocused: FocusState<Bool>.Binding
+    let isBusy: Bool
     let onSend: () -> Void
 
     private let scopes = ["今天", "明天", "近三日", "本周", "本月"]
 
     private var canSend: Bool {
-        !promptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !isBusy && !promptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var body: some View {
@@ -456,6 +471,7 @@ private struct V2PlanComposer: View {
                 .lineLimit(1...4)
                 .font(.system(size: 15))
                 .focused(isFocused)
+                .disabled(isBusy)
                 .padding(.vertical, 8)
 
             Button(action: onSend) {

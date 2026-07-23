@@ -193,6 +193,7 @@ public struct V2PlanDraftScheduleItem: Identifiable, Equatable, Sendable {
     public var date: Date
     public var startAt: Date?
     public var endAt: Date?
+    public var taskID: String?
     public var proposedTaskID: String?
     public var title: String
 
@@ -201,6 +202,7 @@ public struct V2PlanDraftScheduleItem: Identifiable, Equatable, Sendable {
         date: Date,
         startAt: Date? = nil,
         endAt: Date? = nil,
+        taskID: String? = nil,
         proposedTaskID: String? = nil,
         title: String
     ) {
@@ -208,6 +210,7 @@ public struct V2PlanDraftScheduleItem: Identifiable, Equatable, Sendable {
         self.date = date
         self.startAt = startAt
         self.endAt = endAt
+        self.taskID = taskID
         self.proposedTaskID = proposedTaskID
         self.title = title
     }
