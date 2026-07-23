@@ -3,53 +3,57 @@ import ToughTrialV2Core
 
 struct V2RecallView: View {
     @ObservedObject var store: V2AppStore
-    @State private var selectedDate = "今天"
-    @State private var selectedReferenceKind = V2RecallReference.Kind.event
+    @State private var selectedReferenceKind = V2RecallReferenceCandidate.Kind.event
+    @State private var showsReferences: Bool
     @State private var saveStatus = ""
+    @FocusState private var isEditorFocused: Bool
 
-    private let dates = ["今天", "昨天", "周二", "周一"]
+    private let calendar = Calendar.current
+
+    init(store: V2AppStore, initiallyShowsReferences: Bool = false) {
+        self.store = store
+        _showsReferences = State(initialValue: initiallyShowsReferences)
+    }
 
     var body: some View {
         GeometryReader { proxy in
-            let isWide = proxy.size.width >= 760
-
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 0) {
                 header
 
-                if isWide {
-                    HStack(alignment: .top, spacing: store.state.isRecallFullscreen ? 22 : 18) {
-                        dateRail(isCompact: false)
-                        editorArea
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
+                ZStack(alignment: .topTrailing) {
+                    HStack(alignment: .top, spacing: 14) {
                         if !store.state.isRecallFullscreen {
-                            referenceWindow
-                                .frame(width: 250)
-                                .transition(.move(edge: .trailing).combined(with: .opacity))
+                            dateRail
+                                .frame(width: 48)
                         }
+
+                        editor
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
-                } else {
-                    VStack(alignment: .leading, spacing: 14) {
-                        dateRail(isCompact: true)
-                        editorArea
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                        if !store.state.isRecallFullscreen {
-                            referenceWindow
-                                .transition(.move(edge: .bottom).combined(with: .opacity))
-                        }
+                    if showsReferences && !store.state.isRecallFullscreen {
+                        referenceWindow
+                            .frame(
+                                width: min(292, proxy.size.width - 70),
+                                height: min(420, proxy.size.height * 0.58),
+                                alignment: .top
+                            )
+                            .padding(.top, 8)
+                            .transition(.move(edge: .trailing).combined(with: .opacity))
                     }
                 }
+                .padding(.horizontal, 16)
 
-                bottomActions
+                actionBar
             }
-            .padding(.horizontal, isWide ? 28 : 18)
-            .padding(.top, 22)
-            .padding(.bottom, 16)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .animation(.easeInOut(duration: 0.2), value: store.state.isRecallFullscreen)
-            .onChange(of: selectedDate) { _, _ in
-                saveStatus = ""
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .animation(.snappy(duration: 0.24), value: showsReferences)
+            .animation(.snappy(duration: 0.24), value: store.state.isRecallFullscreen)
+            .toolbar(store.state.isRecallFullscreen ? .hidden : .visible, for: .tabBar)
+            .alert("操作未完成", isPresented: errorBinding) {
+                Button("知道了") { store.dismissError() }
+            } message: {
+                Text(store.errorMessage ?? "请稍后再试。")
             }
             .v2ScreenBackground()
         }
@@ -59,279 +63,391 @@ struct V2RecallView: View {
         HStack(spacing: 12) {
             Button {
                 store.state.toggleRecallFullscreen()
+                if store.state.isRecallFullscreen {
+                    showsReferences = false
+                }
             } label: {
-                Image(systemName: store.state.isRecallFullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(V2Theme.ink)
-                    .frame(width: 40, height: 40)
-                    .background(V2Theme.panel)
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(V2Theme.line, lineWidth: 1))
+                Image(
+                    systemName: store.state.isRecallFullscreen
+                        ? "arrow.down.right.and.arrow.up.left"
+                        : "arrow.up.left.and.arrow.down.right"
+                )
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(V2Theme.ColorRole.textPrimary)
+                .frame(width: 38, height: 38)
+                .background(V2Theme.ColorRole.surfaceRaised)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(V2Theme.ColorRole.outline, lineWidth: 1))
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(store.state.isRecallFullscreen ? "退出沉浸回想" : "进入沉浸回想")
+            .accessibilityLabel(store.state.isRecallFullscreen ? "退出全屏" : "全屏回想")
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text("回想")
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(V2Theme.ink)
-                Text(selectedDate)
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(V2Theme.secondary)
+                    .font(V2Theme.TypeRole.headlineSmall)
+                    .foregroundStyle(V2Theme.ColorRole.textPrimary)
+
+                Text(Self.headerDateFormatter.string(from: store.recallDate))
+                    .font(V2Theme.TypeRole.labelSmall)
+                    .foregroundStyle(V2Theme.ColorRole.textTertiary)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 10)
+        .padding(.bottom, 12)
+    }
+
+    private var dateRail: some View {
+        VStack(spacing: 8) {
+            ForEach(recallDates, id: \.timeIntervalSinceReferenceDate) { date in
+                let selected = calendar.isDate(date, inSameDayAs: store.recallDate)
+
+                Button {
+                    store.selectRecallDate(date)
+                    saveStatus = ""
+                    showsReferences = false
+                } label: {
+                    VStack(spacing: 2) {
+                        Text(Self.weekdayFormatter.string(from: date))
+                            .font(.system(size: 9, weight: .semibold))
+                        Text(Self.dayFormatter.string(from: date))
+                            .font(.system(size: 15, weight: .bold, design: .rounded))
+                    }
+                    .foregroundStyle(selected ? V2Theme.ColorRole.textInverse : V2Theme.ColorRole.textSecondary)
+                    .frame(width: 42, height: selected ? 58 : 46)
+                    .background(selected ? V2Theme.ColorRole.textPrimary : Color.clear)
+                    .clipShape(Capsule())
+                    .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Self.accessibleDateFormatter.string(from: date))
             }
 
             Spacer(minLength: 0)
         }
     }
 
-    private var editorArea: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(selectedDate == "今天" ? "今天发生了什么" : "\(selectedDate)发生了什么")
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(V2Theme.ink)
-
+    private var editor: some View {
+        VStack(alignment: .leading, spacing: 0) {
             ZStack(alignment: .topLeading) {
-                TextEditor(text: recallDraftBinding)
-                    .font(.system(size: 20, weight: .regular, design: .serif))
-                    .foregroundStyle(V2Theme.ink)
+                TextEditor(text: $store.recallText)
+                    .font(.system(size: 19, weight: .regular, design: .serif))
+                    .foregroundStyle(V2Theme.ColorRole.textPrimary)
+                    .lineSpacing(7)
                     .scrollContentBackground(.hidden)
+                    .focused($isEditorFocused)
                     .padding(.horizontal, -5)
                     .padding(.vertical, -7)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(.clear)
 
-                if currentRecallDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Text("写下\(selectedDate)真正发生了什么...")
-                        .font(.system(size: 20, weight: .regular, design: .serif))
-                        .foregroundStyle(V2Theme.tertiary)
+                if store.recallText.isEmpty {
+                    Text("写下今天真正发生了什么...")
+                        .font(.system(size: 19, weight: .regular, design: .serif))
+                        .foregroundStyle(V2Theme.ColorRole.textTertiary)
                         .padding(.top, 1)
                         .allowsHitTesting(false)
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: store.state.isRecallFullscreen ? 460 : 330, maxHeight: .infinity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            HStack(spacing: 8) {
+                if !store.selectedRecallCandidateIDs.isEmpty {
+                    Button {
+                        showsReferences = true
+                    } label: {
+                        Label(
+                            "已引用 \(store.selectedRecallCandidateIDs.count) 条",
+                            systemImage: "quote.opening"
+                        )
+                        .font(V2Theme.TypeRole.labelSmall)
+                        .foregroundStyle(V2Theme.ColorRole.onPrimaryContainer)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Spacer(minLength: 0)
+
+                if !saveStatus.isEmpty {
+                    Text(saveStatus)
+                        .font(V2Theme.TypeRole.labelSmall)
+                        .foregroundStyle(V2Theme.ColorRole.taskComplete)
+                }
+            }
+            .frame(height: 28)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 18)
+        .padding(.bottom, 8)
+        .background(V2Theme.ColorRole.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(V2Theme.ColorRole.outline.opacity(0.72), lineWidth: 1)
         }
     }
 
     private var referenceWindow: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("引用")
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(V2Theme.ink)
+                Text("引用证据")
+                    .font(V2Theme.TypeRole.titleMedium)
+                    .foregroundStyle(V2Theme.ColorRole.textPrimary)
+
                 Spacer()
-                Text("\(filteredReferences.count)")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(V2Theme.secondary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(V2Theme.page)
-                    .clipShape(Capsule())
+
+                Button {
+                    showsReferences = false
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(V2Theme.ColorRole.textSecondary)
+                        .frame(width: 30, height: 30)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("关闭证据")
             }
 
-            kindPicker
+            referenceKindPicker
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
-                    ForEach(filteredReferences, id: \.id) { reference in
-                        RecallReferenceRow(
-                            reference: reference,
-                            isSelected: store.state.selectedRecallReferenceIDs(for: selectedDate).contains(reference.id)
-                        ) {
-                            store.state.insertRecallReference(reference.id, for: selectedDate)
-                            saveStatus = ""
+                LazyVStack(spacing: 0) {
+                    if filteredCandidates.isEmpty {
+                        Text(emptyReferenceText)
+                            .font(V2Theme.TypeRole.bodySmall)
+                            .foregroundStyle(V2Theme.ColorRole.textTertiary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 18)
+                    } else {
+                        ForEach(Array(filteredCandidates.enumerated()), id: \.element.id) { index, candidate in
+                            referenceRow(candidate)
+
+                            if index < filteredCandidates.count - 1 {
+                                Divider()
+                                    .overlay(V2Theme.ColorRole.outline.opacity(0.7))
+                            }
                         }
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .padding(14)
-        .background(V2Theme.panel)
+        .background(.ultraThinMaterial)
+        .background(V2Theme.ColorRole.surfaceRaised.opacity(0.96))
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay(
+        .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(V2Theme.line, lineWidth: 1)
-        )
+                .stroke(V2Theme.ColorRole.outline, lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.11), radius: 24, y: 10)
     }
 
-    private var kindPicker: some View {
-        HStack(spacing: 6) {
-            ForEach(V2RecallReference.Kind.allCasesForRecallView, id: \.self) { kind in
+    private var referenceKindPicker: some View {
+        HStack(spacing: 4) {
+            ForEach(V2RecallReferenceCandidate.Kind.allCasesForView, id: \.self) { kind in
                 Button {
                     selectedReferenceKind = kind
                 } label: {
                     Text(kind.displayName)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(selectedReferenceKind == kind ? .white : V2Theme.secondary)
+                        .font(V2Theme.TypeRole.labelSmall)
+                        .foregroundStyle(
+                            selectedReferenceKind == kind
+                                ? V2Theme.ColorRole.textInverse
+                                : V2Theme.ColorRole.textSecondary
+                        )
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                        .background(selectedReferenceKind == kind ? V2Theme.blue : V2Theme.page)
-                        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                        .frame(height: 30)
+                        .background(
+                            selectedReferenceKind == kind
+                                ? V2Theme.ColorRole.textPrimary
+                                : Color.clear
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
         }
+        .padding(3)
+        .background(V2Theme.ColorRole.surfaceMuted)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
-    private var bottomActions: some View {
-        HStack(spacing: 10) {
-            if store.state.isRecallFullscreen {
+    private func referenceRow(_ candidate: V2RecallReferenceCandidate) -> some View {
+        Button {
+            store.toggleRecallReference(candidate)
+            saveStatus = ""
+        } label: {
+            HStack(alignment: .top, spacing: 10) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(candidate.title)
+                        .font(V2Theme.TypeRole.labelMedium)
+                        .foregroundStyle(V2Theme.ColorRole.textPrimary)
+                        .multilineTextAlignment(.leading)
+
+                    Text(candidate.detail)
+                        .font(V2Theme.TypeRole.labelSmall)
+                        .foregroundStyle(V2Theme.ColorRole.textTertiary)
+                        .multilineTextAlignment(.leading)
+                }
+
+                Spacer(minLength: 6)
+
+                Image(
+                    systemName: store.isRecallReferenceSelected(candidate)
+                        ? "checkmark.circle.fill"
+                        : "circle"
+                )
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(
+                    store.isRecallReferenceSelected(candidate)
+                        ? V2Theme.ColorRole.primary
+                        : V2Theme.ColorRole.outline
+                )
+            }
+            .padding(.vertical, 11)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var actionBar: some View {
+        HStack(spacing: 8) {
+            if !store.state.isRecallFullscreen {
                 Button {
-                    store.state.toggleRecallFullscreen()
+                    showsReferences.toggle()
                 } label: {
                     Label("引用", systemImage: "quote.opening")
                 }
-                .buttonStyle(RecallActionButtonStyle(isPrimary: false))
+                .buttonStyle(RecallToolbarButtonStyle(isPrimary: false))
             }
 
             Button {
                 organizeDraft()
             } label: {
-                Label("整理草稿", systemImage: "sparkles")
+                Label("整理", systemImage: "sparkles")
             }
-            .buttonStyle(RecallActionButtonStyle(isPrimary: false))
+            .buttonStyle(RecallToolbarButtonStyle(isPrimary: false))
+            .disabled(store.recallText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+            Spacer(minLength: 0)
 
             Button {
-                store.state.applyRecallDraft(for: selectedDate)
-                saveStatus = "已保存"
+                if store.saveRecall() {
+                    saveStatus = "已保存"
+                    isEditorFocused = false
+                }
             } label: {
                 Label("保存", systemImage: "checkmark")
             }
-            .buttonStyle(RecallActionButtonStyle(isPrimary: true))
+            .buttonStyle(RecallToolbarButtonStyle(isPrimary: true))
+            .disabled(store.recallText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 10)
+        .padding(.bottom, 8)
+        .background(V2Theme.ColorRole.canvas)
+    }
 
-            if !saveStatus.isEmpty {
-                Text(saveStatus)
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(V2Theme.mint)
-                    .lineLimit(1)
-            }
-
-            Spacer(minLength: 0)
+    private var recallDates: [Date] {
+        (0..<4).compactMap {
+            calendar.date(byAdding: .day, value: -$0, to: calendar.startOfDay(for: Date()))
         }
     }
 
-    private func dateRail(isCompact: Bool) -> some View {
-        let stack = isCompact ? AnyLayout(HStackLayout(spacing: 8)) : AnyLayout(VStackLayout(spacing: 8))
+    private var filteredCandidates: [V2RecallReferenceCandidate] {
+        store.recallCandidates.filter { $0.kind == selectedReferenceKind }
+    }
 
-        return stack {
-            ForEach(dates, id: \.self) { date in
-                Button {
-                    selectedDate = date
-                } label: {
-                    Text(date)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(selectedDate == date ? .white : V2Theme.secondary)
-                        .frame(width: isCompact ? nil : 54, height: 36)
-                        .frame(maxWidth: isCompact ? .infinity : nil)
-                        .background(selectedDate == date ? V2Theme.ink : V2Theme.panel)
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .stroke(selectedDate == date ? Color.clear : V2Theme.line, lineWidth: 1)
-                        )
-                }
-                .buttonStyle(.plain)
-            }
+    private var emptyReferenceText: String {
+        switch selectedReferenceKind {
+        case .event:
+            "这一天还没有执行记录。"
+        case .deviation:
+            "暂时没有可以判断的计划偏差。"
+        case .past:
+            "最近还没有可以引用的事件。"
         }
     }
 
-    private var recallDraftBinding: Binding<String> {
+    private var errorBinding: Binding<Bool> {
         Binding(
-            get: { store.state.recallDraft(for: selectedDate) },
+            get: { store.errorMessage != nil },
             set: {
-                store.state.setRecallDraft($0, for: selectedDate)
-                saveStatus = ""
+                if !$0 { store.dismissError() }
             }
         )
     }
 
-    private var filteredReferences: [V2RecallReference] {
-        store.state.recallReferences.filter { $0.kind == selectedReferenceKind }
-    }
-
     private func organizeDraft() {
-        let trimmed = currentRecallDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        if trimmed.isEmpty {
-            store.state.setRecallDraft("\(selectedDate)真正发生的是：", for: selectedDate)
-        } else if !trimmed.contains("整理：") {
-            store.state.setRecallDraft("\(currentRecallDraft)\n\n整理：事实先保留，下一步再判断原因。", for: selectedDate)
+        let text = store.recallText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        if !text.contains("\n\n下一步：") {
+            store.recallText = "\(store.recallText)\n\n下一步："
         }
-
         saveStatus = "已整理"
     }
 
-    private var currentRecallDraft: String {
-        store.state.recallDraft(for: selectedDate)
-    }
+    private static let weekdayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "EEE"
+        return formatter
+    }()
+
+    private static let dayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d"
+        return formatter
+    }()
+
+    private static let headerDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M月d日 EEEE"
+        return formatter
+    }()
+
+    private static let accessibleDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M月d日 EEEE"
+        return formatter
+    }()
 }
 
-private struct RecallReferenceRow: View {
-    let reference: V2RecallReference
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .top, spacing: 8) {
-                    Text(reference.title)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(V2Theme.ink)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    Spacer(minLength: 4)
-
-                    if isSelected {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(V2Theme.mint)
-                    }
-                }
-
-                Text(reference.detail)
-                    .font(.caption)
-                    .foregroundStyle(V2Theme.secondary)
-                    .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(isSelected ? V2Theme.mint.opacity(0.08) : V2Theme.page)
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(isSelected ? V2Theme.mint.opacity(0.45) : Color.clear, lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("插入引用 \(reference.title)")
-    }
-}
-
-private struct RecallActionButtonStyle: ButtonStyle {
+private struct RecallToolbarButtonStyle: ButtonStyle {
     let isPrimary: Bool
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.subheadline.weight(.semibold))
-            .lineLimit(1)
-            .minimumScaleFactor(0.82)
-            .foregroundStyle(isPrimary ? .white : V2Theme.ink)
-            .padding(.horizontal, 13)
-            .frame(height: 40)
-            .background(isPrimary ? V2Theme.blue : V2Theme.panel)
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(isPrimary ? Color.clear : V2Theme.line, lineWidth: 1)
+            .font(V2Theme.TypeRole.labelMedium)
+            .foregroundStyle(
+                isPrimary
+                    ? V2Theme.ColorRole.onPrimary
+                    : V2Theme.ColorRole.textPrimary
             )
+            .padding(.horizontal, 14)
+            .frame(height: 40)
+            .background(
+                isPrimary
+                    ? V2Theme.ColorRole.primary
+                    : V2Theme.ColorRole.surfaceRaised
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(
+                        isPrimary ? Color.clear : V2Theme.ColorRole.outline,
+                        lineWidth: 1
+                    )
+            }
             .opacity(configuration.isPressed ? 0.72 : 1)
     }
 }
 
-private extension V2RecallReference.Kind {
-    static let allCasesForRecallView: [V2RecallReference.Kind] = [.event, .deviation, .past]
+private extension V2RecallReferenceCandidate.Kind {
+    static let allCasesForView: [Self] = [.event, .deviation, .past]
 
     var displayName: String {
         switch self {

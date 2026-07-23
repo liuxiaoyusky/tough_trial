@@ -9,6 +9,11 @@ final class V2AppStore: ObservableObject {
     @Published var zenSession: V2ActiveSession?
     @Published var errorMessage: String?
     @Published private(set) var pendingPlanDrafts: [V2PlanDraftRecord] = []
+    @Published private(set) var recallDate = Date()
+    @Published var recallText = ""
+    @Published private(set) var recallCandidates: [V2RecallReferenceCandidate] = []
+    @Published private(set) var selectedRecallCandidateIDs = Set<String>()
+    @Published private(set) var savedRecallEntry: V2RecallEntry?
 
     private let engine: V2Engine
     private let calendar: Calendar
@@ -47,6 +52,7 @@ final class V2AppStore: ObservableObject {
         }
 
         refreshProjection(at: Date())
+        loadRecallDay(Date(), now: Date())
     }
 
     func openPlanAgent() { isPlanPresented = true }
@@ -91,6 +97,40 @@ final class V2AppStore: ObservableObject {
             return
         }
         state.completeCurrentPlanDraftAcceptance()
+    }
+
+    func selectRecallDate(_ date: Date, now: Date = Date()) {
+        loadRecallDay(date, now: now)
+    }
+
+    func toggleRecallReference(_ candidate: V2RecallReferenceCandidate) {
+        if selectedRecallCandidateIDs.contains(candidate.id) {
+            selectedRecallCandidateIDs.remove(candidate.id)
+        } else {
+            selectedRecallCandidateIDs.insert(candidate.id)
+        }
+    }
+
+    func isRecallReferenceSelected(_ candidate: V2RecallReferenceCandidate) -> Bool {
+        selectedRecallCandidateIDs.contains(candidate.id)
+    }
+
+    @discardableResult
+    func saveRecall(at date: Date = Date()) -> Bool {
+        let references = selectedRecallReferences()
+        guard let entry = mutate(at: date, {
+            try engine.saveRecallEntry(
+                date: recallDate,
+                text: recallText,
+                references: references,
+                at: date,
+                calendar: calendar
+            )
+        }) else {
+            return false
+        }
+        savedRecallEntry = entry
+        return true
     }
 
     func runClock() async {
@@ -303,6 +343,35 @@ final class V2AppStore: ObservableObject {
         }
     }
 
+    private func loadRecallDay(_ date: Date, now: Date) {
+        recallDate = calendar.startOfDay(for: date)
+        let evidence = engine.recallEvidence(date: recallDate, now: now, calendar: calendar)
+        recallCandidates = engine.recallReferenceCandidates(
+            date: recallDate,
+            now: now,
+            calendar: calendar
+        )
+        savedRecallEntry = evidence.savedEntry
+        recallText = evidence.savedEntry?.text ?? ""
+        selectedRecallCandidateIDs = Set(
+            recallCandidates
+                .filter { candidate in
+                    guard let entry = evidence.savedEntry else { return false }
+                    return Self.references(candidate.references, areIncludedIn: entry)
+                }
+                .map(\.id)
+        )
+    }
+
+    private func selectedRecallReferences() -> V2RecallReferences {
+        let selected = recallCandidates.filter { selectedRecallCandidateIDs.contains($0.id) }
+        return V2RecallReferences(
+            taskIDs: Self.unique(selected.flatMap(\.references.taskIDs)),
+            segmentIDs: Self.unique(selected.flatMap(\.references.segmentIDs)),
+            planItemIDs: Self.unique(selected.flatMap(\.references.planItemIDs))
+        )
+    }
+
     private func planDraftRecord(from draft: V2PlanDraft, at date: Date) -> V2PlanDraftRecord {
         V2PlanDraftRecord(
             id: draft.id,
@@ -434,6 +503,24 @@ final class V2AppStore: ObservableObject {
         return "\(seconds)秒"
     }
 
+    private static func unique(_ ids: [String]) -> [String] {
+        var seen = Set<String>()
+        return ids.filter { seen.insert($0).inserted }
+    }
+
+    private static func references(
+        _ references: V2RecallReferences,
+        areIncludedIn entry: V2RecallEntry
+    ) -> Bool {
+        let hasReference = !references.taskIDs.isEmpty ||
+            !references.segmentIDs.isEmpty ||
+            !references.planItemIDs.isEmpty
+        guard hasReference else { return false }
+        return Set(references.taskIDs).isSubset(of: Set(entry.referencedTaskIDs)) &&
+            Set(references.segmentIDs).isSubset(of: Set(entry.referencedSegmentIDs)) &&
+            Set(references.planItemIDs).isSubset(of: Set(entry.referencedPlanItemIDs))
+    }
+
     private static func todayDetail(for item: V2TodayItemSnapshot) -> String {
         switch item.kind {
         case .task where item.spentDuration > 0:
@@ -453,6 +540,8 @@ final class V2AppStore: ObservableObject {
             return "这个任务已经在计时。"
         case V2EngineError.blankTitle:
             return "任务名称不能为空。"
+        case V2EngineError.blankRecallText:
+            return "写下一点内容后再保存。"
         default:
             return "操作没有保存，请稍后再试。"
         }

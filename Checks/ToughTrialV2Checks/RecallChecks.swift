@@ -329,3 +329,66 @@ func checkRecallDeviationWaitsUntilPlansAreDue() throws {
         "Every unmatched plan becomes judgeable after its day ends"
     )
 }
+
+func checkRecallReferenceCandidatesStayEvidenceBacked() throws {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+    let today = calendar.date(from: DateComponents(
+        year: 2027,
+        month: 3,
+        day: 15,
+        hour: 10
+    ))!
+    let yesterday = calendar.date(byAdding: .day, value: -1, to: today)!
+    let engine = V2Engine()
+
+    let todayTask = try engine.createTask(title: "Write outline", at: today)
+    let todayPlan = try engine.addTaskToToday(
+        taskID: todayTask.id,
+        date: today,
+        calendar: calendar
+    )
+    let todaySegment = try engine.startExecution(
+        taskID: todayTask.id,
+        title: todayTask.title,
+        source: .normal,
+        at: today,
+        createdFromPlanItemID: todayPlan.id
+    )
+    _ = try engine.endExecution(
+        segmentID: todaySegment.id,
+        at: today.addingTimeInterval(1_200)
+    )
+
+    let pastTask = try engine.createTask(title: "Read references", at: yesterday)
+    let pastSegment = try engine.startExecution(
+        taskID: pastTask.id,
+        title: pastTask.title,
+        source: .normal,
+        at: yesterday
+    )
+    _ = try engine.endExecution(
+        segmentID: pastSegment.id,
+        at: yesterday.addingTimeInterval(900)
+    )
+
+    let snapshotBeforeQuery = engine.snapshot
+    let candidates = engine.recallReferenceCandidates(
+        date: today,
+        now: today.addingTimeInterval(3_600),
+        lookbackDays: 2,
+        calendar: calendar
+    )
+
+    require(engine.snapshot == snapshotBeforeQuery, "Reference candidates must be a read-only projection")
+    let current = candidates.first {
+        $0.kind == .event && $0.references.segmentIDs.contains(todaySegment.id)
+    }
+    require(current?.references.planItemIDs == [todayPlan.id], "Current evidence should preserve plan provenance")
+
+    let past = candidates.first {
+        $0.kind == .past && $0.references.segmentIDs.contains(pastSegment.id)
+    }
+    require(past != nil, "Past execution should be available as a reference candidate")
+    requireContains(past?.detail ?? "", "3月14日", "Past evidence should disclose its original day")
+}

@@ -16,6 +16,34 @@ public struct V2RecallReferences: Equatable, Sendable {
     }
 }
 
+public struct V2RecallReferenceCandidate: Identifiable, Equatable, Sendable {
+    public enum Kind: String, Equatable, Sendable {
+        case event
+        case deviation
+        case past
+    }
+
+    public var id: String
+    public var kind: Kind
+    public var title: String
+    public var detail: String
+    public var references: V2RecallReferences
+
+    public init(
+        id: String,
+        kind: Kind,
+        title: String,
+        detail: String,
+        references: V2RecallReferences
+    ) {
+        self.id = id
+        self.kind = kind
+        self.title = title
+        self.detail = detail
+        self.references = references
+    }
+}
+
 public struct V2RecallExecutionEvidence: Identifiable, Equatable, Sendable {
     public var id: String
     public var sessionID: String
@@ -203,9 +231,80 @@ public extension V2Engine {
     ) -> V2PlanDeviation {
         recallEvidence(date: date, now: now, calendar: calendar).deviation
     }
+
+    func recallReferenceCandidates(
+        date: Date,
+        now: Date = Date(),
+        lookbackDays: Int = 7,
+        calendar: Calendar = .current
+    ) -> [V2RecallReferenceCandidate] {
+        let evidence = recallEvidence(date: date, now: now, calendar: calendar)
+        var candidates = evidence.executionEvents.map {
+            Self.referenceCandidate(from: $0, kind: .event, dateLabel: nil)
+        }
+
+        candidates.append(contentsOf: evidence.deviation.plannedButNotExecuted.map { item in
+            V2RecallReferenceCandidate(
+                id: "deviation-plan-\(item.id)",
+                kind: .deviation,
+                title: item.title,
+                detail: "计划时间已过，但没有找到对应执行记录。",
+                references: V2RecallReferences(
+                    taskIDs: item.taskID.map { [$0] } ?? [],
+                    planItemIDs: [item.id]
+                )
+            )
+        })
+        candidates.append(contentsOf: evidence.deviation.executedWithoutPlan.map {
+            Self.referenceCandidate(
+                from: $0,
+                kind: .deviation,
+                dateLabel: "计划外执行"
+            )
+        })
+
+        guard lookbackDays > 0 else { return candidates }
+        for offset in 1...lookbackDays {
+            guard let pastDate = calendar.date(byAdding: .day, value: -offset, to: date) else {
+                continue
+            }
+            let label = Self.recallDayLabel(pastDate, calendar: calendar)
+            let pastEvidence = recallEvidence(date: pastDate, now: now, calendar: calendar)
+            candidates.append(contentsOf: pastEvidence.executionEvents.map {
+                Self.referenceCandidate(from: $0, kind: .past, dateLabel: label)
+            })
+        }
+        return candidates
+    }
 }
 
 private extension V2Engine {
+    static func referenceCandidate(
+        from event: V2RecallExecutionEvidence,
+        kind: V2RecallReferenceCandidate.Kind,
+        dateLabel: String?
+    ) -> V2RecallReferenceCandidate {
+        let duration = max(0, Int(event.duration.rounded(.down)))
+        let minutes = max(1, duration / 60)
+        let prefix = dateLabel.map { "\($0) · " } ?? ""
+        return V2RecallReferenceCandidate(
+            id: "\(kind.rawValue)-\(event.id)",
+            kind: kind,
+            title: event.title,
+            detail: "\(prefix)\(minutes) 分钟",
+            references: V2RecallReferences(
+                taskIDs: event.taskID.map { [$0] } ?? [],
+                segmentIDs: event.segmentIDs,
+                planItemIDs: event.createdFromPlanItemIDs
+            )
+        )
+    }
+
+    static func recallDayLabel(_ date: Date, calendar: Calendar) -> String {
+        let components = calendar.dateComponents([.month, .day], from: date)
+        return "\(components.month ?? 1)月\(components.day ?? 1)日"
+    }
+
     static func validatedRecallText(_ text: String) throws -> String {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw V2EngineError.blankRecallText

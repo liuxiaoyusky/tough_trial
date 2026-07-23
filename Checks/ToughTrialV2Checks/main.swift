@@ -406,5 +406,6 @@ try checkRecallEvidenceAndDeviation()
 try checkRecallEntryPersistenceAndReferenceValidation()
 try checkRecallEvidenceClipsCrossDayExecution()
 try checkRecallDeviationWaitsUntilPlansAreDue()
+try checkRecallReferenceCandidatesStayEvidenceBacked()
 
 print("ToughTrialV2Checks passed")
