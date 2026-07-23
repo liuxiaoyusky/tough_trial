@@ -5,6 +5,7 @@ struct V2RecallView: View {
     @ObservedObject var store: V2AppStore
     @State private var selectedReferenceKind = V2RecallReferenceCandidate.Kind.event
     @State private var showsReferences: Bool
+    @State private var showsHandwriting = false
     @State private var saveStatus = ""
     @FocusState private var isEditorFocused: Bool
 
@@ -54,6 +55,9 @@ struct V2RecallView: View {
                 Button("知道了") { store.dismissError() }
             } message: {
                 Text(store.errorMessage ?? "请稍后再试。")
+            }
+            .fullScreenCover(isPresented: $showsHandwriting) {
+                V2RecallHandwritingView(date: store.recallDate)
             }
             .v2ScreenBackground()
         }
@@ -313,6 +317,13 @@ struct V2RecallView: View {
 
     private var actionBar: some View {
         HStack(spacing: 8) {
+            Button {
+                showsHandwriting = true
+            } label: {
+                Label("手写", systemImage: "pencil.tip")
+            }
+            .buttonStyle(RecallToolbarButtonStyle(isPrimary: false))
+
             if !store.state.isRecallFullscreen {
                 Button {
                     showsReferences.toggle()

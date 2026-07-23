@@ -21,10 +21,13 @@ final class V2AppStore: ObservableObject {
     @Published private(set) var memoryRecords: [V2UserMemoryRecord] = []
     @Published private(set) var memoryIssueMessage: String?
     @Published private(set) var dreamingCandidates: [V2DreamingCandidate] = []
+    @Published private(set) var noticeMessage: String?
 
     private let engine: V2Engine
     private let planningClient: any V2PlanningClient
     private let memoryEngine: V2MemoryEngine
+    private let notificationService = V2NotificationService()
+    private let liveActivityService = V2LiveActivityService()
     private let calendar: Calendar
     private let canWrite: Bool
     private let canWriteMemory: Bool
@@ -90,6 +93,7 @@ final class V2AppStore: ObservableObject {
 
         refreshProjection(at: Date())
         loadRecallDay(Date(), now: Date())
+        syncLiveActivityForFocusedSession()
     }
 
     func openPlanAgent() { isPlanPresented = true }
@@ -163,13 +167,25 @@ final class V2AppStore: ObservableObject {
     func acceptCurrentPlanDraft(at date: Date = Date()) {
         guard let draft = state.currentPlanDraft else { return }
         let record = draft.durableRecord(at: date)
-        guard mutate(at: date, {
+        guard let acceptance = mutate(at: date, {
             _ = try engine.savePlanDraft(record, at: date, calendar: calendar)
             return try engine.acceptPlanDraft(id: record.id, at: date, calendar: calendar)
-        }) != nil else {
+        }) else {
             return
         }
         state.completeCurrentPlanDraftAcceptance()
+        Task {
+            do {
+                _ = try await notificationService.scheduleIfAuthorized(
+                    planItems: acceptance.createdPlanItems,
+                    now: date,
+                    calendar: calendar
+                )
+            } catch {
+                errorMessage = (error as? LocalizedError)?.errorDescription
+                    ?? error.localizedDescription
+            }
+        }
     }
 
     @discardableResult
@@ -308,6 +324,25 @@ final class V2AppStore: ObservableObject {
         errorMessage = nil
     }
 
+    func dismissNotice() {
+        noticeMessage = nil
+    }
+
+    func enablePlanReminders(at date: Date = Date()) async {
+        do {
+            let count = try await notificationService.requestAndSchedule(
+                planItems: engine.snapshot.planItems,
+                now: date,
+                calendar: calendar
+            )
+            noticeMessage = count == 0
+                ? "通知已开启；当前没有带具体时间的未来计划。"
+                : "已为 \(count) 个带具体时间的计划开启提醒。"
+        } catch {
+            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
     func selectTodayItem(_ item: V2TimelineItem) {
         state.selectedTaskID = item.kind == .task ? item.taskID : nil
         state.selectedTimelineItemID = item.kind == .task ? item.id : nil
@@ -330,6 +365,7 @@ final class V2AppStore: ObservableObject {
             }?.id
         }
         refreshProjection(at: Date())
+        syncLiveActivityForFocusedSession()
     }
 
     @discardableResult
@@ -376,6 +412,7 @@ final class V2AppStore: ObservableObject {
         state.selectedTaskID = item.taskID
         state.selectedTimelineItemID = item.id
         refreshProjection(at: date)
+        syncLiveActivityForFocusedSession()
     }
 
     func toggleSession(_ id: String, at date: Date = Date()) {
@@ -390,12 +427,22 @@ final class V2AppStore: ObservableObject {
                 try engine.resumeExecutionSession(sessionID: id, at: date)
             }
         }
+        syncLiveActivityForFocusedSession()
     }
 
     @discardableResult
     func endSession(_ id: String, at date: Date = Date()) -> Bool {
+        let endingSession = state.activeSessions.first(where: { $0.id == id })
         let result: Void? = mutate(at: date) {
             try engine.stopExecutionSession(sessionID: id, at: date)
+        }
+        if let endingSession, result != nil {
+            Task {
+                await liveActivityService.end(session: endingSession)
+                if let nextSession = state.activeSessions.first {
+                    try? await liveActivityService.sync(session: nextSession)
+                }
+            }
         }
         return result != nil
     }
@@ -439,6 +486,7 @@ final class V2AppStore: ObservableObject {
             focusedSessionID = existing.id
             zenSessionID = existing.id
             zenSession = existing
+            syncLiveActivityForFocusedSession()
             return
         }
 
@@ -456,6 +504,7 @@ final class V2AppStore: ObservableObject {
         focusedSessionID = segment.logicalSessionID
         zenSessionID = segment.logicalSessionID
         refreshProjection(at: date)
+        syncLiveActivityForFocusedSession()
     }
 
     func finishZen(at date: Date = Date()) {
@@ -473,6 +522,18 @@ final class V2AppStore: ObservableObject {
     func closeZen() {
         zenSessionID = nil
         zenSession = nil
+    }
+
+    private func syncLiveActivityForFocusedSession() {
+        guard let session = state.activeSessions.first else { return }
+        Task {
+            do {
+                try await liveActivityService.sync(session: session)
+            } catch {
+                errorMessage = (error as? LocalizedError)?.errorDescription
+                    ?? error.localizedDescription
+            }
+        }
     }
 
     private func refreshProjection(at now: Date) {

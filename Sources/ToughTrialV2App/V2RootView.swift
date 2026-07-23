@@ -48,6 +48,12 @@ struct V2RootView: View {
         .task {
             await store.runClock()
         }
+        .onOpenURL { url in
+            guard url.scheme == "toughtrial", url.host == "today" else { return }
+            store.closePlanAgent()
+            store.closeZen()
+            selectedTab = .today
+        }
     }
 
     private var tabSelection: Binding<V2RootTab> {

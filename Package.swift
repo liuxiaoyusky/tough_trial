@@ -9,11 +9,13 @@ let package = Package(
     ],
     products: [
         .library(name: "FocusTimelineCore", targets: ["FocusTimelineCore"]),
-        .library(name: "ToughTrialV2Core", targets: ["ToughTrialV2Core"])
+        .library(name: "ToughTrialV2Core", targets: ["ToughTrialV2Core"]),
+        .library(name: "ToughTrialActivityShared", targets: ["ToughTrialActivityShared"])
     ],
     targets: [
         .target(name: "FocusTimelineCore"),
         .target(name: "ToughTrialV2Core"),
+        .target(name: "ToughTrialActivityShared"),
         .executableTarget(
             name: "FocusTimelineCoreChecks",
             dependencies: ["FocusTimelineCore"],

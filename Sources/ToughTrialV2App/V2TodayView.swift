@@ -3,8 +3,10 @@ import ToughTrialV2Core
 
 struct V2TodayView: View {
     @ObservedObject var store: V2AppStore
+    @StateObject private var speech = V2SpeechTranscriber()
     @State private var isQuickAddPresented = false
     @State private var quickAddTitle = ""
+    @State private var speechPrefix = ""
     @State private var isFocusExpanded = true
 
     var body: some View {
@@ -20,7 +22,11 @@ struct V2TodayView: View {
                     }
 
                 VStack(alignment: .leading, spacing: 16) {
-                    V2TodayHeader()
+                    V2TodayHeader {
+                        Task {
+                            await store.enablePlanReminders()
+                        }
+                    }
 
                     V2TodayFocusCanvas(
                         sessions: store.state.activeSessions,
@@ -59,9 +65,19 @@ struct V2TodayView: View {
                 .padding(.horizontal, 22)
                 .padding(.top, 18)
 
-                Button {
-                    isQuickAddPresented = true
-                } label: {
+                V2TodayCaptureButton(
+                    onTap: {
+                        isQuickAddPresented = true
+                    },
+                    onVoiceStart: beginVoiceQuickAdd,
+                    onVoiceLock: {
+                        isQuickAddPresented = true
+                    },
+                    onVoiceEnd: {
+                        speech.stop()
+                        isQuickAddPresented = true
+                    }
+                ) {
                     Image(systemName: "plus")
                         .font(.system(size: 28, weight: .medium))
                         .foregroundStyle(V2Theme.ColorRole.onPrimary)
@@ -69,8 +85,6 @@ struct V2TodayView: View {
                         .background(V2Theme.ColorRole.primary, in: Circle())
                         .shadow(color: V2Theme.ColorRole.primary.opacity(0.24), radius: 18, y: 10)
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("快速添加今日任务")
                 .padding(.trailing, 24)
                 .padding(.bottom, 78)
             }
@@ -78,6 +92,8 @@ struct V2TodayView: View {
             .sheet(isPresented: $isQuickAddPresented) {
                 V2TodayQuickAddSheet(
                     title: $quickAddTitle,
+                    isListening: speech.isListening,
+                    onMic: toggleQuickAddSpeech,
                     onCancel: dismissQuickAdd,
                     onSubmit: submitQuickAdd
                 )
@@ -90,6 +106,29 @@ struct V2TodayView: View {
                 }
             } message: {
                 Text(store.errorMessage ?? "请稍后再试。")
+            }
+            .alert("计划提醒", isPresented: noticeBinding) {
+                Button("知道了") {
+                    store.dismissNotice()
+                }
+            } message: {
+                Text(store.noticeMessage ?? "")
+            }
+            .alert("语音输入", isPresented: speechErrorBinding) {
+                Button("知道了") {
+                    speech.dismissError()
+                }
+            } message: {
+                Text(speech.errorMessage ?? "语音输入暂不可用。")
+            }
+            .onChange(of: speech.transcript) { _, transcript in
+                guard !transcript.isEmpty else { return }
+                quickAddTitle = speechPrefix.isEmpty
+                    ? transcript
+                    : "\(speechPrefix) \(transcript)"
+            }
+            .onDisappear {
+                speech.stop()
             }
         }
     }
@@ -137,14 +176,29 @@ struct V2TodayView: View {
     private func submitQuickAdd() {
         let title = quickAddTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { return }
+        speech.stop()
         if store.quickAddTodayTask(title: title) {
             dismissQuickAdd()
         }
     }
 
     private func dismissQuickAdd() {
+        speech.stop()
+        speechPrefix = ""
         quickAddTitle = ""
         isQuickAddPresented = false
+    }
+
+    private func beginVoiceQuickAdd() {
+        speechPrefix = quickAddTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        speech.toggle()
+    }
+
+    private func toggleQuickAddSpeech() {
+        if !speech.isListening {
+            speechPrefix = quickAddTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        speech.toggle()
     }
 
     private var errorBinding: Binding<Bool> {
@@ -153,6 +207,28 @@ struct V2TodayView: View {
             set: { isPresented in
                 if !isPresented {
                     store.dismissError()
+                }
+            }
+        )
+    }
+
+    private var noticeBinding: Binding<Bool> {
+        Binding(
+            get: { store.noticeMessage != nil },
+            set: { isPresented in
+                if !isPresented {
+                    store.dismissNotice()
+                }
+            }
+        )
+    }
+
+    private var speechErrorBinding: Binding<Bool> {
+        Binding(
+            get: { speech.errorMessage != nil },
+            set: { isPresented in
+                if !isPresented {
+                    speech.dismissError()
                 }
             }
         )
@@ -167,6 +243,8 @@ private struct V2TodayBackground: View {
 }
 
 private struct V2TodayHeader: View {
+    let onEnableReminders: () -> Void
+
     var body: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 8) {
@@ -182,16 +260,30 @@ private struct V2TodayHeader: View {
 
             Spacer()
 
-            Image(systemName: "line.3.horizontal")
-                .font(V2Theme.TypeRole.titleMedium)
-                .foregroundStyle(V2Theme.ColorRole.textPrimary.opacity(0.82))
-                .frame(width: 46, height: 46)
-                .background(V2Theme.ColorRole.surfaceRaised.opacity(0.92), in: RoundedRectangle(cornerRadius: 19, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 19, style: .continuous)
-                        .stroke(V2Theme.ColorRole.outline.opacity(0.46), lineWidth: 1)
-                )
-                .shadow(color: V2Theme.ColorRole.textPrimary.opacity(0.05), radius: 14, y: 7)
+            Menu {
+                Button(action: onEnableReminders) {
+                    Label("开启计划提醒", systemImage: "bell")
+                }
+            } label: {
+                Image(systemName: "line.3.horizontal")
+                    .font(V2Theme.TypeRole.titleMedium)
+                    .foregroundStyle(V2Theme.ColorRole.textPrimary.opacity(0.82))
+                    .frame(width: 46, height: 46)
+                    .background(
+                        V2Theme.ColorRole.surfaceRaised.opacity(0.92),
+                        in: RoundedRectangle(cornerRadius: 19, style: .continuous)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 19, style: .continuous)
+                            .stroke(V2Theme.ColorRole.outline.opacity(0.46), lineWidth: 1)
+                    )
+                    .shadow(
+                        color: V2Theme.ColorRole.textPrimary.opacity(0.05),
+                        radius: 14,
+                        y: 7
+                    )
+            }
+            .accessibilityLabel("今天选项")
         }
     }
 
@@ -690,6 +782,8 @@ private struct V2TodayFlowDot: View {
 
 private struct V2TodayQuickAddSheet: View {
     @Binding var title: String
+    let isListening: Bool
+    let onMic: () -> Void
     let onCancel: () -> Void
     let onSubmit: () -> Void
     @FocusState private var isFocused: Bool
@@ -722,6 +816,25 @@ private struct V2TodayQuickAddSheet: View {
                     .focused($isFocused)
                     .onSubmit(onSubmit)
 
+                Button(action: onMic) {
+                    Image(systemName: isListening ? "waveform" : "mic")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(
+                            isListening
+                                ? V2Theme.ColorRole.textInverse
+                                : V2Theme.ColorRole.textSecondary
+                        )
+                        .frame(width: 38, height: 38)
+                        .background(
+                            isListening
+                                ? V2Theme.ColorRole.destructive
+                                : V2Theme.ColorRole.surfaceRaised,
+                            in: Circle()
+                        )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(isListening ? "停止语音输入" : "开始语音输入")
+
                 Button(action: onSubmit) {
                     Image(systemName: "arrow.up")
                         .font(.system(size: 15, weight: .bold))
@@ -746,8 +859,77 @@ private struct V2TodayQuickAddSheet: View {
         .padding(20)
         .presentationBackground(V2Theme.ColorRole.canvas)
         .onAppear {
-            isFocused = true
+            isFocused = !isListening
         }
+        .onChange(of: isListening) { _, listening in
+            isFocused = !listening
+        }
+    }
+}
+
+private struct V2TodayCaptureButton<Label: View>: View {
+    let onTap: () -> Void
+    let onVoiceStart: () -> Void
+    let onVoiceLock: () -> Void
+    let onVoiceEnd: () -> Void
+    @ViewBuilder let label: () -> Label
+
+    @State private var isVoiceGestureActive = false
+    @State private var isVoiceLocked = false
+    @State private var suppressesTap = false
+
+    var body: some View {
+        label()
+            .contentShape(Circle())
+            .onTapGesture {
+                guard !suppressesTap else {
+                    suppressesTap = false
+                    return
+                }
+                onTap()
+            }
+            .gesture(voiceGesture)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("快速添加今日任务")
+            .accessibilityHint("点按输入文字；长按语音输入，上拖锁定")
+    }
+
+    private var voiceGesture: some Gesture {
+        LongPressGesture(minimumDuration: 0.45, maximumDistance: 1_000)
+            .sequenced(before: DragGesture(minimumDistance: 0))
+            .onChanged { value in
+                switch value {
+                case .first(true):
+                    startVoiceGestureIfNeeded()
+                case .second(true, let drag):
+                    startVoiceGestureIfNeeded()
+                    if let drag,
+                       drag.translation.height < -56,
+                       !isVoiceLocked {
+                        isVoiceLocked = true
+                        onVoiceLock()
+                    }
+                default:
+                    break
+                }
+            }
+            .onEnded { _ in
+                if isVoiceGestureActive && !isVoiceLocked {
+                    onVoiceEnd()
+                }
+                isVoiceGestureActive = false
+                isVoiceLocked = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    suppressesTap = false
+                }
+            }
+    }
+
+    private func startVoiceGestureIfNeeded() {
+        guard !isVoiceGestureActive else { return }
+        isVoiceGestureActive = true
+        suppressesTap = true
+        onVoiceStart()
     }
 }
 

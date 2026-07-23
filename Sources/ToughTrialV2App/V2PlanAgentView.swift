@@ -3,7 +3,9 @@ import ToughTrialV2Core
 
 struct V2PlanAgentView: View {
     @ObservedObject var store: V2AppStore
+    @StateObject private var speech = V2SpeechTranscriber()
     @State private var promptText = ""
+    @State private var speechPrefix = ""
     @State private var showHistory = false
     @State private var showMemory = false
     @FocusState private var isComposerFocused: Bool
@@ -51,6 +53,8 @@ struct V2PlanAgentView: View {
                 placeholder: composerPlaceholder,
                 isFocused: $isComposerFocused,
                 isBusy: store.isPlanning,
+                isListening: speech.isListening,
+                onMic: toggleSpeech,
                 onSend: sendPrompt
             )
         }
@@ -67,6 +71,22 @@ struct V2PlanAgentView: View {
         } message: {
             Text(store.errorMessage ?? "请稍后再试。")
         }
+        .alert("语音输入", isPresented: speechErrorBinding) {
+            Button("知道了") {
+                speech.dismissError()
+            }
+        } message: {
+            Text(speech.errorMessage ?? "语音输入暂不可用。")
+        }
+        .onChange(of: speech.transcript) { _, transcript in
+            guard !transcript.isEmpty else { return }
+            promptText = speechPrefix.isEmpty
+                ? transcript
+                : "\(speechPrefix) \(transcript)"
+        }
+        .onDisappear {
+            speech.stop()
+        }
         .v2ScreenBackground()
     }
 
@@ -76,6 +96,17 @@ struct V2PlanAgentView: View {
             set: { isPresented in
                 if !isPresented {
                     store.dismissError()
+                }
+            }
+        )
+    }
+
+    private var speechErrorBinding: Binding<Bool> {
+        Binding(
+            get: { speech.errorMessage != nil },
+            set: { isPresented in
+                if !isPresented {
+                    speech.dismissError()
                 }
             }
         )
@@ -202,6 +233,8 @@ struct V2PlanAgentView: View {
         let trimmed = promptText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
+        speech.stop()
+        speechPrefix = ""
         promptText = ""
         isComposerFocused = false
         Task { @MainActor in
@@ -211,6 +244,14 @@ struct V2PlanAgentView: View {
                 await store.submitPlanPrompt(trimmed)
             }
         }
+    }
+
+    private func toggleSpeech() {
+        if !speech.isListening {
+            speechPrefix = promptText.trimmingCharacters(in: .whitespacesAndNewlines)
+            isComposerFocused = false
+        }
+        speech.toggle()
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
@@ -501,6 +542,8 @@ private struct V2PlanComposer: View {
     let placeholder: String
     var isFocused: FocusState<Bool>.Binding
     let isBusy: Bool
+    let isListening: Bool
+    let onMic: () -> Void
     let onSend: () -> Void
 
     private let scopes = ["今天", "明天", "近三日", "本周", "本月"]
@@ -539,6 +582,26 @@ private struct V2PlanComposer: View {
                 .focused(isFocused)
                 .disabled(isBusy)
                 .padding(.vertical, 8)
+
+            Button(action: onMic) {
+                Image(systemName: isListening ? "waveform" : "mic")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(
+                        isListening
+                            ? V2Theme.ColorRole.textInverse
+                            : V2Theme.ColorRole.textSecondary
+                    )
+                    .frame(width: 36, height: 36)
+                    .background(
+                        isListening
+                            ? V2Theme.ColorRole.destructive
+                            : V2Theme.ColorRole.surfaceMuted,
+                        in: Circle()
+                    )
+            }
+            .buttonStyle(.plain)
+            .disabled(isBusy)
+            .accessibilityLabel(isListening ? "停止语音输入" : "开始语音输入")
 
             Button(action: onSend) {
                 Image(systemName: "arrow.up")

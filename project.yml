@@ -18,10 +18,21 @@ targets:
     dependencies:
       - package: FocusTimelineCore
         product: ToughTrialV2Core
+      - package: FocusTimelineCore
+        product: ToughTrialActivityShared
+      - target: ToughTrialLiveActivity
+        embed: true
     info:
       path: Sources/ToughTrialApp/Info.plist
       properties:
         CFBundleDisplayName: Tough Trial
+        NSMicrophoneUsageDescription: 用于把你主动录入的语音转成任务或计划文字。
+        NSSpeechRecognitionUsageDescription: 用于把你主动录入的语音转成可编辑文字。
+        NSSupportsLiveActivities: true
+        CFBundleURLTypes:
+          - CFBundleURLName: com.xiaoyuliu.ToughTrial
+            CFBundleURLSchemes:
+              - toughtrial
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
@@ -30,3 +41,22 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
+  ToughTrialLiveActivity:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Sources/ToughTrialLiveActivity
+    dependencies:
+      - package: FocusTimelineCore
+        product: ToughTrialActivityShared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.xiaoyuliu.ToughTrial.LiveActivity
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SKIP_INSTALL: YES
+    info:
+      path: Sources/ToughTrialLiveActivity/Info.plist
+      properties:
+        CFBundleDisplayName: Tough Trial Focus
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
