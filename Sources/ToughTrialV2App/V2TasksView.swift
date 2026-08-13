@@ -5,12 +5,17 @@ import ToughTrialV2Core
 struct V2TasksView: View {
     @ObservedObject var store: V2AppStore
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var lens = V2TaskLens.structure
     @State private var timeScale = V2TaskTimeScale.week
     @State private var timeAnchor = Calendar.current.startOfDay(for: Date())
     @State private var visibleGoalIDs: Set<String> = []
+    @State private var structureRootID: String?
     @State private var showsCaptureAffordance = false
+    @State private var isTaskCapturePresented = false
     @State private var quickAddTitle = ""
+    @State private var presentedTask: V2TaskDetailContext?
+    @State private var planTaskAfterDetail: V2TaskNode?
     @FocusState private var isQuickAddFocused: Bool
 
     private var rootTasks: [V2TaskNode] {
@@ -48,6 +53,28 @@ struct V2TasksView: View {
                 visibleGoalIDs = Set(goals.map(\.id))
             }
         }
+        .sheet(isPresented: $isTaskCapturePresented, onDismiss: clearTaskCapture) {
+            V2TaskCaptureSheet(
+                title: $quickAddTitle,
+                locationTitle: taskCaptureLocationTitle,
+                onCancel: dismissTaskCapture,
+                onSubmit: submitTaskCapture
+            )
+            .presentationDetents([taskCaptureDetent])
+            .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $presentedTask, onDismiss: openPendingPlanTask) { context in
+            V2TaskDetailSheet(
+                context: context,
+                onClose: { presentedTask = nil },
+                onPlan: {
+                    planTaskAfterDetail = context.task
+                    presentedTask = nil
+                }
+            )
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+        }
     }
 
     private var timeContent: some View {
@@ -73,7 +100,12 @@ struct V2TasksView: View {
             header
                 .padding(.horizontal, 18)
 
-            V2StructureLensView(tasks: rootTasks, selectedTaskID: store.state.selectedTaskID)
+            V2StructureLensView(
+                tasks: rootTasks,
+                selectedTaskID: store.state.selectedTaskID,
+                selectedRootID: $structureRootID,
+                onOpenDetails: presentTaskDetails
+            )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .padding(.top, 12)
@@ -110,33 +142,24 @@ struct V2TasksView: View {
 
     private var captureControl: some View {
         VStack(alignment: .trailing, spacing: 10) {
-            if showsCaptureAffordance {
-                if lens == .time {
-                    timeQuickAddPanel
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                } else {
-                    Text("在当前视角轻记一笔")
-                        .font(V2Theme.TypeRole.bodySmall)
-                        .foregroundStyle(V2Theme.ColorRole.textSecondary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(V2Theme.ColorRole.surfaceRaised)
-                        .clipShape(Capsule())
-                        .overlay(Capsule().stroke(V2Theme.ColorRole.outline, lineWidth: 1))
-                        .transition(.move(edge: .trailing).combined(with: .opacity))
-                }
+            if showsCaptureAffordance, lens == .time {
+                timeQuickAddPanel
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
 
             if lens != .time || !showsCaptureAffordance {
                 Button {
-                    withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-                        showsCaptureAffordance.toggle()
-                    }
                     if lens == .time {
+                        withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                            showsCaptureAffordance.toggle()
+                        }
                         Task { @MainActor in
                             try? await Task.sleep(for: .milliseconds(180))
                             isQuickAddFocused = true
                         }
+                    } else {
+                        quickAddTitle = ""
+                        isTaskCapturePresented = true
                     }
                 } label: {
                     Image(systemName: "plus")
@@ -149,6 +172,7 @@ struct V2TasksView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("新增任务记录")
+                .accessibilityIdentifier("tasks.capture.open")
             }
         }
         .frame(maxWidth: 360, alignment: .trailing)
@@ -165,6 +189,7 @@ struct V2TasksView: View {
                     .focused($isQuickAddFocused)
                     .submitLabel(.done)
                     .onSubmit(submitScheduledTask)
+                    .accessibilityIdentifier("tasks.timeCapture.title")
 
                 Button {
                     closeQuickAdd()
@@ -177,6 +202,7 @@ struct V2TasksView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("关闭新增任务")
+                .accessibilityIdentifier("tasks.timeCapture.cancel")
             }
 
             HStack(spacing: 10) {
@@ -194,6 +220,7 @@ struct V2TasksView: View {
                     .background(V2Theme.ColorRole.primary, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                     .disabled(quickAddTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     .opacity(quickAddTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.45 : 1)
+                    .accessibilityIdentifier("tasks.timeCapture.submit")
             }
         }
         .padding(12)
@@ -247,6 +274,7 @@ struct V2TasksView: View {
                             )
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("tasks.lens.\(item.identifierComponent)")
                 }
             }
             .padding(3)
@@ -269,6 +297,35 @@ struct V2TasksView: View {
         )
     }
 
+    private var currentStructureRoot: V2TaskNode? {
+        if let structureRootID,
+           let selectedRoot = rootTasks.first(where: { $0.id == structureRootID }) {
+            return selectedRoot
+        }
+
+        if let selectedTaskID = store.state.selectedTaskID,
+           let selectedRoot = rootTasks.first(where: { $0.containsTask(id: selectedTaskID) }) {
+            return selectedRoot
+        }
+
+        return rootTasks.first
+    }
+
+    private var taskCaptureLocationTitle: String {
+        switch lens {
+        case .structure:
+            return currentStructureRoot.map { "结构 / \($0.title)" } ?? "结构 / 新建根任务"
+        case .fishbone:
+            return "鱼骨 / 未归类"
+        case .time:
+            return timeAnchor.formatted(.dateTime.month(.defaultDigits).day())
+        }
+    }
+
+    private var taskCaptureDetent: PresentationDetent {
+        dynamicTypeSize.isAccessibilitySize ? .medium : .height(238)
+    }
+
     private func submitScheduledTask() {
         let title = quickAddTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { return }
@@ -283,6 +340,48 @@ struct V2TasksView: View {
         withAnimation(.easeOut(duration: 0.16)) {
             showsCaptureAffordance = false
         }
+    }
+
+    private func submitTaskCapture() {
+        let title = quickAddTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty, lens != .time else { return }
+
+        let parentTaskID = lens == .structure ? currentStructureRoot?.id : nil
+        if store.createTaskFromTasks(title: title, parentTaskID: parentTaskID) {
+            isTaskCapturePresented = false
+        }
+    }
+
+    private func dismissTaskCapture() {
+        isTaskCapturePresented = false
+    }
+
+    private func clearTaskCapture() {
+        quickAddTitle = ""
+    }
+
+    private func presentTaskDetails(_ task: V2TaskNode) {
+        let path = rootTasks.compactMap { taskPath(to: task.id, in: $0) }.first ?? [task]
+        presentedTask = V2TaskDetailContext(task: task, path: path.map(\.title))
+    }
+
+    private func taskPath(to id: String, in node: V2TaskNode) -> [V2TaskNode]? {
+        if node.id == id {
+            return [node]
+        }
+
+        for child in node.children {
+            if let path = taskPath(to: id, in: child) {
+                return [node] + path
+            }
+        }
+        return nil
+    }
+
+    private func openPendingPlanTask() {
+        guard let task = planTaskAfterDetail else { return }
+        planTaskAfterDetail = nil
+        store.openPlanAgent(for: task)
     }
 
     private func toggleGoal(_ id: String) {
@@ -304,6 +403,14 @@ private enum V2TaskLens: String, CaseIterable, Identifiable {
     case fishbone = "鱼骨"
 
     var id: String { rawValue }
+
+    var identifierComponent: String {
+        switch self {
+        case .structure: "structure"
+        case .time: "time"
+        case .fishbone: "fishbone"
+        }
+    }
 }
 
 enum V2TaskTimeScale: String, CaseIterable, Identifiable {
@@ -323,11 +430,262 @@ private struct V2GoalFilter: Identifiable {
     let color: Color
 }
 
+private struct V2TaskDetailContext: Identifiable {
+    let task: V2TaskNode
+    let path: [String]
+
+    var id: String { task.id }
+}
+
+private struct V2TaskCaptureSheet: View {
+    @Binding var title: String
+    let locationTitle: String
+    let onCancel: () -> Void
+    let onSubmit: () -> Void
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @FocusState private var isTitleFocused: Bool
+    @AccessibilityFocusState private var isTitleAccessibilityFocused: Bool
+
+    private var isEmpty: Bool {
+        title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("新增任务")
+                    .font(V2Theme.TypeRole.titleLarge)
+                    .foregroundStyle(V2Theme.ColorRole.textPrimary)
+
+                Spacer()
+
+                Button(action: onCancel) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(V2Theme.ColorRole.textSecondary)
+                        .frame(width: 32, height: 32)
+                        .background(V2Theme.ColorRole.surfaceMuted, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("取消新增任务")
+                .accessibilityIdentifier("tasks.capture.cancel")
+            }
+
+            TextField("任务标题", text: $title)
+                .font(V2Theme.TypeRole.bodyMedium)
+                .foregroundStyle(V2Theme.ColorRole.textPrimary)
+                .padding(.horizontal, 12)
+                .frame(minHeight: 44)
+                .background(
+                    V2Theme.ColorRole.surfaceMuted,
+                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                )
+                .focused($isTitleFocused)
+                .accessibilityFocused($isTitleAccessibilityFocused)
+                .submitLabel(.done)
+                .onSubmit(onSubmit)
+                .accessibilityIdentifier("tasks.capture.title")
+
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 12) {
+                    captureLocation
+                    submitButton
+                        .frame(maxWidth: .infinity)
+                }
+            } else {
+                HStack(alignment: .center, spacing: 10) {
+                    captureLocation
+                    Spacer(minLength: 12)
+                    submitButton
+                }
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 10)
+        .padding(.bottom, 18)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(V2Theme.ColorRole.surfaceRaised.ignoresSafeArea())
+        .onAppear {
+            isTitleFocused = true
+            isTitleAccessibilityFocused = true
+        }
+    }
+
+    private var captureLocation: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("加入位置")
+                .font(V2Theme.TypeRole.labelSmall)
+                .foregroundStyle(V2Theme.ColorRole.textTertiary)
+            Text(locationTitle)
+                .font(V2Theme.TypeRole.labelMedium)
+                .foregroundStyle(V2Theme.ColorRole.textSecondary)
+                .lineLimit(2)
+                .accessibilityIdentifier("tasks.capture.location")
+        }
+    }
+
+    private var submitButton: some View {
+        Button("添加", action: onSubmit)
+            .font(V2Theme.TypeRole.labelLarge)
+            .foregroundStyle(V2Theme.ColorRole.onPrimary)
+            .padding(.horizontal, 18)
+            .frame(minHeight: 38)
+            .background(
+                V2Theme.ColorRole.primary,
+                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+            )
+            .disabled(isEmpty)
+            .opacity(isEmpty ? 0.45 : 1)
+            .accessibilityLabel("添加任务")
+            .accessibilityIdentifier("tasks.capture.submit")
+    }
+}
+
+private struct V2TaskDetailSheet: View {
+    let context: V2TaskDetailContext
+    let onClose: () -> Void
+    let onPlan: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("路径")
+                            .font(V2Theme.TypeRole.labelSmall)
+                            .foregroundStyle(V2Theme.ColorRole.textTertiary)
+                        Text(context.path.joined(separator: " / "))
+                            .font(V2Theme.TypeRole.bodySmall)
+                            .foregroundStyle(V2Theme.ColorRole.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .accessibilityIdentifier("tasks.detail.path")
+
+                    Text(context.task.title)
+                        .font(V2Theme.TypeRole.headlineSmall)
+                        .foregroundStyle(V2Theme.ColorRole.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("tasks.detail.title")
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("备注")
+                            .font(V2Theme.TypeRole.labelSmall)
+                            .foregroundStyle(V2Theme.ColorRole.textTertiary)
+                        Text(context.task.subtitle.isEmpty ? "暂无备注" : context.task.subtitle)
+                            .font(V2Theme.TypeRole.bodyMedium)
+                            .foregroundStyle(
+                                context.task.subtitle.isEmpty
+                                    ? V2Theme.ColorRole.textTertiary
+                                    : V2Theme.ColorRole.textSecondary
+                            )
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .accessibilityIdentifier("tasks.detail.note")
+
+                    Divider()
+                        .overlay(V2Theme.ColorRole.outline)
+
+                    HStack(alignment: .top, spacing: 18) {
+                        VStack(alignment: .leading, spacing: 7) {
+                            Text("完成状态")
+                                .font(V2Theme.TypeRole.labelSmall)
+                                .foregroundStyle(V2Theme.ColorRole.textTertiary)
+                            Label(statusTitle, systemImage: statusIcon)
+                                .font(V2Theme.TypeRole.labelMedium)
+                                .foregroundStyle(statusColor)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityIdentifier("tasks.detail.status")
+
+                        Divider()
+
+                        VStack(alignment: .leading, spacing: 7) {
+                            Text("累计用时")
+                                .font(V2Theme.TypeRole.labelSmall)
+                                .foregroundStyle(V2Theme.ColorRole.textTertiary)
+                            Label(durationTitle, systemImage: "clock")
+                                .font(V2Theme.TypeRole.labelMedium)
+                                .foregroundStyle(V2Theme.ColorRole.textSecondary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityIdentifier("tasks.detail.duration")
+                    }
+
+                    Button(action: onPlan) {
+                        Label("AI 计划", systemImage: "sparkles")
+                            .font(V2Theme.TypeRole.labelLarge)
+                            .foregroundStyle(V2Theme.ColorRole.onPrimary)
+                            .frame(maxWidth: .infinity, minHeight: 46)
+                            .background(
+                                V2Theme.ColorRole.primary,
+                                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("带当前任务上下文打开计划工作区")
+                    .accessibilityIdentifier("tasks.detail.aiPlan")
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 18)
+            }
+            .background(V2Theme.ColorRole.canvas)
+            .navigationTitle("任务详情")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(action: onClose) {
+                        Image(systemName: "xmark")
+                    }
+                    .accessibilityLabel("关闭任务详情")
+                    .accessibilityIdentifier("tasks.detail.close")
+                }
+            }
+        }
+        .accessibilityIdentifier("tasks.detail.sheet")
+    }
+
+    private var statusTitle: String {
+        switch context.task.status {
+        case .planned: "未开始"
+        case .active: "进行中"
+        case .paused: "已暂停"
+        case .done: "已完成"
+        }
+    }
+
+    private var statusIcon: String {
+        switch context.task.status {
+        case .planned: "circle"
+        case .active: "timer"
+        case .paused: "pause.circle"
+        case .done: "checkmark.circle.fill"
+        }
+    }
+
+    private var statusColor: Color {
+        switch context.task.status {
+        case .planned: V2Theme.ColorRole.textSecondary
+        case .active: V2Theme.ColorRole.taskActive
+        case .paused: V2Theme.ColorRole.taskPaused
+        case .done: V2Theme.ColorRole.taskComplete
+        }
+    }
+
+    private var durationTitle: String {
+        let minutes = max(0, context.task.spentMinutes)
+        guard minutes >= 60 else { return "\(minutes) 分钟" }
+        let hours = minutes / 60
+        let remainder = minutes % 60
+        return remainder == 0 ? "\(hours) 小时" : "\(hours) 小时 \(remainder) 分钟"
+    }
+}
+
 private struct V2StructureLensView: View {
     let tasks: [V2TaskNode]
     let selectedTaskID: String?
-
-    @State private var selectedRootID: String?
+    @Binding var selectedRootID: String?
+    let onOpenDetails: (V2TaskNode) -> Void
 
     private var defaultRootID: String? {
         tasks.first { root in
@@ -351,7 +709,11 @@ private struct V2StructureLensView: View {
         } else {
             TabView(selection: $selectedRootID) {
                 ForEach(tasks, id: \.id) { task in
-                    V2TaskMapCanvas(task: task, selectedTaskID: selectedTaskID)
+                    V2TaskMapCanvas(
+                        task: task,
+                        selectedTaskID: selectedTaskID,
+                        onOpenDetails: onOpenDetails
+                    )
                         .padding(.horizontal, 2)
                         .tag(Optional(task.id))
                 }
@@ -439,6 +801,7 @@ private struct V2StructureLensView: View {
 private struct V2TaskMapCanvas: View {
     let task: V2TaskNode
     let selectedTaskID: String?
+    let onOpenDetails: (V2TaskNode) -> Void
 
     @State private var focusedNodeID: String?
     @State private var expandedNodeIDs: Set<String> = []
@@ -572,36 +935,21 @@ private struct V2TaskMapCanvas: View {
         }
     }
 
-    @ViewBuilder
     private func mapNode(for entry: V2TaskTreeLayout.Entry) -> some View {
-        if entry.depth > 0, !entry.node.children.isEmpty {
-            Button {
-                toggleExpansion(for: entry.node)
-            } label: {
-                mapNodeLabel(for: entry)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(entry.node.title)
-            .accessibilityValue(
-                effectiveExpandedNodeIDs.contains(entry.node.id)
-                    ? "已展开"
-                    : "已收起"
-            )
-        } else {
-            mapNodeLabel(for: entry)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(entry.node.title)
-                .accessibilityValue(
-                    entry.node.status == .done
-                        ? "已完成"
-                        : "未完成"
-                )
-        }
+        mapNodeLabel(for: entry)
     }
 
     private func mapNodeLabel(for entry: V2TaskTreeLayout.Entry) -> some View {
         let style = nodeStyle(for: entry)
+        let onToggleExpansion: (() -> Void)?
+        if entry.depth > 0, !entry.node.children.isEmpty {
+            onToggleExpansion = { toggleExpansion(for: entry.node) }
+        } else {
+            onToggleExpansion = nil
+        }
+
         return V2TaskMapNode(
+            id: entry.node.id,
             title: entry.node.title,
             color: entry.depth == 0
                 ? V2Theme.ColorRole.textPrimary
@@ -610,7 +958,9 @@ private struct V2TaskMapCanvas: View {
             completionSignal: entry.node.completionSignal,
             style: style,
             childCount: entry.depth == 0 ? 0 : entry.node.children.count,
-            isExpanded: effectiveExpandedNodeIDs.contains(entry.node.id)
+            isExpanded: effectiveExpandedNodeIDs.contains(entry.node.id),
+            onOpenDetails: { onOpenDetails(entry.node) },
+            onToggleExpansion: onToggleExpansion
         )
         .scaleEffect(effectiveFocusedNodeID == entry.node.id ? 1 : 0.98)
         .opacity(nodeOpacity(for: entry))
@@ -836,6 +1186,7 @@ private struct V2TaskMapNode: View {
         case leaf
     }
 
+    let id: String
     let title: String
     let color: Color
     let status: V2TaskNode.Status
@@ -843,45 +1194,69 @@ private struct V2TaskMapNode: View {
     let style: Style
     let childCount: Int
     let isExpanded: Bool
+    let onOpenDetails: () -> Void
+    let onToggleExpansion: (() -> Void)?
 
     var body: some View {
-        HStack(spacing: 8) {
-            V2TaskMapStatusDot(
-                color: color,
-                completionSignal: completionSignal,
-                style: style
-            )
+        HStack(spacing: 5) {
+            Button(action: onOpenDetails) {
+                HStack(spacing: 8) {
+                    V2TaskMapStatusDot(
+                        color: color,
+                        completionSignal: completionSignal,
+                        style: style
+                    )
 
-            Text(title)
-                .font(font)
-                .foregroundStyle(textColor)
-                .lineLimit(1)
-                .minimumScaleFactor(0.72)
-                .padding(.horizontal, 3)
-                .background(V2Theme.ColorRole.canvas)
-                .overlay(alignment: .bottom) {
-                    Capsule()
-                        .fill(textColor.opacity(underlineOpacity))
-                        .frame(height: style == .detail ? 2 : 3)
-                        .offset(y: 5)
+                    Text(title)
+                        .font(font)
+                        .foregroundStyle(textColor)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                        .padding(.horizontal, 3)
+                        .background(V2Theme.ColorRole.canvas)
+                        .overlay(alignment: .bottom) {
+                            Capsule()
+                                .fill(textColor.opacity(underlineOpacity))
+                                .frame(height: style == .detail ? 2 : 3)
+                                .offset(y: 5)
+                        }
                 }
+                .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(bodyAccessibilityLabel)
+            .accessibilityValue(status == .done ? "已完成" : "未完成")
+            .accessibilityHint("打开任务详情")
+            .accessibilityIdentifier("tasks.node.\(id).details")
 
-            if childCount > 0, style != .root, style != .leaf {
-                HStack(spacing: 2) {
-                    Text("\(childCount)")
-                    Image(systemName: "chevron.right")
-                        .rotationEffect(isExpanded ? .degrees(90) : .zero)
+            if let onToggleExpansion {
+                Button(action: onToggleExpansion) {
+                    HStack(spacing: 2) {
+                        Text("\(childCount)")
+                        Image(systemName: "chevron.right")
+                            .rotationEffect(isExpanded ? .degrees(90) : .zero)
+                    }
+                    .font(V2Theme.TypeRole.labelSmall)
+                    .foregroundStyle(color.opacity(0.78))
+                    .padding(.horizontal, 6)
+                    .frame(minWidth: 34, minHeight: 32)
+                    .background(V2Theme.ColorRole.canvas, in: Capsule())
+                    .overlay(Capsule().fill(color.opacity(0.10)))
+                    .animation(.easeInOut(duration: 0.18), value: isExpanded)
                 }
-                .font(V2Theme.TypeRole.labelSmall)
-                .foregroundStyle(color.opacity(0.78))
-                .padding(.horizontal, 6)
-                .frame(height: 20)
-                .background(V2Theme.ColorRole.canvas, in: Capsule())
-                .overlay(Capsule().fill(color.opacity(0.10)))
-                .animation(.easeInOut(duration: 0.18), value: isExpanded)
+                .buttonStyle(.plain)
+                .accessibilityLabel(title)
+                .accessibilityValue(isExpanded ? "已展开" : "已收起")
+                .accessibilityHint(isExpanded ? "收起子任务" : "展开子任务")
+                .accessibilityIdentifier("tasks.node.\(id).disclosure")
             }
         }
         .frame(width: nodeWidth, alignment: .leading)
+    }
+
+    private var bodyAccessibilityLabel: String {
+        onToggleExpansion == nil ? title : "查看详情：\(title)"
     }
 
     private var nodeWidth: CGFloat {

@@ -11,9 +11,11 @@
 		15314799A436E36CED8BA418 /* V2ZenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD88E1F61150B984C4116B93 /* V2ZenView.swift */; };
 		164D95835F31953D38B254C3 /* V2RecallHandwritingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ABB12FA7E2B4F6253F4AE7B /* V2RecallHandwritingView.swift */; };
 		17393D3F28C32C8A687FA8E0 /* ToughTrialLiveActivityBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2144CC9616E0B0324CD17DC /* ToughTrialLiveActivityBundle.swift */; };
+		198F981B5A5256A0871E6DFA /* V2AIProviderSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CB9AF9642D83F94E0A4A986 /* V2AIProviderSettings.swift */; };
 		27CB67F1C93967A6AA8F9DAE /* V2PlanAgentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABA6A1FFF10B01D2E53A839 /* V2PlanAgentView.swift */; };
 		33EB924760B7EE7B76AB392B /* V2Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC098F64104F891A638C7642 /* V2Theme.swift */; };
 		3B1C0341B571FCB4D961D720 /* ToughTrialV2App.swift in Sources */ = {isa = PBXBuildFile; fileRef = 232C6C7CC9BEE3D729AAA003 /* ToughTrialV2App.swift */; };
+		423B9B67B5E785576CF2B5E6 /* V2AIProviderSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88C469D85051DB6E544030F2 /* V2AIProviderSettingsView.swift */; };
 		45C2E85D52E84C47102BA576 /* V2RecallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0017D24F92D72A81C33D4620 /* V2RecallView.swift */; };
 		49D0F8AC73D24FB3D86FAF69 /* FirstLaunchUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89B8FD2451C30CF5BE3F1F7B /* FirstLaunchUITests.swift */; };
 		653B167A9A5FD4BFECF96609 /* V2RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95F8A39501533A9884AFF851 /* V2RootView.swift */; };
@@ -70,9 +72,11 @@
 		1ABB12FA7E2B4F6253F4AE7B /* V2RecallHandwritingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2RecallHandwritingView.swift; sourceTree = "<group>"; };
 		1D2CB9D90C7487C743A03624 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		232C6C7CC9BEE3D729AAA003 /* ToughTrialV2App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToughTrialV2App.swift; sourceTree = "<group>"; };
+		3CB9AF9642D83F94E0A4A986 /* V2AIProviderSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2AIProviderSettings.swift; sourceTree = "<group>"; };
 		400CA85D2F585BEF46001134 /* ToughTrial.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ToughTrial.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5937E2365044428AFC0C7211 /* tough_trial */ = {isa = PBXFileReference; lastKnownFileType = folder; name = tough_trial; path = .; sourceTree = SOURCE_ROOT; };
 		7B1EC2C1FAD5EB37F6421F24 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		88C469D85051DB6E544030F2 /* V2AIProviderSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2AIProviderSettingsView.swift; sourceTree = "<group>"; };
 		89126F3A1AF89FAE9F43D45C /* V2AppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2AppStore.swift; sourceTree = "<group>"; };
 		89B8FD2451C30CF5BE3F1F7B /* FirstLaunchUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstLaunchUITests.swift; sourceTree = "<group>"; };
 		95F8A39501533A9884AFF851 /* V2RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2RootView.swift; sourceTree = "<group>"; };
@@ -117,6 +121,8 @@
 				ADF0A49BEAB6A85EBF31EF2D /* Info.plist */,
 				CD8A7E285B1F9AA0212D3E3B /* PrivacyInfo.xcprivacy */,
 				232C6C7CC9BEE3D729AAA003 /* ToughTrialV2App.swift */,
+				3CB9AF9642D83F94E0A4A986 /* V2AIProviderSettings.swift */,
+				88C469D85051DB6E544030F2 /* V2AIProviderSettingsView.swift */,
 				89126F3A1AF89FAE9F43D45C /* V2AppStore.swift */,
 				0E6A85B953D563AC1A9C0C64 /* V2Components.swift */,
 				048EE79F154041A62113CF6E /* V2NativeServices.swift */,
@@ -311,6 +317,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				3B1C0341B571FCB4D961D720 /* ToughTrialV2App.swift in Sources */,
+				198F981B5A5256A0871E6DFA /* V2AIProviderSettings.swift in Sources */,
+				423B9B67B5E785576CF2B5E6 /* V2AIProviderSettingsView.swift in Sources */,
 				A73A1FCC3E5FAACF61EB1731 /* V2AppStore.swift in Sources */,
 				CE3874C2F91A95260D113F3D /* V2Components.swift in Sources */,
 				E720CC255227F8ACBEC16770 /* V2NativeServices.swift in Sources */,
@@ -360,7 +368,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.xiaoyuliu.ToughTrial;
+				PRODUCT_BUNDLE_IDENTIFIER = com.skyliu.toughtrial;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -441,7 +449,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.xiaoyuliu.ToughTrialUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.skyliu.toughtrial.UITests;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = ToughTrial;
@@ -458,7 +466,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.xiaoyuliu.ToughTrial.LiveActivity;
+				PRODUCT_BUNDLE_IDENTIFIER = com.skyliu.toughtrial.LiveActivity;
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -475,7 +483,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.xiaoyuliu.ToughTrial.LiveActivity;
+				PRODUCT_BUNDLE_IDENTIFIER = com.skyliu.toughtrial.LiveActivity;
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -492,7 +500,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.xiaoyuliu.ToughTrialUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.skyliu.toughtrial.UITests;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = ToughTrial;
@@ -567,7 +575,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.xiaoyuliu.ToughTrial;
+				PRODUCT_BUNDLE_IDENTIFIER = com.skyliu.toughtrial;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};

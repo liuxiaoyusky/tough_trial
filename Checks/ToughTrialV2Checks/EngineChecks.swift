@@ -210,7 +210,65 @@ func checkEnginePersistenceAndRecovery() throws {
     }
 }
 
+func checkQuickInsertTodayTaskTimeParsing() throws {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(identifier: "Asia/Hong_Kong")!
+    let submittedAt = calendar.date(from: DateComponents(
+        year: 2026,
+        month: 8,
+        day: 13,
+        hour: 9,
+        minute: 42
+    ))!
+    let cases: [(title: String, hour: Int?, minute: Int?)] = [
+        ("15:00 交材料", 15, 0),
+        ("下午三点交材料", 15, 0),
+        ("下午三点半交材料", 15, 30),
+        ("交材料", nil, nil),
+        ("三点交材料", nil, nil),
+        ("明天下午三点交材料", nil, nil),
+        ("下周一 15:00 交材料", nil, nil),
+    ]
+
+    for testCase in cases {
+        let engine = V2Engine()
+        let inserted = try engine.quickInsertTodayTask(
+            title: testCase.title,
+            at: submittedAt,
+            calendar: calendar
+        )
+
+        require(inserted.task.title == testCase.title, "Quick insert should preserve the original task title")
+        require(inserted.planItem.title == testCase.title, "Quick insert should preserve the original plan item title")
+        require(engine.snapshot.planItems.count == 1, "Quick insert should always create one Today plan item")
+        require(
+            calendar.isDate(inserted.planItem.date, inSameDayAs: submittedAt),
+            "Quick insert should keep every plan item on Today"
+        )
+
+        if let hour = testCase.hour, let minute = testCase.minute {
+            let expectedStart = calendar.date(
+                bySettingHour: hour,
+                minute: minute,
+                second: 0,
+                of: submittedAt
+            )!
+            require(
+                inserted.planItem.startAt == expectedStart,
+                "Explicit Today time should set startAt for: \(testCase.title)"
+            )
+        } else {
+            require(
+                inserted.planItem.startAt == nil,
+                "Missing, ambiguous, or future time should not set startAt for: \(testCase.title)"
+            )
+        }
+    }
+}
+
 func checkTodayProjectionUsesDurableFacts() throws {
+    try checkQuickInsertTodayTaskTimeParsing()
+
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = TimeZone(secondsFromGMT: 0)!
     let base = calendar.date(from: DateComponents(

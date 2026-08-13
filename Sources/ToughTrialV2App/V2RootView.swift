@@ -26,35 +26,42 @@ struct V2RootView: View {
     }
 
     var body: some View {
-        TabView(selection: tabSelection) {
-            V2TodayView(store: store)
-                .tabItem {
-                    Label("今天", systemImage: "calendar")
-                }
-                .tag(V2RootTab.today)
+        ZStack {
+            if store.zenSession == nil {
+                TabView(selection: tabSelection) {
+                    V2TodayView(store: store)
+                        .tabItem {
+                            Label("今天", systemImage: "calendar")
+                        }
+                        .tag(V2RootTab.today)
 
-            V2TasksView(store: store)
-                .tabItem {
-                    Label("任务", systemImage: "square.stack.3d.up")
-                }
-                .tag(V2RootTab.tasks)
+                    V2TasksView(store: store)
+                        .tabItem {
+                            Label("任务", systemImage: "square.stack.3d.up")
+                        }
+                        .tag(V2RootTab.tasks)
 
-            Color.clear
-                .tabItem {
-                    Label("计划", systemImage: "sparkles")
-                }
-                .tag(V2RootTab.plan)
+                    Color.clear
+                        .tabItem {
+                            Label("计划", systemImage: "sparkles")
+                        }
+                        .tag(V2RootTab.plan)
 
-            V2RecallView(
-                store: store,
-                drawingStore: recallDrawingStore
-            )
-                .tabItem {
-                    Label("回想", systemImage: "clock.arrow.circlepath")
+                    V2RecallView(
+                        store: store,
+                        drawingStore: recallDrawingStore
+                    )
+                        .tabItem {
+                            Label("回想", systemImage: "clock.arrow.circlepath")
+                        }
+                        .tag(V2RootTab.recall)
                 }
-                .tag(V2RootTab.recall)
+                .tint(V2Theme.blue)
+            } else {
+                Color.clear
+                    .accessibilityHidden(true)
+            }
         }
-        .tint(V2Theme.blue)
         .fullScreenCover(isPresented: $store.isPlanPresented) {
             V2PlanAgentView(store: store)
         }
@@ -66,6 +73,7 @@ struct V2RootView: View {
                     onFinish: { store.finishZen() },
                     onClose: store.closeZen
                 )
+                .interactiveDismissDisabled()
             }
         }
         .task {

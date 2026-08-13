@@ -1,6 +1,6 @@
 name: ToughTrial
 options:
-  bundleIdPrefix: com.xiaoyuliu
+  bundleIdPrefix: com.skyliu
   deploymentTarget:
     iOS: "17.0"
 settings:
@@ -24,6 +24,9 @@ targets:
         product: ToughTrialActivityShared
       - target: ToughTrialLiveActivity
         embed: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.skyliu.toughtrial
     info:
       path: Sources/ToughTrialV2App/Info.plist
       properties:
@@ -34,7 +37,7 @@ targets:
         NSSpeechRecognitionUsageDescription: 用于把你主动录入的语音转成可编辑文字。
         NSSupportsLiveActivities: true
         CFBundleURLTypes:
-          - CFBundleURLName: com.xiaoyuliu.ToughTrial
+          - CFBundleURLName: com.skyliu.toughtrial
             CFBundleURLSchemes:
               - toughtrial
         UILaunchScreen: {}
@@ -55,7 +58,7 @@ targets:
         product: ToughTrialActivityShared
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.xiaoyuliu.ToughTrial.LiveActivity
+        PRODUCT_BUNDLE_IDENTIFIER: com.skyliu.toughtrial.LiveActivity
         APPLICATION_EXTENSION_API_ONLY: YES
         SKIP_INSTALL: YES
     info:
@@ -75,7 +78,7 @@ targets:
       - target: ToughTrial
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.xiaoyuliu.ToughTrialUITests
+        PRODUCT_BUNDLE_IDENTIFIER: com.skyliu.toughtrial.UITests
         GENERATE_INFOPLIST_FILE: YES
 schemes:
   ToughTrial:

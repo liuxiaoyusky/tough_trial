@@ -8,6 +8,7 @@ struct V2PlanAgentView: View {
     @State private var speechPrefix = ""
     @State private var showHistory = false
     @State private var showMemory = false
+    @State private var showAISettings = false
     @FocusState private var isComposerFocused: Bool
 
     private let quickReplies = ["可以", "想分两次", "先看看时间"]
@@ -63,6 +64,9 @@ struct V2PlanAgentView: View {
         }
         .sheet(isPresented: $showMemory) {
             V2MemorySheet(store: store)
+        }
+        .sheet(isPresented: $showAISettings) {
+            V2AIProviderSettingsView(store: store)
         }
         .alert("操作未完成", isPresented: errorBinding) {
             Button("知道了") {
@@ -167,6 +171,11 @@ struct V2PlanAgentView: View {
                     Text(detail)
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(V2Theme.tertiary)
+                        .accessibilityIdentifier(
+                            store.planningSourceTask == nil
+                                ? "plan.context.general"
+                                : "plan.context.task"
+                        )
                 }
             }
 
@@ -182,6 +191,11 @@ struct V2PlanAgentView: View {
                     showMemory = true
                 } label: {
                     Label("记忆", systemImage: "brain")
+                }
+                Button {
+                    showAISettings = true
+                } label: {
+                    Label("AI 服务", systemImage: "server.rack")
                 }
             } label: {
                 Image(systemName: "ellipsis")
@@ -201,6 +215,9 @@ struct V2PlanAgentView: View {
     private var headerDetail: String? {
         if store.state.planConversationPhase == .reviewingDraft {
             return "\(max(1, store.planDraftCount))个草稿"
+        }
+        if let task = store.planningSourceTask {
+            return "来自任务：\(task.title)"
         }
         return store.state.planScope ?? store.planningProviderLabel
     }

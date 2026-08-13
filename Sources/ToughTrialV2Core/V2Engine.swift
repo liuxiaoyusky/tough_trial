@@ -331,6 +331,7 @@ public final class V2Engine {
         calendar: Calendar = .current
     ) throws -> (task: V2Task, planItem: V2PlanItem) {
         let title = try normalizedTitle(title)
+        let startAt = Self.explicitTodayStartAt(in: title, on: date, calendar: calendar)
         return try commit { snapshot in
             let task = V2Task(
                 id: UUID().uuidString,
@@ -341,7 +342,7 @@ public final class V2Engine {
             let item = V2PlanItem(
                 id: UUID().uuidString,
                 date: calendar.startOfDay(for: date),
-                startAt: date,
+                startAt: startAt,
                 taskID: task.id,
                 title: title
             )
@@ -656,6 +657,56 @@ public final class V2Engine {
             throw V2EngineError.blankTitle
         }
         return normalized
+    }
+
+    private static func explicitTodayStartAt(
+        in title: String,
+        on date: Date,
+        calendar: Calendar
+    ) -> Date? {
+        let futureMarkers = [
+            "明天", "后天", "大后天", "下周", "下星期", "下礼拜",
+            "下个月", "下月", "明年", "未来",
+        ]
+        guard !futureMarkers.contains(where: { title.contains($0) }) else {
+            return nil
+        }
+
+        if let time = explicit24HourTime(in: title) {
+            return calendar.date(
+                bySettingHour: time.hour,
+                minute: time.minute,
+                second: 0,
+                of: date
+            )
+        }
+        if title.contains("下午三点半") {
+            return calendar.date(bySettingHour: 15, minute: 30, second: 0, of: date)
+        }
+        if title.contains("下午三点") {
+            return calendar.date(bySettingHour: 15, minute: 0, second: 0, of: date)
+        }
+        return nil
+    }
+
+    private static func explicit24HourTime(in title: String) -> (hour: Int, minute: Int)? {
+        let candidates = title.split { character in
+            !character.isNumber && character != ":"
+        }
+        for candidate in candidates {
+            let components = candidate.split(separator: ":", omittingEmptySubsequences: false)
+            guard components.count == 2,
+                  (1...2).contains(components[0].count),
+                  components[1].count == 2,
+                  let hour = Int(components[0]),
+                  let minute = Int(components[1]),
+                  (0...23).contains(hour),
+                  (0...59).contains(minute) else {
+                continue
+            }
+            return (hour, minute)
+        }
+        return nil
     }
 
     private static func executableTaskIndex(

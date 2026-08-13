@@ -380,6 +380,111 @@ func checkAIPlanningClients() async throws {
     require(format["type"] as? String == "json_schema", "Remote planning must request strict JSON schema output")
     require(format["strict"] as? Bool == true, "Remote planning schema must be strict")
 
+    let compatibleConfiguration = V2OpenAICompatiblePlanningConfiguration(
+        endpoint: URL(string: "https://api.siliconflow.cn/v1/chat/completions")!,
+        apiKey: "fake-compatible-key",
+        model: "fake-compatible-model",
+        providerLabel: "硅基流动"
+    )
+    let compatibleTransport = V2FakePlanningTransport(
+        result: .response(
+            statusCode: 200,
+            data: try chatPlanningResponseData(structuredOutput: structured)
+        )
+    )
+    let compatibleClient = V2ValidatedPlanningClient(
+        client: V2OpenAICompatiblePlanningClient(
+            configuration: compatibleConfiguration,
+            transport: compatibleTransport
+        )
+    )
+    let compatibleOutcome = try await compatibleClient.generate(baseRequest)
+    guard case .proposal(let compatibleProposal) = compatibleOutcome else {
+        fatalError("OpenAI-compatible output should decode as a proposal")
+    }
+    require(
+        compatibleProposal.draft.scheduleItems.first?.taskID == "task-existing",
+        "OpenAI-compatible planning should preserve its known-task reference"
+    )
+    require(
+        compatibleClient.providerLabel == "硅基流动",
+        "OpenAI-compatible planning should expose its configured provider label"
+    )
+
+    let compatibleRequests = await compatibleTransport.recordedRequests()
+    require(compatibleRequests.count == 1, "OpenAI-compatible transport should receive one request")
+    let compatibleRequest = compatibleRequests[0]
+    require(
+        compatibleRequest.url == compatibleConfiguration.endpoint,
+        "OpenAI-compatible request should use the configured endpoint"
+    )
+    require(
+        compatibleRequest.value(forHTTPHeaderField: "Authorization") == "Bearer fake-compatible-key",
+        "OpenAI-compatible request should carry the configured bearer token"
+    )
+    let compatibleBody = try JSONSerialization.jsonObject(
+        with: compatibleRequest.httpBody!
+    ) as! [String: Any]
+    require(
+        compatibleBody["model"] as? String == "fake-compatible-model",
+        "OpenAI-compatible request should use the configured model"
+    )
+    require(
+        compatibleBody["stream"] as? Bool == false,
+        "OpenAI-compatible planning should wait for a complete validated JSON response"
+    )
+    let responseFormat = compatibleBody["response_format"] as! [String: Any]
+    require(
+        responseFormat["type"] as? String == "json_object",
+        "OpenAI-compatible planning should request JSON object mode"
+    )
+    let messages = compatibleBody["messages"] as! [[String: Any]]
+    require(
+        messages.map { $0["role"] as? String } == ["system", "user"],
+        "OpenAI-compatible request should use the common system/user message contract"
+    )
+    let compatibleUserContent = messages[1]["content"] as! String
+    let compatiblePayload = try JSONSerialization.jsonObject(
+        with: Data(compatibleUserContent.utf8)
+    ) as! [String: Any]
+    let compatibleInput = compatiblePayload["request"] as! [String: Any]
+    require(
+        compatibleInput["user_prompt"] as? String == baseRequest.userPrompt,
+        "OpenAI-compatible request should preserve the user prompt"
+    )
+    require(
+        compatiblePayload["output_schema"] is [String: Any],
+        "OpenAI-compatible request should include the planning output contract"
+    )
+
+    let compatibleFailureTransport = V2FakePlanningTransport(
+        result: .response(
+            statusCode: 401,
+            data: try JSONSerialization.data(
+                withJSONObject: ["error": ["message": "invalid api key"]],
+                options: [.sortedKeys]
+            )
+        )
+    )
+    let compatibleFailureClient = V2ValidatedPlanningClient(
+        client: V2OpenAICompatiblePlanningClient(
+            configuration: compatibleConfiguration,
+            transport: compatibleFailureTransport
+        )
+    )
+    await requirePlanningFailureKeepsSnapshot(
+        snapshotEngine,
+        label: "OpenAI-compatible HTTP failure",
+        expected: .httpStatus(401)
+    ) {
+        _ = try await compatibleFailureClient.generate(baseRequest)
+    }
+    let compatibleFailureRequestCount = await compatibleFailureTransport.recordedRequests().count
+    require(
+        compatibleFailureRequestCount == 1,
+        "OpenAI-compatible failure check should make exactly one request"
+    )
+
     let refusalTransport = V2FakePlanningTransport(
         result: .response(
             statusCode: 200,
@@ -589,6 +694,27 @@ private func planningResponseData(structuredOutput: [String: Any]) throws -> Dat
                         "text": structuredText,
                     ],
                 ],
+            ],
+        ],
+    ]
+    return try JSONSerialization.data(withJSONObject: envelope, options: [.sortedKeys])
+}
+
+private func chatPlanningResponseData(structuredOutput: [String: Any]) throws -> Data {
+    let structuredData = try JSONSerialization.data(
+        withJSONObject: structuredOutput,
+        options: [.sortedKeys]
+    )
+    let structuredText = String(decoding: structuredData, as: UTF8.self)
+    let envelope: [String: Any] = [
+        "choices": [
+            [
+                "index": 0,
+                "message": [
+                    "role": "assistant",
+                    "content": structuredText,
+                ],
+                "finish_reason": "stop",
             ],
         ],
     ]

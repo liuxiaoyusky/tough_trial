@@ -7,6 +7,7 @@ final class V2AppStore: ObservableObject {
     @Published var state: V2PrototypeState
     @Published var isPlanPresented = false
     @Published var zenSession: V2ActiveSession?
+    @Published private(set) var planningSourceTask: V2TaskNode?
     @Published var errorMessage: String?
     @Published private(set) var pendingPlanDrafts: [V2PlanDraftRecord] = []
     @Published private(set) var recallDate = Date()
@@ -24,7 +25,7 @@ final class V2AppStore: ObservableObject {
     @Published private(set) var noticeMessage: String?
 
     private let engine: V2Engine
-    private let planningClient: any V2PlanningClient
+    private var planningClient: any V2PlanningClient
     private let memoryEngine: V2MemoryEngine
     private let notificationService = V2NotificationService()
     private let liveActivityService = V2LiveActivityService()
@@ -47,10 +48,13 @@ final class V2AppStore: ObservableObject {
     ) {
         let isEmptyUITestMode =
             ProcessInfo.processInfo.environment["TOUGH_TRIAL_UI_TEST_EMPTY"] == "1"
+        let isUITestMode =
+            isEmptyUITestMode
+            || ProcessInfo.processInfo.environment["TOUGH_TRIAL_UI_TESTING"] == "1"
         self.state = initialState
         self.calendar = calendar
         let basePlanningClient = injectedPlanningClient
-            ?? (isEmptyUITestMode
+            ?? (isUITestMode
                 ? V2DeterministicPlanningClient()
                 : Self.configuredPlanningClient())
         let resolvedPlanningClient = V2ValidatedPlanningClient(client: basePlanningClient)
@@ -111,8 +115,21 @@ final class V2AppStore: ObservableObject {
         syncLiveActivityForFocusedSession()
     }
 
-    func openPlanAgent() { isPlanPresented = true }
-    func closePlanAgent() { isPlanPresented = false }
+    func openPlanAgent() {
+        planningSourceTask = nil
+        isPlanPresented = true
+    }
+
+    func openPlanAgent(for task: V2TaskNode) {
+        state.selectedTaskID = task.id
+        planningSourceTask = task
+        isPlanPresented = true
+    }
+
+    func closePlanAgent() {
+        isPlanPresented = false
+        planningSourceTask = nil
+    }
 
     var planDraftCount: Int {
         let durableIDs = Set(pendingPlanDrafts.map(\.id))
@@ -122,6 +139,15 @@ final class V2AppStore: ObservableObject {
 
     func setPlanScope(_ scope: String?) {
         state.setPlanScope(scope)
+    }
+
+    func updatePlanningSettings(_ settings: V2AIProviderSettings) throws {
+        let basePlanningClient = try Self.makePlanningClient(settings: settings)
+        try V2AIProviderSettingsStore.save(settings)
+        let resolvedPlanningClient = V2ValidatedPlanningClient(client: basePlanningClient)
+        planningClient = resolvedPlanningClient
+        planningProviderLabel = resolvedPlanningClient.providerLabel
+        errorMessage = nil
     }
 
     func submitPlanPrompt(_ prompt: String, at date: Date = Date()) async {
@@ -407,6 +433,25 @@ final class V2AppStore: ObservableObject {
         return true
     }
 
+    @discardableResult
+    func createTaskFromTasks(
+        title: String,
+        parentTaskID: String?,
+        at date: Date = Date()
+    ) -> Bool {
+        guard let task = mutate(at: date, {
+            try engine.createTask(
+                title: title,
+                parentID: parentTaskID,
+                at: date
+            )
+        }) else {
+            return false
+        }
+        state.selectedTaskID = task.id
+        return true
+    }
+
     func startTodayItem(
         _ item: V2TimelineItem,
         source: V2ExecutionSegment.Source = .normal,
@@ -497,7 +542,12 @@ final class V2AppStore: ObservableObject {
             if let planItemID {
                 return $0.planItemID == planItemID
             }
-            return taskID != nil && $0.taskID == taskID
+            if let taskID {
+                return $0.taskID == taskID
+            }
+            return $0.planItemID == nil
+                && $0.taskID == nil
+                && $0.title == title
         }) {
             focusedSessionID = existing.id
             zenSessionID = existing.id
@@ -795,7 +845,7 @@ final class V2AppStore: ObservableObject {
         let request = V2PlanningRequest(
             userPrompt: userPrompt,
             clarificationResponse: clarificationResponse,
-            scope: state.planScope,
+            scope: planningRequestScope,
             referenceDate: date,
             timeZoneIdentifier: calendar.timeZone.identifier,
             tasks: engine.snapshot.tasks
@@ -837,6 +887,13 @@ final class V2AppStore: ObservableObject {
         }
     }
 
+    private var planningRequestScope: String? {
+        guard let task = planningSourceTask else {
+            return state.planScope
+        }
+        return "聚焦任务：\(task.title)（task_id: \(task.id)）"
+    }
+
     private func appendPlanAgentMessage(_ text: String) {
         state.planMessages.append(
             V2PlanMessage(
@@ -850,29 +907,44 @@ final class V2AppStore: ObservableObject {
     private static func configuredPlanningClient() -> any V2PlanningClient {
         #if DEBUG
         let environment = ProcessInfo.processInfo.environment
-        guard let apiKey = environment["TOUGH_TRIAL_AI_API_KEY"], !apiKey.isEmpty else {
+        if let apiKey = environment["TOUGH_TRIAL_AI_API_KEY"], !apiKey.isEmpty {
+            let endpoint: URL
+            if let value = environment["TOUGH_TRIAL_AI_ENDPOINT"] {
+                guard let configuredURL = URL(string: value) else {
+                    return V2UnavailablePlanningClient(message: "TOUGH_TRIAL_AI_ENDPOINT 不是有效 URL")
+                }
+                endpoint = configuredURL
+            } else {
+                endpoint = URL(string: "https://api.openai.com/v1/responses")!
+            }
+
+            let configuration = V2RemotePlanningConfiguration(
+                endpoint: endpoint,
+                apiKey: apiKey,
+                model: environment["TOUGH_TRIAL_AI_MODEL"] ?? "gpt-5-mini"
+            )
+            return V2RemotePlanningClient(configuration: configuration)
+        }
+        #endif
+
+        do {
+            return try makePlanningClient(settings: V2AIProviderSettingsStore.load())
+        } catch {
+            return V2UnavailablePlanningClient(
+                message: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            )
+        }
+    }
+
+    private static func makePlanningClient(
+        settings: V2AIProviderSettings
+    ) throws -> any V2PlanningClient {
+        guard settings.isEnabled else {
             return V2DeterministicPlanningClient()
         }
-
-        let endpoint: URL
-        if let value = environment["TOUGH_TRIAL_AI_ENDPOINT"] {
-            guard let configuredURL = URL(string: value) else {
-                return V2UnavailablePlanningClient(message: "TOUGH_TRIAL_AI_ENDPOINT 不是有效 URL")
-            }
-            endpoint = configuredURL
-        } else {
-            endpoint = URL(string: "https://api.openai.com/v1/responses")!
-        }
-
-        let configuration = V2RemotePlanningConfiguration(
-            endpoint: endpoint,
-            apiKey: apiKey,
-            model: environment["TOUGH_TRIAL_AI_MODEL"] ?? "gpt-5-mini"
+        return V2OpenAICompatiblePlanningClient(
+            configuration: try settings.planningConfiguration()
         )
-        return V2RemotePlanningClient(configuration: configuration)
-        #else
-        return V2DeterministicPlanningClient()
-        #endif
     }
 
     private func mutateMemory<Result>(

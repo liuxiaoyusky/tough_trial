@@ -22,7 +22,7 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>com.xiaoyuliu.ToughTrial</string>
+			<string>com.skyliu.toughtrial</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>toughtrial</string>

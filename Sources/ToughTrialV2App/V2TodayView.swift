@@ -9,6 +9,9 @@ struct V2TodayView: View {
     @State private var quickAddTitle = ""
     @State private var speechPrefix = ""
     @State private var isFocusExpanded = true
+    @State private var isZenTaskPickerPresented = false
+    @State private var zenTaskSearchText = ""
+    @State private var pendingZenStart: V2PendingZenStart?
 
     var body: some View {
         NavigationStack {
@@ -36,6 +39,8 @@ struct V2TodayView: View {
                         onExpand: expandFocus,
                         onToggle: { store.toggleSession($0.id) },
                         onEnd: endSession,
+                        onStartUnlinkedZen: startUnlinkedZen,
+                        onChooseZenTask: presentZenTaskPicker,
                         onZen: {
                             store.startZen(
                                 planItemID: $0.planItemID,
@@ -94,6 +99,20 @@ struct V2TodayView: View {
                     onSubmit: submitQuickAdd
                 )
                 .presentationDetents([.height(184)])
+                .presentationDragIndicator(.visible)
+            }
+            .sheet(
+                isPresented: $isZenTaskPickerPresented,
+                onDismiss: startPendingZen
+            ) {
+                V2TodayZenTaskPicker(
+                    tasks: zenSelectableTasks,
+                    searchText: $zenTaskSearchText,
+                    onSelect: { queueZenStart(.task($0)) },
+                    onStartUnlinked: { queueZenStart(.unlinked) },
+                    onCancel: dismissZenTaskPicker
+                )
+                .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
             }
             .alert("操作未完成", isPresented: errorBinding) {
@@ -167,6 +186,53 @@ struct V2TodayView: View {
 
     private func endSession(_ session: V2ActiveSession) {
         store.endSession(session.id)
+    }
+
+    private var zenSelectableTasks: [V2TaskNode] {
+        store.state.flattenTasks().filter { $0.status != .done }
+    }
+
+    private func startUnlinkedZen() {
+        store.startZen(
+            planItemID: nil,
+            taskID: nil,
+            title: "自由专注"
+        )
+    }
+
+    private func presentZenTaskPicker() {
+        pendingZenStart = nil
+        zenTaskSearchText = ""
+        isZenTaskPickerPresented = true
+    }
+
+    private func queueZenStart(_ start: V2PendingZenStart) {
+        pendingZenStart = start
+        isZenTaskPickerPresented = false
+    }
+
+    private func dismissZenTaskPicker() {
+        pendingZenStart = nil
+        isZenTaskPickerPresented = false
+    }
+
+    private func startPendingZen() {
+        defer {
+            pendingZenStart = nil
+            zenTaskSearchText = ""
+        }
+        guard let pendingZenStart else { return }
+
+        switch pendingZenStart {
+        case .unlinked:
+            startUnlinkedZen()
+        case .task(let task):
+            store.startZen(
+                planItemID: nil,
+                taskID: task.id,
+                title: task.title
+            )
+        }
     }
 
     private func submitQuickAdd() {
@@ -298,6 +364,8 @@ private struct V2TodayFocusCanvas: View {
     let onExpand: () -> Void
     let onToggle: (V2ActiveSession) -> Void
     let onEnd: (V2ActiveSession) -> Void
+    let onStartUnlinkedZen: () -> Void
+    let onChooseZenTask: () -> Void
     let onZen: (V2ActiveSession) -> Void
 
     private var primarySession: V2ActiveSession? {
@@ -311,7 +379,10 @@ private struct V2TodayFocusCanvas: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if sessions.isEmpty {
-                V2TodayEmptyFocus()
+                V2TodayEmptyFocus(
+                    onStartUnlinkedZen: onStartUnlinkedZen,
+                    onChooseZenTask: onChooseZenTask
+                )
             } else if isExpanded, let primarySession {
                 V2TodayPrimaryFocus(
                     session: primarySession,
@@ -418,6 +489,7 @@ private struct V2TodayPrimaryFocus: View {
                         .background(V2Theme.ColorRole.primaryContainer, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("today.focus.zen")
 
                 Button(action: onEnd) {
                     Image(systemName: "stop.fill")
@@ -445,6 +517,9 @@ private struct V2TodayPrimaryFocus: View {
 }
 
 private struct V2TodayEmptyFocus: View {
+    let onStartUnlinkedZen: () -> Void
+    let onChooseZenTask: () -> Void
+
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             Image(systemName: "circle.dashed")
@@ -458,11 +533,186 @@ private struct V2TodayEmptyFocus: View {
             Text("今天页只负责记录今天真实发生的时间。")
                 .font(V2Theme.TypeRole.bodyMedium)
                 .foregroundStyle(V2Theme.ColorRole.textSecondary)
+
+            Spacer(minLength: 0)
+
+            VStack(spacing: 10) {
+                Button(action: onStartUnlinkedZen) {
+                    Label("直接开始 Zen", systemImage: "leaf.fill")
+                        .font(V2Theme.TypeRole.titleMedium)
+                        .foregroundStyle(V2Theme.ColorRole.onPrimary)
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: 46)
+                        .background(
+                            V2Theme.ColorRole.primary,
+                            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        )
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("today.emptyZen.startUnlinked")
+
+                Button(action: onChooseZenTask) {
+                    Label("选择任务", systemImage: "magnifyingglass")
+                        .font(V2Theme.TypeRole.titleMedium)
+                        .foregroundStyle(V2Theme.ColorRole.onPrimaryContainer)
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: 46)
+                        .background(
+                            V2Theme.ColorRole.primaryContainer,
+                            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        )
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("today.emptyZen.chooseTask")
+            }
         }
         .padding(24)
         .frame(maxWidth: .infinity, minHeight: 296, alignment: .topLeading)
         .background(V2Theme.ColorRole.surfaceRaised.opacity(0.92), in: RoundedRectangle(cornerRadius: 34, style: .continuous))
     }
+}
+
+private struct V2TodayZenTaskPicker: View {
+    let tasks: [V2TaskNode]
+    @Binding var searchText: String
+    let onSelect: (V2TaskNode) -> Void
+    let onStartUnlinked: () -> Void
+    let onCancel: () -> Void
+    @FocusState private var isSearchFocused: Bool
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                HStack(spacing: 10) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(V2Theme.ColorRole.textTertiary)
+
+                    TextField("搜索任务", text: $searchText)
+                        .textFieldStyle(.plain)
+                        .font(V2Theme.TypeRole.bodyMedium)
+                        .foregroundStyle(V2Theme.ColorRole.textPrimary)
+                        .focused($isSearchFocused)
+                        .submitLabel(.search)
+                        .accessibilityIdentifier("today.zenTaskPicker.search")
+
+                    if !searchText.isEmpty {
+                        Button {
+                            searchText = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(V2Theme.ColorRole.textTertiary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("清除搜索")
+                        .accessibilityIdentifier("today.zenTaskPicker.clearSearch")
+                    }
+                }
+                .padding(.horizontal, 14)
+                .frame(minHeight: 48)
+                .background(
+                    V2Theme.ColorRole.surfaceMuted,
+                    in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                )
+                .padding(.horizontal, 20)
+                .padding(.vertical, 14)
+
+                if filteredTasks.isEmpty {
+                    VStack(spacing: 10) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 28, weight: .medium))
+                            .foregroundStyle(V2Theme.ColorRole.textTertiary)
+
+                        Text(searchText.isEmpty ? "没有可选择的任务" : "没有找到任务")
+                            .font(V2Theme.TypeRole.titleMedium)
+                            .foregroundStyle(V2Theme.ColorRole.textSecondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .accessibilityIdentifier("today.zenTaskPicker.empty")
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(filteredTasks, id: \.id) { task in
+                                Button {
+                                    onSelect(task)
+                                } label: {
+                                    HStack(spacing: 12) {
+                                        Image(systemName: "circle")
+                                            .font(.system(size: 11, weight: .semibold))
+                                            .foregroundStyle(V2Theme.ColorRole.primary)
+
+                                        Text(task.title)
+                                            .font(V2Theme.TypeRole.titleMedium)
+                                            .foregroundStyle(V2Theme.ColorRole.textPrimary)
+                                            .multilineTextAlignment(.leading)
+                                            .lineLimit(2)
+
+                                        Spacer(minLength: 12)
+
+                                        Image(systemName: "play.fill")
+                                            .font(.system(size: 12, weight: .bold))
+                                            .foregroundStyle(V2Theme.ColorRole.primary)
+                                    }
+                                    .padding(.horizontal, 20)
+                                    .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("开始 \(task.title) 的 Zen")
+                                .accessibilityIdentifier("today.zenTaskPicker.task.\(task.id)")
+
+                                Divider()
+                                    .padding(.leading, 43)
+                            }
+                        }
+                    }
+                }
+
+                Divider()
+
+                Button(action: onStartUnlinked) {
+                    Label("不关联任务，直接开始", systemImage: "leaf.fill")
+                        .font(V2Theme.TypeRole.titleMedium)
+                        .foregroundStyle(V2Theme.ColorRole.onPrimary)
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: 48)
+                        .background(
+                            V2Theme.ColorRole.primary,
+                            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        )
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("today.zenTaskPicker.startUnlinked")
+                .padding(.horizontal, 20)
+                .padding(.vertical, 14)
+            }
+            .background(V2Theme.ColorRole.canvas)
+            .navigationTitle("选择任务")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消", action: onCancel)
+                        .accessibilityIdentifier("today.zenTaskPicker.cancel")
+                }
+            }
+            .onAppear {
+                isSearchFocused = true
+            }
+        }
+    }
+
+    private var filteredTasks: [V2TaskNode] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return tasks }
+        return tasks.filter {
+            $0.title.localizedCaseInsensitiveContains(query)
+                || $0.subtitle.localizedCaseInsensitiveContains(query)
+        }
+    }
+}
+
+private enum V2PendingZenStart {
+    case unlinked
+    case task(V2TaskNode)
 }
 
 private struct V2TodayCollapsedFocus: View {
@@ -620,6 +870,7 @@ private struct V2TodayFlowRow: View {
                     .foregroundStyle(timeColor)
                     .frame(width: 50, alignment: .trailing)
                     .padding(.top, 16)
+                    .accessibilityIdentifier("today.timeline.time.\(item.title)")
 
                 if !isLast {
                     Rectangle()

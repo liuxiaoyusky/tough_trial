@@ -1,6 +1,6 @@
 # Tough Trial 交付路线
 
-更新日期：2026-07-24
+更新日期：2026-07-30
 
 ## 当前阶段
 
@@ -64,16 +64,24 @@ QA，不把自动检查提前表述为最终体验验收。
 - 模型失败时保留用户输入和草稿，不产生静默写入。
 - 真实模型与本地确定性测试替身分离，保证核心检查可重复。
 
-状态：代码与契约已完成。App 通过 `V2PlanningClient` 调用规划器，Responses API
-请求使用严格 JSON Schema 且关闭服务端存储；模型返回的日期、时间、任务引用会
-先在 Core 中验证。未配置开发环境变量时明确使用“本地基础规划”，远程错误直接
-呈现，不静默替换结果。真实供应商联调仍需要外部 API 凭据，不纳入本地通过结论。
+状态：代码与契约已完成。App 通过 `V2PlanningClient` 调用规划器，模型返回的
+日期、时间、任务引用会先在 Core 中验证。计划页的“AI 服务”可启用
+OpenAI-compatible `/v1/chat/completions` 供应商，默认预填硅基流动地址和建议
+模型；API Key 只存入本机 Keychain，服务地址必须使用 HTTPS。未启用在线规划时
+明确使用“本地基础规划”，远程错误直接呈现，不静默替换结果。
+
+开发环境仍可通过以下变量直接测试 OpenAI Responses API；该路径使用严格 JSON
+Schema 且关闭服务端存储：
 
 开发联调配置：
 
 - `TOUGH_TRIAL_AI_API_KEY`
 - `TOUGH_TRIAL_AI_MODEL`，未指定时使用 `gpt-5-mini`
 - `TOUGH_TRIAL_AI_ENDPOINT`，未指定时使用 OpenAI Responses API
+
+真实供应商联调仍需要用户在 App 内填写自己的 API 凭据，不纳入无凭据的本地
+通过结论。发送规划请求时，用户输入、相关任务和已启用记忆会离开设备并交给所选
+供应商处理。
 
 ## Phase 4：用户记忆与上下文
 
