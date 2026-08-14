@@ -132,13 +132,21 @@ struct V2PlanAgentView: View {
                         .foregroundStyle(V2Theme.tertiary)
                 }
                 .id("plan-loading")
-            } else if store.state.planConversationPhase == .clarifying {
+            } else if store.state.planConversationPhase == .clarifying,
+                      store.planningFailureMessage == nil {
                 V2PlanQuickReplies(replies: displayedQuickReplies) { reply in
                     Task { @MainActor in
                         await store.submitPlanClarification(reply)
                     }
                 }
                 .id("plan-quick-replies")
+            }
+
+            if let failure = store.planningFailureMessage {
+                V2PlanFailureRow(message: failure) {
+                    showAISettings = true
+                }
+                .id("plan-failure")
             }
 
             if let draft = store.state.currentPlanDraft {
@@ -181,6 +189,10 @@ struct V2PlanAgentView: View {
 
             Spacer()
 
+            if !store.visibleAIModels.isEmpty {
+                modelSelector
+            }
+
             Menu {
                 Button {
                     showHistory = true
@@ -210,6 +222,52 @@ struct V2PlanAgentView: View {
         .padding(.top, 10)
         .padding(.bottom, 10)
         .background(V2Theme.page)
+    }
+
+    private var modelSelector: some View {
+        Menu {
+            ForEach(store.visibleAIModels, id: \.id) { model in
+                Button {
+                    do {
+                        try store.selectAIModel(id: model.id)
+                    } catch {
+                        store.errorMessage = (error as? LocalizedError)?.errorDescription
+                            ?? error.localizedDescription
+                    }
+                } label: {
+                    if model.id == store.selectedAIModelID {
+                        Label(model.id, systemImage: "checkmark")
+                    } else {
+                        Text(model.id)
+                    }
+                }
+                .accessibilityLabel(model.id)
+                .accessibilityIdentifier("plan.model.\(model.id)")
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 11, weight: .semibold))
+                Text(store.selectedAIModelID.map(shortModelName) ?? "选模型")
+                    .lineLimit(1)
+                    .frame(maxWidth: 104)
+            }
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(V2Theme.secondary)
+            .padding(.horizontal, 9)
+            .frame(height: 32)
+            .background(V2Theme.ColorRole.surfaceRaised)
+            .clipShape(Capsule())
+            .overlay {
+                Capsule().stroke(V2Theme.line, lineWidth: 1)
+            }
+        }
+        .accessibilityLabel("当前模型 \(store.selectedAIModelID ?? "未选择")")
+        .accessibilityIdentifier("plan.modelSelector")
+    }
+
+    private func shortModelName(_ id: String) -> String {
+        id.split(separator: "/").last.map(String.init) ?? id
     }
 
     private var headerDetail: String? {
@@ -443,6 +501,36 @@ private struct V2PlanQuickReplies: View {
     }
 }
 
+private struct V2PlanFailureRow: View {
+    let message: String
+    let onOpenSettings: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("没有收到可用回复", systemImage: "exclamationmark.bubble")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(V2Theme.ink)
+
+            Text(message)
+                .font(.system(size: 13))
+                .foregroundStyle(V2Theme.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button("检查 AI 服务", action: onOpenSettings)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(V2Theme.blue)
+                .accessibilityIdentifier("plan.failure.settings")
+        }
+        .padding(.leading, 13)
+        .overlay(alignment: .leading) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(V2Theme.orange)
+                .frame(width: 3)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 private struct V2PlanInlineDraft: View {
     let draft: V2PlanDraft
     let onSave: () -> Void
@@ -593,9 +681,16 @@ private struct V2PlanComposer: View {
                 }
             }
 
-            TextField(placeholder, text: $promptText, axis: .vertical)
+            TextField(
+                "",
+                text: $promptText,
+                prompt: Text(placeholder).foregroundColor(V2Theme.tertiary),
+                axis: .vertical
+            )
                 .lineLimit(1...4)
                 .font(.system(size: 15))
+                .foregroundStyle(V2Theme.ink)
+                .tint(V2Theme.blue)
                 .focused(isFocused)
                 .disabled(isBusy)
                 .padding(.vertical, 8)

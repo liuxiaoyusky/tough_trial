@@ -27,7 +27,7 @@ final class ToughTrialUITests: XCTestCase {
     }
 
     @MainActor
-    func testPlanCanOpenAIProviderSettings() {
+    func testPlanCanConnectAndManageSiliconFlowModels() {
         let app = launchApp()
         app.tabBars.firstMatch.buttons["计划"].tap()
         XCTAssertTrue(app.buttons["计划选项"].waitForExistence(timeout: 3))
@@ -36,28 +36,82 @@ final class ToughTrialUITests: XCTestCase {
         app.buttons["AI 服务"].tap()
         XCTAssertTrue(app.navigationBars["AI 服务"].waitForExistence(timeout: 3))
 
-        let onlineToggle = app.switches["ai.settings.enabled"]
-        XCTAssertTrue(onlineToggle.waitForExistence(timeout: 3))
-        if onlineToggle.value as? String != "1" {
-            onlineToggle.coordinate(
-                withNormalizedOffset: CGVector(dx: 0.88, dy: 0.5)
-            ).tap()
-            let enabled = NSPredicate(format: "value == %@", "1")
-            expectation(for: enabled, evaluatedWith: onlineToggle)
-            waitForExpectations(timeout: 3)
-        }
+        let apiKey = app.secureTextFields["ai.settings.apiKey"]
+        XCTAssertTrue(apiKey.waitForExistence(timeout: 3))
+        XCTAssertFalse(app.textFields["ai.settings.baseURL"].exists)
+        XCTAssertFalse(app.textFields["ai.settings.model"].exists)
+
+        apiKey.tap()
+        apiKey.typeText("fake-ui-key")
+        app.buttons["ai.settings.connect"].tap()
         XCTAssertTrue(
-            app.descendants(matching: .any)["ai.settings.baseURL"]
-                .waitForExistence(timeout: 3)
+            app.staticTexts["ai.settings.connected"].waitForExistence(timeout: 5)
         )
+
+        let currentModel = app.buttons["ai.settings.currentModel"]
+        XCTAssertTrue(currentModel.waitForExistence(timeout: 3))
+        currentModel.tap()
+        app.buttons["Qwen/Qwen3-32B"].tap()
+
+        app.buttons["ai.settings.manageModels"].tap()
+        XCTAssertTrue(app.navigationBars["管理模型"].waitForExistence(timeout: 3))
+        let selectedModelToggle = app.switches["ai.model.visible.Qwen/Qwen3-32B"]
+        XCTAssertTrue(selectedModelToggle.waitForExistence(timeout: 3))
+        XCTAssertFalse(selectedModelToggle.isEnabled)
+
+        let hiddenModelToggle = app.switches["ai.model.visible.deepseek-ai/DeepSeek-V3"]
+        XCTAssertTrue(hiddenModelToggle.waitForExistence(timeout: 3))
+        XCTAssertTrue(hiddenModelToggle.isEnabled)
+        hiddenModelToggle.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)
+        ).tap()
+        let hidden = NSPredicate(format: "value == %@", "0")
+        expectation(for: hidden, evaluatedWith: hiddenModelToggle)
+        waitForExpectations(timeout: 3)
+        app.navigationBars["管理模型"].buttons["AI 服务"].tap()
+
+        app.navigationBars["AI 服务"].buttons["完成"].tap()
+        let planModelSelector = app.buttons["plan.modelSelector"]
+        XCTAssertTrue(planModelSelector.waitForExistence(timeout: 3))
+        XCTAssertTrue(planModelSelector.label.contains("Qwen/Qwen3-32B"))
+        planModelSelector.tap()
         XCTAssertTrue(
-            app.descendants(matching: .any)["ai.settings.model"]
-                .waitForExistence(timeout: 3)
+            app.buttons["plan.model.moonshotai/Kimi-K2"].waitForExistence(timeout: 3)
         )
-        XCTAssertTrue(
-            app.descendants(matching: .any)["ai.settings.apiKey"]
-                .waitForExistence(timeout: 3)
-        )
+        XCTAssertFalse(app.buttons["plan.model.deepseek-ai/DeepSeek-V3"].exists)
+    }
+
+    @MainActor
+    func testPlanRequestFailureStaysVisibleInConversation() {
+        let app = XCUIApplication()
+        app.launchEnvironment["TOUGH_TRIAL_UI_TESTING"] = "1"
+        app.launchEnvironment["TOUGH_TRIAL_UI_TEST_PLANNING_FAILURE"] = "1"
+        app.launch()
+
+        app.tabBars.firstMatch.buttons["计划"].tap()
+        let composer = app.textFields["plan.composer"]
+        XCTAssertTrue(composer.waitForExistence(timeout: 3))
+        composer.tap()
+        composer.typeText("帮我安排明天")
+        app.buttons["发送"].tap()
+
+        XCTAssertTrue(app.staticTexts["没有收到可用回复"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["plan.failure.settings"].exists)
+    }
+
+    @MainActor
+    func testPlanComposerKeepsEnteredTextVisible() {
+        let app = XCUIApplication()
+        app.launchEnvironment["TOUGH_TRIAL_UI_TESTING"] = "1"
+        app.launch()
+
+        app.tabBars.firstMatch.buttons["计划"].tap()
+        let composer = app.textFields["plan.composer"]
+        XCTAssertTrue(composer.waitForExistence(timeout: 3))
+        composer.tap()
+        composer.typeText("这周想跑十公里")
+        XCTAssertEqual(composer.value as? String, "这周想跑十公里")
+        keepScreenshot(of: app, name: "plan-composer-dark")
     }
 
     @MainActor

@@ -19,6 +19,10 @@ final class V2AppStore: ObservableObject {
     @Published private(set) var isPlanning = false
     @Published private(set) var planningProviderLabel = "本地基础规划"
     @Published private(set) var planningSuggestedReplies: [String] = []
+    @Published private(set) var planningFailureMessage: String?
+    @Published private(set) var aiProviderSettings = V2AIProviderSettings.defaults
+    @Published private(set) var aiModelCatalog = V2AIModelCatalogState()
+    @Published private(set) var isRefreshingAIModels = false
     @Published private(set) var memoryRecords: [V2UserMemoryRecord] = []
     @Published private(set) var memoryIssueMessage: String?
     @Published private(set) var dreamingCandidates: [V2DreamingCandidate] = []
@@ -26,6 +30,7 @@ final class V2AppStore: ObservableObject {
 
     private let engine: V2Engine
     private var planningClient: any V2PlanningClient
+    private let aiModelCatalogClient: any V2AIModelCatalogClient
     private let memoryEngine: V2MemoryEngine
     private let notificationService = V2NotificationService()
     private let liveActivityService = V2LiveActivityService()
@@ -42,6 +47,7 @@ final class V2AppStore: ObservableObject {
     init(
         engine injectedEngine: V2Engine? = nil,
         planningClient injectedPlanningClient: (any V2PlanningClient)? = nil,
+        aiModelCatalogClient injectedAIModelCatalogClient: (any V2AIModelCatalogClient)? = nil,
         memoryEngine injectedMemoryEngine: V2MemoryEngine? = nil,
         initialState: V2PrototypeState = .empty(),
         calendar: Calendar = .current
@@ -51,12 +57,27 @@ final class V2AppStore: ObservableObject {
         let isUITestMode =
             isEmptyUITestMode
             || ProcessInfo.processInfo.environment["TOUGH_TRIAL_UI_TESTING"] == "1"
+        let isPlanningFailureUITest =
+            ProcessInfo.processInfo.environment["TOUGH_TRIAL_UI_TEST_PLANNING_FAILURE"] == "1"
         self.state = initialState
         self.calendar = calendar
-        let basePlanningClient = injectedPlanningClient
+        let loadedAISettings = isUITestMode
+            ? V2AIProviderSettings.defaults
+            : V2AIProviderSettingsStore.load()
+        self.aiProviderSettings = loadedAISettings
+        self.aiModelCatalog = isUITestMode
+            ? V2AIModelCatalogState()
+            : V2AIModelCatalogStore.load()
+        self.aiModelCatalogClient = injectedAIModelCatalogClient
             ?? (isUITestMode
-                ? V2DeterministicPlanningClient()
-                : Self.configuredPlanningClient())
+                ? V2UITestAIModelCatalogClient()
+                : V2SiliconFlowModelCatalogClient())
+        let basePlanningClient = injectedPlanningClient
+            ?? (isPlanningFailureUITest
+                ? V2UnavailablePlanningClient(message: "测试服务暂时不可用")
+                : (isUITestMode
+                    ? V2DeterministicPlanningClient()
+                    : Self.configuredPlanningClient(settings: loadedAISettings)))
         let resolvedPlanningClient = V2ValidatedPlanningClient(client: basePlanningClient)
         self.planningClient = resolvedPlanningClient
         self.planningProviderLabel = resolvedPlanningClient.providerLabel
@@ -141,12 +162,132 @@ final class V2AppStore: ObservableObject {
         state.setPlanScope(scope)
     }
 
+    var visibleAIModels: [V2AIModel] {
+        guard isUsingSiliconFlow else { return [] }
+        return aiModelCatalog.visibleModels
+    }
+
+    var selectedAIModelID: String? {
+        guard isUsingSiliconFlow else {
+            return aiProviderSettings.isEnabled ? aiProviderSettings.model : nil
+        }
+        return aiModelCatalog.isSelectedModelAvailable
+            ? aiModelCatalog.selectedModelID
+            : nil
+    }
+
+    var hasConnectedAIService: Bool {
+        let hasKey = !aiProviderSettings.apiKey
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty
+        if isUsingSiliconFlow {
+            return hasKey && aiModelCatalog.lastSuccessfulSyncAt != nil
+        }
+        return hasKey && aiProviderSettings.isEnabled
+    }
+
+    var isUsingSiliconFlow: Bool {
+        URL(string: aiProviderSettings.baseURL)?.host?
+            .localizedCaseInsensitiveContains("siliconflow") == true
+    }
+
     func updatePlanningSettings(_ settings: V2AIProviderSettings) throws {
         let basePlanningClient = try Self.makePlanningClient(settings: settings)
         try V2AIProviderSettingsStore.save(settings)
         let resolvedPlanningClient = V2ValidatedPlanningClient(client: basePlanningClient)
+        aiProviderSettings = settings
         planningClient = resolvedPlanningClient
         planningProviderLabel = resolvedPlanningClient.providerLabel
+        planningFailureMessage = nil
+        errorMessage = nil
+    }
+
+    func connectSiliconFlow(apiKey: String, at date: Date = Date()) async throws {
+        let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty else {
+            throw V2AIModelCatalogClientError.missingAPIKey
+        }
+        guard !isRefreshingAIModels else { return }
+
+        isRefreshingAIModels = true
+        defer { isRefreshingAIModels = false }
+
+        let models = try await aiModelCatalogClient.fetchModels(apiKey: key)
+        var catalog = aiModelCatalog
+        catalog.applySuccessfulSync(models: models, at: date)
+
+        let previousModel = aiProviderSettings.model
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if catalog.selectedModelID == nil,
+           models.contains(where: { $0.id == previousModel }) {
+            try catalog.selectModel(id: previousModel)
+        }
+
+        var settings = aiProviderSettings
+        settings.apiKey = key
+        settings.baseURL = V2AIProviderSettings.siliconFlowBaseURL
+        if catalog.isSelectedModelAvailable, let selectedModelID = catalog.selectedModelID {
+            settings.model = selectedModelID
+            settings.isEnabled = true
+        } else {
+            settings.isEnabled = false
+        }
+
+        let basePlanningClient = try Self.makePlanningClient(settings: settings)
+        try V2AIProviderSettingsStore.save(settings)
+        try V2AIModelCatalogStore.save(catalog)
+
+        aiProviderSettings = settings
+        aiModelCatalog = catalog
+        let resolvedPlanningClient = V2ValidatedPlanningClient(client: basePlanningClient)
+        planningClient = resolvedPlanningClient
+        planningProviderLabel = resolvedPlanningClient.providerLabel
+        planningFailureMessage = nil
+        errorMessage = nil
+    }
+
+    func refreshSiliconFlowModels(at date: Date = Date()) async throws {
+        try await connectSiliconFlow(apiKey: aiProviderSettings.apiKey, at: date)
+    }
+
+    func selectAIModel(id: String) throws {
+        var catalog = aiModelCatalog
+        try catalog.selectModel(id: id)
+
+        var settings = aiProviderSettings
+        settings.isEnabled = true
+        settings.baseURL = V2AIProviderSettings.siliconFlowBaseURL
+        settings.model = id
+
+        let basePlanningClient = try Self.makePlanningClient(settings: settings)
+        try V2AIProviderSettingsStore.save(settings)
+        try V2AIModelCatalogStore.save(catalog)
+
+        aiProviderSettings = settings
+        aiModelCatalog = catalog
+        let resolvedPlanningClient = V2ValidatedPlanningClient(client: basePlanningClient)
+        planningClient = resolvedPlanningClient
+        planningProviderLabel = resolvedPlanningClient.providerLabel
+        planningFailureMessage = nil
+        errorMessage = nil
+    }
+
+    func setAIModelVisible(id: String, isVisible: Bool) throws {
+        var catalog = aiModelCatalog
+        try catalog.setModelHidden(id: id, isHidden: !isVisible)
+        try V2AIModelCatalogStore.save(catalog)
+        aiModelCatalog = catalog
+    }
+
+    func disconnectAIService() throws {
+        let settings = V2AIProviderSettings.defaults
+        let basePlanningClient = try Self.makePlanningClient(settings: settings)
+        try V2AIProviderSettingsStore.save(settings)
+        aiProviderSettings = settings
+        let resolvedPlanningClient = V2ValidatedPlanningClient(client: basePlanningClient)
+        planningClient = resolvedPlanningClient
+        planningProviderLabel = resolvedPlanningClient.providerLabel
+        planningFailureMessage = nil
         errorMessage = nil
     }
 
@@ -839,6 +980,7 @@ final class V2AppStore: ObservableObject {
             state.planConversationPhase = .clarifying
         }
         planningSuggestedReplies = []
+        planningFailureMessage = nil
         isPlanning = true
         defer { isPlanning = false }
 
@@ -879,11 +1021,13 @@ final class V2AppStore: ObservableObject {
                 planningSuggestedReplies = []
                 appendPlanAgentMessage(proposal.message)
             }
+            planningFailureMessage = nil
             errorMessage = nil
         } catch {
             state.planConversationPhase = previousPhase == .empty ? .complete : previousPhase
             planningSuggestedReplies = []
-            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            planningFailureMessage = (error as? LocalizedError)?.errorDescription
+                ?? error.localizedDescription
         }
     }
 
@@ -904,7 +1048,9 @@ final class V2AppStore: ObservableObject {
         )
     }
 
-    private static func configuredPlanningClient() -> any V2PlanningClient {
+    private static func configuredPlanningClient(
+        settings: V2AIProviderSettings
+    ) -> any V2PlanningClient {
         #if DEBUG
         let environment = ProcessInfo.processInfo.environment
         if let apiKey = environment["TOUGH_TRIAL_AI_API_KEY"], !apiKey.isEmpty {
@@ -928,7 +1074,7 @@ final class V2AppStore: ObservableObject {
         #endif
 
         do {
-            return try makePlanningClient(settings: V2AIProviderSettingsStore.load())
+            return try makePlanningClient(settings: settings)
         } catch {
             return V2UnavailablePlanningClient(
                 message: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
@@ -1071,6 +1217,19 @@ private struct V2RecallWorkingDraft {
     var selectedCandidateIDs: Set<String>
     var baseReferences: V2RecallReferences
     var isDirty: Bool
+}
+
+private struct V2UITestAIModelCatalogClient: V2AIModelCatalogClient {
+    func fetchModels(apiKey: String) async throws -> [V2AIModel] {
+        guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw V2AIModelCatalogClientError.missingAPIKey
+        }
+        return [
+            V2AIModel(id: "Qwen/Qwen3-32B"),
+            V2AIModel(id: "deepseek-ai/DeepSeek-V3"),
+            V2AIModel(id: "moonshotai/Kimi-K2"),
+        ]
+    }
 }
 
 private struct V2UnavailablePlanningClient: V2PlanningClient {

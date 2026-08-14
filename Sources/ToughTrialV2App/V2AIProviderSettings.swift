@@ -100,6 +100,27 @@ enum V2AIProviderSettingsStore {
     }
 }
 
+enum V2AIModelCatalogStore {
+    private static let catalogKey = "ai.siliconflow.model-catalog"
+
+    static func load(defaults: UserDefaults = .standard) -> V2AIModelCatalogState {
+        guard
+            let data = defaults.data(forKey: catalogKey),
+            let state = try? JSONDecoder().decode(V2AIModelCatalogState.self, from: data)
+        else {
+            return V2AIModelCatalogState()
+        }
+        return state
+    }
+
+    static func save(
+        _ state: V2AIModelCatalogState,
+        defaults: UserDefaults = .standard
+    ) throws {
+        defaults.set(try JSONEncoder().encode(state), forKey: catalogKey)
+    }
+}
+
 private enum V2AIProviderKeychain {
     private static let account = "openai-compatible-api-key"
     private static var service: String {
