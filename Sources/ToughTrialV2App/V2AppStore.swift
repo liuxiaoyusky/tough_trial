@@ -478,8 +478,10 @@ final class V2AppStore: ObservableObject {
 
         if isUITestMode {
             return V2AssistantDependencies(
-                modelSnapshot: {
-                    V2AssistantModelSnapshot(
+                modelSnapshot: { [weak self] in
+                    guard let self else { throw V2AssistantAppStoreError.storeUnavailable }
+                    let planningClient = self.planningClient
+                    return V2AssistantModelSnapshot(
                         identity: V2AssistantProviderIdentity(
                             key: "ui-test-agent",
                             label: "UI 测试 Agent",
@@ -505,6 +507,15 @@ final class V2AppStore: ObservableObject {
                                 providerLabel: "UI 测试 Agent",
                                 model: "deterministic-ui-test"
                             )
+                        },
+                        generatePlan: { [weak self] session, query, date in
+                            guard let self else { throw V2AssistantAppStoreError.storeUnavailable }
+                            return try await self.assistantPlanningOutcome(
+                                session: session,
+                                query: query,
+                                at: date,
+                                using: planningClient
+                            )
                         }
                     )
                 },
@@ -523,14 +534,6 @@ final class V2AppStore: ObservableObject {
                 },
                 localSearch: { [weak self] query in
                     self?.assistantLocalSearchSummary(query: query) ?? "未找到相关本地资料。"
-                },
-                planGeneration: { [weak self] session, query, date in
-                    guard let self else { throw V2AssistantAppStoreError.storeUnavailable }
-                    return try await self.assistantPlanningOutcome(
-                        session: session,
-                        query: query,
-                        at: date
-                    )
                 },
                 planAcceptance: { [weak self] draft, date in
                     guard let self else { throw V2AssistantAppStoreError.storeUnavailable }
@@ -554,15 +557,25 @@ final class V2AppStore: ObservableObject {
                 guard let self else { throw V2AssistantAppStoreError.storeUnavailable }
                 let settings = self.aiProviderSettings
                 let client = try settings.agentClient()
+                let planningClient = self.planningClient
                 let model = settings.model.trimmingCharacters(in: .whitespacesAndNewlines)
                 let baseURL = settings.baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
                 return V2AssistantModelSnapshot(
                     identity: V2AssistantProviderIdentity(
-                        key: "\(settings.provider.rawValue)|\(baseURL)|\(model)",
+                        key: "\(settings.provider.rawValue)|\(baseURL)|\(model)|\(planningClient.providerLabel)",
                         label: client.providerLabel,
                         model: model
                     ),
-                    respond: { request in try await client.respond(request) }
+                    respond: { request in try await client.respond(request) },
+                    generatePlan: { [weak self] session, query, date in
+                        guard let self else { throw V2AssistantAppStoreError.storeUnavailable }
+                        return try await self.assistantPlanningOutcome(
+                            session: session,
+                            query: query,
+                            at: date,
+                            using: planningClient
+                        )
+                    }
                 )
             },
             webSearch: { query, limit in
@@ -573,14 +586,6 @@ final class V2AppStore: ObservableObject {
             },
             localSearch: { [weak self] query in
                 self?.assistantLocalSearchSummary(query: query) ?? "未找到相关本地资料。"
-            },
-            planGeneration: { [weak self] session, query, date in
-                guard let self else { throw V2AssistantAppStoreError.storeUnavailable }
-                return try await self.assistantPlanningOutcome(
-                    session: session,
-                    query: query,
-                    at: date
-                )
             },
             planAcceptance: { [weak self] draft, date in
                 guard let self else { throw V2AssistantAppStoreError.storeUnavailable }
@@ -609,11 +614,9 @@ final class V2AppStore: ObservableObject {
     func assistantPlanningOutcome(
         session: V2AgentSession,
         query: String,
-        at date: Date = Date()
+        at date: Date = Date(),
+        using planningClient: any V2PlanningClient
     ) async throws -> V2PlanningOutcome {
-        guard canUsePlanningAI else {
-            throw V2AssistantAppStoreError.aiNotConfigured
-        }
         let request = V2PlanningRequest(
             agentSession: session,
             query: query,

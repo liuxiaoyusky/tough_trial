@@ -240,7 +240,7 @@ extension V2AssistantStore {
                 throw V2AssistantTurnError.sessionUnavailable
             }
             turn.activeTool = .plan
-            let outcome = try await dependencies.planGeneration(session, query, startedAt)
+            let outcome = try await turn.modelSnapshot.generatePlan(session, query, startedAt)
             try Task.checkCancellation()
             let observationID = UUID().uuidString
             let update: (inout V2AgentSession) -> Void

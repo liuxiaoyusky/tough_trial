@@ -23,6 +23,11 @@ struct V2AssistantProviderIdentity: Equatable, Sendable {
 struct V2AssistantModelSnapshot: Sendable {
     var identity: V2AssistantProviderIdentity
     var respond: @MainActor @Sendable (V2AgentRequest) async throws -> V2AgentModelResult
+    var generatePlan: @MainActor @Sendable (
+        V2AgentSession,
+        String,
+        Date
+    ) async throws -> V2PlanningOutcome
 }
 
 struct V2AssistantDependencies: Sendable {
@@ -30,11 +35,6 @@ struct V2AssistantDependencies: Sendable {
     var webSearch: @MainActor @Sendable (String, Int) async throws -> [V2WebSearchResult]
     var webRead: @MainActor @Sendable (URL, Int) async throws -> String
     var localSearch: @MainActor @Sendable (String) async throws -> String
-    var planGeneration: @MainActor @Sendable (
-        V2AgentSession,
-        String,
-        Date
-    ) async throws -> V2PlanningOutcome
     var planAcceptance: @MainActor @Sendable (
         V2PlanDraft,
         Date

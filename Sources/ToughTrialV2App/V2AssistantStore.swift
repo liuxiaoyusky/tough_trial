@@ -104,14 +104,10 @@ final class V2AssistantStore: ObservableObject {
         operationErrorMessage = nil
         let date = now()
         let userMessage = V2AgentMessage.userText(userText, at: date)
-        guard commitWorkspace({ _ = $0.appendMessage(userMessage, to: sessionID) }) else {
-            appendUnsavedFailureResponse(to: sessionID, at: date)
-            return
-        }
+        let agentMessage = V2AgentMessage(role: .agent, parts: [], createdAt: date, status: .pending)
 
         do {
             let snapshot = try dependencies.modelSnapshot()
-            let agentMessage = V2AgentMessage(role: .agent, parts: [], createdAt: date, status: .pending)
             var turn = makeTurn(
                 sessionID: sessionID,
                 userMessage: userMessage,
@@ -121,6 +117,7 @@ final class V2AssistantStore: ObservableObject {
             )
             turn.activeTool = .model
             guard commitWorkspace({ workspace in
+                _ = workspace.appendMessage(userMessage, to: sessionID)
                 _ = workspace.appendMessage(agentMessage, to: sessionID)
                 Self.updateTurn(in: &workspace, turn: turn, messageStatus: .pending,
                                 traceStatus: .running, at: date)
@@ -130,7 +127,13 @@ final class V2AssistantStore: ObservableObject {
             }
             launch(turn)
         } catch {
-            appendFailedResponse(to: sessionID, error: error, at: date)
+            appendFailedTurnPair(
+                userMessage: userMessage,
+                agentMessage: agentMessage,
+                to: sessionID,
+                error: error,
+                at: date
+            )
         }
     }
 
@@ -181,7 +184,9 @@ final class V2AssistantStore: ObservableObject {
 
     @discardableResult
     func reopenWorkspace() -> Bool {
-        guard persistence.isAvailable, currentTurn == nil else { return false }
+        guard persistence.isAvailable,
+              storageState == .corruptRead || storageState == .unavailable,
+              currentTurn == nil else { return false }
         do {
             var loaded = try persistence.load()
             _ = Self.recoverInterruptedTurns(in: &loaded, at: now())
@@ -302,28 +307,23 @@ extension V2AssistantStore {
         return nil
     }
 
-    func appendFailedResponse(to sessionID: String, error: Error, at date: Date) {
+    func appendFailedTurnPair(
+        userMessage: V2AgentMessage,
+        agentMessage: V2AgentMessage,
+        to sessionID: String,
+        error: Error,
+        at date: Date
+    ) {
         let message = Self.userFacingMessage(for: error)
         operationErrorMessage = message
-        let agent = V2AgentMessage(
-            role: .agent,
-            parts: [.error(.retryable(message))],
-            createdAt: date,
-            status: .failed
-        )
-        _ = commitWorkspace { _ = $0.appendMessage(agent, to: sessionID) }
-    }
-
-    func appendUnsavedFailureResponse(to sessionID: String, at date: Date) {
-        let message = Self.userFacingMessage(for: V2AssistantTurnError.persistenceUnavailable)
-        let agent = V2AgentMessage(
-            role: .agent,
-            parts: [.error(.retryable(message))],
-            createdAt: date,
-            status: .failed
-        )
-        _ = workspace.appendMessage(agent, to: sessionID)
-        operationErrorMessage = message
+        var failedAgent = agentMessage
+        failedAgent.parts = [.error(.retryable(message))]
+        failedAgent.status = .failed
+        failedAgent.updatedAt = date
+        _ = commitWorkspace {
+            _ = $0.appendMessage(userMessage, to: sessionID)
+            _ = $0.appendMessage(failedAgent, to: sessionID)
+        }
     }
 
     func appendErrorToExistingResponse(_ pair: RetryPair, error: Error, at date: Date) {
@@ -416,6 +416,18 @@ extension V2AssistantStore {
                 workspace.sessions[sessionIndex].messages[messageIndex].parts.append(.error(.retryable(message)))
                 workspace.sessions[sessionIndex].messages[messageIndex].status = .failed
                 workspace.sessions[sessionIndex].messages[messageIndex].updatedAt = date
+                changed = true
+            }
+            if workspace.sessions[sessionIndex].messages.last?.role == .user {
+                workspace.sessions[sessionIndex].messages.append(
+                    V2AgentMessage(
+                        role: .agent,
+                        parts: [.error(.retryable("上次请求在创建回复前中断，可以重试。"))],
+                        createdAt: date,
+                        status: .failed
+                    )
+                )
+                workspace.sessions[sessionIndex].updatedAt = date
                 changed = true
             }
             for traceIndex in workspace.sessions[sessionIndex].traces.indices

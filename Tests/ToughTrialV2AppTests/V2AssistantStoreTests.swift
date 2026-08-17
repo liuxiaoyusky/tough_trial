@@ -26,6 +26,37 @@ final class V2AssistantStoreTests: XCTestCase {
         XCTAssertEqual(fixture.persistence.lastSaved?.selectedSession?.messages[1].status, .failed)
     }
 
+    func testTransientWriteFailureRejectsReopenAndRetryPersistsInMemoryState() {
+        let fixture = AssistantFixture()
+        fixture.persistence.failSaveNumbers = [1]
+        let store = fixture.makeStore()
+
+        store.send("不能丢失")
+
+        XCTAssertEqual(store.storageState, .transientWriteFailure)
+        XCTAssertEqual(store.selectedSession?.messages.map(\.plainText).first, "不能丢失")
+        XCTAssertFalse(store.reopenWorkspace())
+        XCTAssertEqual(fixture.persistence.loadCount, 0)
+        XCTAssertEqual(store.selectedSession?.messages.map(\.plainText).first, "不能丢失")
+        XCTAssertTrue(store.retryStorage())
+        XCTAssertEqual(fixture.persistence.lastSaved?.selectedSession?.messages.first?.plainText, "不能丢失")
+    }
+
+    func testInitialUserAndPendingAgentUseOneAtomicSaveBeforeNetwork() {
+        let fixture = AssistantFixture()
+        fixture.persistence.failSaveNumbers = [1]
+        let store = fixture.makeStore()
+
+        store.send("原子创建")
+
+        XCTAssertEqual(fixture.persistence.saveCount, 1)
+        XCTAssertEqual(fixture.persistence.saveAttempts[0].selectedSession?.messages.count, 2)
+        XCTAssertEqual(fixture.persistence.saveAttempts[0].selectedSession?.messages[0].plainText, "原子创建")
+        XCTAssertEqual(fixture.persistence.saveAttempts[0].selectedSession?.messages[1].role, .agent)
+        XCTAssertTrue(fixture.model.requests.isEmpty)
+        XCTAssertEqual(store.selectedSession?.messages[1].status, .failed)
+    }
+
     func testInterruptedLoadBecomesRetryableFailureAndCorruptReadNeverSavesEmptyState() {
         let interrupted = AssistantFixture.workspace(
             userText: "中断前的问题",
@@ -52,6 +83,25 @@ final class V2AssistantStoreTests: XCTestCase {
         XCTAssertEqual(corruptPersistence.saveCount, 0)
         XCTAssertFalse(corruptStore.retryStorage())
         XCTAssertEqual(corruptPersistence.saveCount, 0)
+    }
+
+    func testTrailingOrphanUserLoadSynthesizesRetryableAgentResponse() {
+        var workspace = V2AgentWorkspace.empty
+        let session = workspace.createSession(at: AssistantFixture.date)
+        workspace.appendMessage(.userText("中断的输入", at: AssistantFixture.date), to: session.id)
+        let persistence = RecordingWorkspacePersistence(workspace: workspace)
+
+        let store = AssistantFixture().makeStore(
+            persistence: persistence.adapter,
+            loadFromPersistence: true
+        )
+
+        XCTAssertEqual(store.selectedSession?.messages.count, 2)
+        XCTAssertEqual(store.selectedSession?.messages[0].plainText, "中断的输入")
+        XCTAssertEqual(store.selectedSession?.messages[1].role, .agent)
+        XCTAssertEqual(store.selectedSession?.messages[1].status, .failed)
+        XCTAssertTrue(store.selectedSession?.messages[1].hasRetryableError == true)
+        XCTAssertEqual(persistence.lastSaved?.selectedSession?.messages.count, 2)
     }
 
     func testRetryReusesMessagesAndExcludesOriginalAndLaterConversation() async {
@@ -140,6 +190,25 @@ final class V2AssistantStoreTests: XCTestCase {
         XCTAssertEqual(fixture.provider.snapshotCount, 1)
         XCTAssertEqual(store.selectedSession?.providerState?.providerLabel, "Provider A")
         XCTAssertEqual(store.selectedSession?.providerState?.model, "model-a")
+    }
+
+    func testPlanningClientIsCapturedWithTurnProviderSnapshot() async {
+        let fixture = AssistantFixture()
+        let original = ControlledPlanningClient(label: "Planning A")
+        let replacement = ControlledPlanningClient(label: "Planning B")
+        fixture.planning.current = original
+        let store = fixture.makeStore()
+
+        store.send("安排计划")
+        await fixture.model.waitForRequestCount(1)
+        fixture.planning.current = replacement
+        fixture.model.resolveNext(.plan(query: "安排计划"))
+        await fixture.model.waitForRequestCount(2)
+
+        XCTAssertEqual(original.generationCount, 1)
+        XCTAssertEqual(replacement.generationCount, 0)
+        fixture.model.resolveNext(.answer(text: "完成"))
+        await store.waitForCurrentTurn()
     }
 
     func testSearchSourcesDeduplicateByNormalizedURLAndObservationsUsePersistedID() async {
@@ -339,6 +408,7 @@ private final class AssistantFixture {
     let model = ControlledModel()
     let provider = ProviderSnapshotFactory()
     let plan = PlanStatusFixture()
+    let planning = PlanningSnapshotRouter()
     let persistence: RecordingWorkspacePersistence
     var searchResults: [V2WebSearchResult] = []
 
@@ -347,6 +417,7 @@ private final class AssistantFixture {
             workspace: workspace ?? Self.emptyWorkspace()
         )
         provider.model = model
+        provider.planning = planning
     }
 
     func makeStore(
@@ -368,9 +439,6 @@ private final class AssistantFixture {
             webSearch: { [weak self] _, _ in self?.searchResults ?? [] },
             webRead: { _, _ in "page" },
             localSearch: { _ in "local" },
-            planGeneration: { _, _, _ in
-                .clarification(.init(question: "question"))
-            },
             planAcceptance: { [plan] draft, _ in
                 try plan.accept(draft)
             },
@@ -428,6 +496,8 @@ private final class RecordingWorkspacePersistence {
     var lastSaved: V2AgentWorkspace?
     var loadError: Error?
     var saveCount = 0
+    var loadCount = 0
+    var saveAttempts: [V2AgentWorkspace] = []
     var failSaveNumbers = Set<Int>()
 
     init(workspace: V2AgentWorkspace) {
@@ -438,12 +508,14 @@ private final class RecordingWorkspacePersistence {
         V2AssistantWorkspacePersistence(
             load: { [weak self] in
                 guard let self else { throw TestFailure.missingFixture }
+                self.loadCount += 1
                 if let loadError = self.loadError { throw loadError }
                 return self.workspace
             },
             save: { [weak self] workspace in
                 guard let self else { throw TestFailure.missingFixture }
                 self.saveCount += 1
+                self.saveAttempts.append(workspace)
                 if self.failSaveNumbers.contains(self.saveCount) {
                     throw TestFailure.write
                 }
@@ -504,18 +576,51 @@ private final class ProviderSnapshotFactory {
     )
     var snapshotCount = 0
     weak var model: ControlledModel?
+    weak var planning: PlanningSnapshotRouter?
 
     func snapshot() throws -> V2AssistantModelSnapshot {
-        guard let model else { throw TestFailure.missingFixture }
+        guard let model, let planning else { throw TestFailure.missingFixture }
         snapshotCount += 1
         let capturedIdentity = identity
+        let capturedPlanningClient = planning.current
         return V2AssistantModelSnapshot(
             identity: capturedIdentity,
             respond: { request in
                 model.identity = capturedIdentity
                 return try await model.respond(request)
+            },
+            generatePlan: { session, query, date in
+                try await capturedPlanningClient.generate(
+                    session: session,
+                    query: query,
+                    at: date
+                )
             }
         )
+    }
+}
+
+@MainActor
+private final class PlanningSnapshotRouter {
+    var current = ControlledPlanningClient(label: "Planning")
+}
+
+@MainActor
+private final class ControlledPlanningClient {
+    let label: String
+    var generationCount = 0
+
+    init(label: String) {
+        self.label = label
+    }
+
+    func generate(
+        session: V2AgentSession,
+        query: String,
+        at date: Date
+    ) async throws -> V2PlanningOutcome {
+        generationCount += 1
+        return .clarification(.init(question: "\(label): \(query)"))
     }
 }
 
