@@ -104,6 +104,34 @@ struct V2AIProviderSettings: Equatable {
     }
 
     func planningConfiguration() throws -> V2OpenAICompatiblePlanningConfiguration {
+        let configuration = try resolvedConfiguration()
+        return V2OpenAICompatiblePlanningConfiguration(
+            endpoint: configuration.endpoint,
+            apiKey: configuration.apiKey,
+            model: configuration.model,
+            providerLabel: configuration.providerLabel,
+            usesPromptCacheKey: configuration.usesPromptCacheKey
+        )
+    }
+
+    func agentConfiguration() throws -> V2OpenAICompatibleAgentConfiguration {
+        let configuration = try resolvedConfiguration()
+        return V2OpenAICompatibleAgentConfiguration(
+            endpoint: configuration.endpoint,
+            apiKey: configuration.apiKey,
+            model: configuration.model,
+            providerLabel: configuration.providerLabel,
+            usesPromptCacheKey: configuration.usesPromptCacheKey
+        )
+    }
+
+    private func resolvedConfiguration() throws -> (
+        endpoint: URL,
+        apiKey: String,
+        model: String,
+        providerLabel: String,
+        usesPromptCacheKey: Bool
+    ) {
         let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         let model = model.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else {
@@ -134,7 +162,7 @@ struct V2AIProviderSettings: Equatable {
                 .appendingPathComponent("completions")
         }
 
-        return V2OpenAICompatiblePlanningConfiguration(
+        return (
             endpoint: endpoint,
             apiKey: key,
             model: model,
