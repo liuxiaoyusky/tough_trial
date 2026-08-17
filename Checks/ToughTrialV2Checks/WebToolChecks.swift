@@ -50,6 +50,29 @@ func checkDuckDuckGoRedirectRejectsNonHTTPDestination() throws {
     }
 }
 
+func checkWebRedirectPolicyValidatesEveryDestination() throws {
+    let policy = V2WebRedirectPolicy(maxRedirects: 2)
+    let safeURL = URL(string: "https://example.com/next")!
+    require(
+        policy.decide(nextURL: safeURL, redirectCount: 1) == .follow,
+        "A public redirect within the limit should be followed"
+    )
+    require(
+        policy.decide(nextURL: URL(string: "http://127.0.0.1/private")!, redirectCount: 1)
+            == .reject(.unsupportedURL),
+        "A redirect to loopback must be rejected before following"
+    )
+    require(
+        policy.decide(nextURL: URL(string: "file:///etc/passwd")!, redirectCount: 1)
+            == .reject(.unsupportedURL),
+        "A redirect to a non-HTTP(S) URL must be rejected before following"
+    )
+    require(
+        policy.decide(nextURL: safeURL, redirectCount: 3) == .reject(.tooManyRedirects),
+        "A redirect beyond the maximum must be rejected"
+    )
+}
+
 func checkDuckDuckGoParserFailsUnsupportedMarkup() throws {
     do {
         _ = try V2DuckDuckGoHTMLParser.parse(
@@ -59,6 +82,19 @@ func checkDuckDuckGoParserFailsUnsupportedMarkup() throws {
         fatalError("Unsupported result markup must fail visibly")
     } catch V2WebToolError.unsupportedMarkup {
         // Expected: the parser must not invent sources from unknown markup.
+    }
+}
+
+func checkDuckDuckGoParserRejectsLookalikeAttributes() throws {
+    let html = """
+    <a data-class="result__a" data-href="https://example.com/fabricated">伪造标题</a>
+    <a data-class="result__snippet">伪造摘要</a>
+    """
+    do {
+        _ = try V2DuckDuckGoHTMLParser.parse(Data(html.utf8), limit: 5)
+        fatalError("Lookalike data-* attributes must not create a source")
+    } catch V2WebToolError.unsupportedMarkup {
+        // Expected: only real class/href attributes define a search result.
     }
 }
 
@@ -173,6 +209,31 @@ func checkWebReaderRejectsNonHTMLResponsesAndUnsafeRedirects() async throws {
         fatalError("Redirects to non-HTTP(S) destinations must fail")
     } catch V2WebToolError.unsupportedURL {
         // Expected: redirects must remain inside the public HTTP(S) boundary.
+    }
+}
+
+func checkWebPayloadBoundsStopCollection() throws {
+    var collector = V2WebBoundedDataCollector(limit: 8)
+    try collector.append(Data(repeating: 1, count: 8))
+    do {
+        try collector.append(Data([2]))
+        fatalError("The bounded collector must fail at the byte limit")
+    } catch V2WebToolError.payloadTooLarge {
+        // Expected: the collector must not retain bytes beyond the limit.
+    }
+    require(collector.count == 8, "Overflow must not grow the bounded collector")
+
+    let response = HTTPURLResponse(
+        url: URL(string: "https://example.com/large")!,
+        statusCode: 200,
+        httpVersion: "HTTP/1.1",
+        headerFields: ["Content-Length": String(V2WebPayloadBounds.maxBytes + 1)]
+    )!
+    do {
+        try V2WebPayloadBounds.validateContentLength(response)
+        fatalError("An excessive positive Content-Length must fail before collection")
+    } catch V2WebToolError.payloadTooLarge {
+        // Expected: production response handling uses the same bound policy.
     }
 }
 
