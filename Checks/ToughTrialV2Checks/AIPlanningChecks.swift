@@ -7,6 +7,7 @@ func checkAIPlanningClients() async throws {
     let referenceDate = calendar.date(from: DateComponents(year: 2026, month: 7, day: 27))!
     let baseRequest = V2PlanningRequest(
         userPrompt: "这周想跑 10 公里",
+        conversationIdentifier: "planning-conversation-123",
         referenceDate: referenceDate,
         timeZoneIdentifier: "Asia/Tokyo",
         tasks: [
@@ -16,6 +17,10 @@ func checkAIPlanningClients() async throws {
                 kind: .maintenance,
                 status: .notStarted
             ),
+        ],
+        conversation: [
+            V2PlanningConversationMessage(role: .user, text: "这周想跑 10 公里"),
+            V2PlanningConversationMessage(role: .agent, text: "周末更适合哪一天？"),
         ]
     )
     let snapshotEngine = V2Engine(
@@ -375,6 +380,12 @@ func checkAIPlanningClients() async throws {
         inputTasks.first?["id"] as? String == "task-existing",
         "Remote request should preserve known task IDs"
     )
+    let inputConversation = input["conversation"] as! [[String: Any]]
+    require(
+        inputConversation.map { $0["text"] as? String }
+            == ["这周想跑 10 公里", "周末更适合哪一天？"],
+        "Remote planning should receive the visible conversation context"
+    )
     let text = requestBody["text"] as! [String: Any]
     let format = text["format"] as! [String: Any]
     require(format["type"] as? String == "json_schema", "Remote planning must request strict JSON schema output")
@@ -433,6 +444,10 @@ func checkAIPlanningClients() async throws {
         compatibleBody["stream"] as? Bool == false,
         "OpenAI-compatible planning should wait for a complete validated JSON response"
     )
+    require(
+        compatibleBody["prompt_cache_key"] == nil,
+        "Generic OpenAI-compatible requests must not receive provider-specific cache fields"
+    )
     let responseFormat = compatibleBody["response_format"] as! [String: Any]
     require(
         responseFormat["type"] as? String == "json_object",
@@ -452,9 +467,34 @@ func checkAIPlanningClients() async throws {
         compatibleInput["user_prompt"] as? String == baseRequest.userPrompt,
         "OpenAI-compatible request should preserve the user prompt"
     )
+    let compatibleConversation = compatibleInput["conversation"] as! [[String: Any]]
+    require(
+        compatibleConversation.map { $0["role"] as? String } == ["user", "agent"],
+        "OpenAI-compatible planning should receive prior conversation roles"
+    )
     require(
         compatiblePayload["output_schema"] is [String: Any],
         "OpenAI-compatible request should include the planning output contract"
+    )
+
+    let kimiConfiguration = V2OpenAICompatiblePlanningConfiguration(
+        endpoint: URL(string: "https://api.kimi.com/coding/v1/chat/completions")!,
+        apiKey: "fake-kimi-key",
+        model: "k3-256k",
+        providerLabel: "Kimi Coding Plan",
+        usesPromptCacheKey: true
+    )
+    let kimiClient = V2OpenAICompatiblePlanningClient(
+        configuration: kimiConfiguration,
+        transport: compatibleTransport
+    )
+    let kimiRequest = try kimiClient.makeURLRequest(for: baseRequest)
+    let kimiBody = try JSONSerialization.jsonObject(
+        with: kimiRequest.httpBody!
+    ) as! [String: Any]
+    require(
+        kimiBody["prompt_cache_key"] as? String == "planning-conversation-123",
+        "Kimi Coding Plan should receive one stable cache key per planning conversation"
     )
 
     let compatibleFailureTransport = V2FakePlanningTransport(

@@ -25,33 +25,49 @@ public struct V2PlanningTaskContext: Codable, Equatable, Sendable {
     }
 }
 
+public struct V2PlanningConversationMessage: Codable, Equatable, Sendable {
+    public var role: V2PlanMessage.Role
+    public var text: String
+
+    public init(role: V2PlanMessage.Role, text: String) {
+        self.role = role
+        self.text = text
+    }
+}
+
 public struct V2PlanningRequest: Equatable, Sendable {
     public var userPrompt: String
     public var clarificationResponse: String?
     public var scope: String?
+    public var conversationIdentifier: String?
     public var referenceDate: Date
     public var timeZoneIdentifier: String
     public var tasks: [V2PlanningTaskContext]
     public var memoryStatements: [String]
+    public var conversation: [V2PlanningConversationMessage]
     public var currentDraft: V2PlanDraft?
 
     public init(
         userPrompt: String,
         clarificationResponse: String? = nil,
         scope: String? = nil,
+        conversationIdentifier: String? = nil,
         referenceDate: Date,
         timeZoneIdentifier: String,
         tasks: [V2PlanningTaskContext] = [],
         memoryStatements: [String] = [],
+        conversation: [V2PlanningConversationMessage] = [],
         currentDraft: V2PlanDraft? = nil
     ) {
         self.userPrompt = userPrompt
         self.clarificationResponse = clarificationResponse
         self.scope = scope
+        self.conversationIdentifier = conversationIdentifier
         self.referenceDate = referenceDate
         self.timeZoneIdentifier = timeZoneIdentifier
         self.tasks = tasks
         self.memoryStatements = memoryStatements
+        self.conversation = conversation
         self.currentDraft = currentDraft
     }
 }
@@ -268,17 +284,20 @@ public struct V2OpenAICompatiblePlanningConfiguration: Equatable, Sendable {
     public var apiKey: String
     public var model: String
     public var providerLabel: String
+    public var usesPromptCacheKey: Bool
 
     public init(
         endpoint: URL,
         apiKey: String,
         model: String,
-        providerLabel: String = "在线 AI"
+        providerLabel: String = "在线 AI",
+        usesPromptCacheKey: Bool = false
     ) {
         self.endpoint = endpoint
         self.apiKey = apiKey
         self.model = model
         self.providerLabel = providerLabel
+        self.usesPromptCacheKey = usesPromptCacheKey
     }
 }
 
@@ -397,7 +416,7 @@ private extension V2OpenAICompatiblePlanningClient {
             encoding: .utf8
         )!
 
-        return [
+        var body: [String: Any] = [
             "model": configuration.model,
             "messages": [
                 [
@@ -416,6 +435,13 @@ private extension V2OpenAICompatiblePlanningClient {
             "stream": false,
             "max_tokens": 4_096,
         ]
+        if configuration.usesPromptCacheKey,
+           let cacheKey = request.conversationIdentifier?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !cacheKey.isEmpty {
+            body["prompt_cache_key"] = cacheKey
+        }
+        return body
     }
 }
 
@@ -670,6 +696,12 @@ fileprivate extension V2RemotePlanningClient {
                 ] as [String: Any]
             },
             "memory_statements": Array(request.memoryStatements.prefix(30)),
+            "conversation": request.conversation.suffix(40).map { message in
+                [
+                    "role": message.role.rawValue,
+                    "text": message.text,
+                ]
+            },
             "current_draft": request.currentDraft.map { draft in
                 [
                     "title": draft.title,

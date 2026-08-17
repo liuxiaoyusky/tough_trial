@@ -17,7 +17,7 @@ final class V2AppStore: ObservableObject {
     @Published private(set) var savedRecallEntry: V2RecallEntry?
     @Published private(set) var isRecallDirty = false
     @Published private(set) var isPlanning = false
-    @Published private(set) var planningProviderLabel = "本地基础规划"
+    @Published private(set) var planningProviderLabel = "AI 未连接"
     @Published private(set) var planningSuggestedReplies: [String] = []
     @Published private(set) var planningFailureMessage: String?
     @Published private(set) var aiProviderSettings = V2AIProviderSettings.defaults
@@ -37,12 +37,15 @@ final class V2AppStore: ObservableObject {
     private let calendar: Calendar
     private let canWrite: Bool
     private let canWriteMemory: Bool
+    private let allowsPlanningWithoutSavedAIService: Bool
     private let startupErrorMessage: String?
+    private var aiProviderProfiles: [V2AIProviderPreset: V2AIProviderSettings]
     private var focusedSessionID: String?
     private var zenSessionID: String?
     private var baseRecallReferences = V2RecallReferences()
     private var recallWorkingDrafts: [Date: V2RecallWorkingDraft] = [:]
     private var activePlanningPrompt: String?
+    private var activePlanningConversationID = UUID().uuidString
 
     init(
         engine injectedEngine: V2Engine? = nil,
@@ -52,18 +55,39 @@ final class V2AppStore: ObservableObject {
         initialState: V2PrototypeState = .empty(),
         calendar: Calendar = .current
     ) {
-        let isEmptyUITestMode =
-            ProcessInfo.processInfo.environment["TOUGH_TRIAL_UI_TEST_EMPTY"] == "1"
+        let environment = ProcessInfo.processInfo.environment
+        let isEmptyUITestMode = environment["TOUGH_TRIAL_UI_TEST_EMPTY"] == "1"
         let isUITestMode =
             isEmptyUITestMode
-            || ProcessInfo.processInfo.environment["TOUGH_TRIAL_UI_TESTING"] == "1"
-        let isPlanningFailureUITest =
-            ProcessInfo.processInfo.environment["TOUGH_TRIAL_UI_TEST_PLANNING_FAILURE"] == "1"
+            || environment["TOUGH_TRIAL_UI_TESTING"] == "1"
+        let isPlanningFailureUITest = environment["TOUGH_TRIAL_UI_TEST_PLANNING_FAILURE"] == "1"
+        let requiresAIConfigurationUITest =
+            environment["TOUGH_TRIAL_UI_TEST_REQUIRE_AI_CONFIGURATION"] == "1"
+        #if DEBUG
+        let hasDebugAIConfiguration = !(environment["TOUGH_TRIAL_AI_API_KEY"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty
+        #else
+        let hasDebugAIConfiguration = false
+        #endif
         self.state = initialState
         self.calendar = calendar
+        self.allowsPlanningWithoutSavedAIService =
+            injectedPlanningClient != nil
+            || (isUITestMode && !requiresAIConfigurationUITest)
+            || hasDebugAIConfiguration
         let loadedAISettings = isUITestMode
             ? V2AIProviderSettings.defaults
             : V2AIProviderSettingsStore.load()
+        self.aiProviderProfiles = Dictionary(
+            uniqueKeysWithValues: V2AIProviderPreset.allCases.map { provider in
+                let settings = isUITestMode
+                    ? provider.defaultSettings()
+                    : V2AIProviderSettingsStore.loadProfile(for: provider)
+                return (provider, settings)
+            }
+        )
+        self.aiProviderProfiles[loadedAISettings.provider] = loadedAISettings
         self.aiProviderSettings = loadedAISettings
         self.aiModelCatalog = isUITestMode
             ? V2AIModelCatalogState()
@@ -137,11 +161,17 @@ final class V2AppStore: ObservableObject {
     }
 
     func openPlanAgent() {
+        if planningSourceTask != nil || state.planConversationPhase == .complete {
+            resetPlanConversation()
+        }
         planningSourceTask = nil
         isPlanPresented = true
     }
 
     func openPlanAgent(for task: V2TaskNode) {
+        if planningSourceTask?.id != task.id || state.planConversationPhase == .complete {
+            resetPlanConversation()
+        }
         state.selectedTaskID = task.id
         planningSourceTask = task
         isPlanPresented = true
@@ -149,17 +179,48 @@ final class V2AppStore: ObservableObject {
 
     func closePlanAgent() {
         isPlanPresented = false
+    }
+
+    func startNewPlanConversation() {
         planningSourceTask = nil
+        resetPlanConversation()
     }
 
-    var planDraftCount: Int {
-        let durableIDs = Set(pendingPlanDrafts.map(\.id))
-        guard let currentID = state.currentPlanDraft?.id else { return durableIDs.count }
-        return durableIDs.contains(currentID) ? durableIDs.count : durableIDs.count + 1
+    func resumePlanDraft(_ record: V2PlanDraftRecord) {
+        let draft = record.editableDraft()
+        planningSourceTask = nil
+        activePlanningPrompt = draft.userPrompt
+        activePlanningConversationID = "plan-draft-\(record.id)"
+        planningSuggestedReplies = []
+        planningFailureMessage = nil
+        state.planScope = nil
+        state.currentPlanDraft = draft
+        state.planConversationPhase = .reviewingDraft
+        state.planMessages = [
+            V2PlanMessage(
+                id: "plan-user-restored-\(record.id)",
+                role: .user,
+                text: draft.userPrompt
+            ),
+            V2PlanMessage(
+                id: "plan-agent-restored-\(record.id)",
+                role: .agent,
+                text: "已恢复这份未完成的计划。你可以直接修改，或者继续告诉我怎么调整。"
+            ),
+        ]
     }
 
-    func setPlanScope(_ scope: String?) {
-        state.setPlanScope(scope)
+    func updateCurrentPlanScheduleItem(
+        _ updatedItem: V2PlanDraftScheduleItem,
+        at date: Date = Date()
+    ) {
+        guard var draft = state.currentPlanDraft,
+              let index = draft.scheduleItems.firstIndex(where: { $0.id == updatedItem.id })
+        else { return }
+
+        draft.scheduleItems[index] = updatedItem
+        state.currentPlanDraft = draft
+        saveCurrentPlanDraft(at: date)
     }
 
     var visibleAIModels: [V2AIModel] {
@@ -181,14 +242,33 @@ final class V2AppStore: ObservableObject {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .isEmpty
         if isUsingSiliconFlow {
-            return hasKey && aiModelCatalog.lastSuccessfulSyncAt != nil
+            return hasLoadedSiliconFlowModels
+                && aiProviderSettings.isEnabled
+                && aiModelCatalog.isSelectedModelAvailable
         }
         return hasKey && aiProviderSettings.isEnabled
     }
 
+    var hasLoadedSiliconFlowModels: Bool {
+        let hasKey = !aiProviderSettings.apiKey
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty
+        return isUsingSiliconFlow
+            && hasKey
+            && aiModelCatalog.lastSuccessfulSyncAt != nil
+            && !aiModelCatalog.models.isEmpty
+    }
+
+    var canUsePlanningAI: Bool {
+        hasConnectedAIService || allowsPlanningWithoutSavedAIService
+    }
+
     var isUsingSiliconFlow: Bool {
-        URL(string: aiProviderSettings.baseURL)?.host?
-            .localizedCaseInsensitiveContains("siliconflow") == true
+        aiProviderSettings.provider == .siliconFlow
+    }
+
+    func aiProviderProfile(for provider: V2AIProviderPreset) -> V2AIProviderSettings {
+        aiProviderProfiles[provider] ?? provider.defaultSettings()
     }
 
     func updatePlanningSettings(_ settings: V2AIProviderSettings) throws {
@@ -196,6 +276,7 @@ final class V2AppStore: ObservableObject {
         try V2AIProviderSettingsStore.save(settings)
         let resolvedPlanningClient = V2ValidatedPlanningClient(client: basePlanningClient)
         aiProviderSettings = settings
+        aiProviderProfiles[settings.provider] = settings
         planningClient = resolvedPlanningClient
         planningProviderLabel = resolvedPlanningClient.providerLabel
         planningFailureMessage = nil
@@ -216,15 +297,16 @@ final class V2AppStore: ObservableObject {
         var catalog = aiModelCatalog
         catalog.applySuccessfulSync(models: models, at: date)
 
-        let previousModel = aiProviderSettings.model
+        var settings = aiProviderProfile(for: .siliconFlow)
+        let previousModel = settings.model
             .trimmingCharacters(in: .whitespacesAndNewlines)
         if catalog.selectedModelID == nil,
            models.contains(where: { $0.id == previousModel }) {
             try catalog.selectModel(id: previousModel)
         }
 
-        var settings = aiProviderSettings
         settings.apiKey = key
+        settings.provider = .siliconFlow
         settings.baseURL = V2AIProviderSettings.siliconFlowBaseURL
         if catalog.isSelectedModelAvailable, let selectedModelID = catalog.selectedModelID {
             settings.model = selectedModelID
@@ -238,6 +320,7 @@ final class V2AppStore: ObservableObject {
         try V2AIModelCatalogStore.save(catalog)
 
         aiProviderSettings = settings
+        aiProviderProfiles[settings.provider] = settings
         aiModelCatalog = catalog
         let resolvedPlanningClient = V2ValidatedPlanningClient(client: basePlanningClient)
         planningClient = resolvedPlanningClient
@@ -247,15 +330,19 @@ final class V2AppStore: ObservableObject {
     }
 
     func refreshSiliconFlowModels(at date: Date = Date()) async throws {
-        try await connectSiliconFlow(apiKey: aiProviderSettings.apiKey, at: date)
+        try await connectSiliconFlow(
+            apiKey: aiProviderProfile(for: .siliconFlow).apiKey,
+            at: date
+        )
     }
 
     func selectAIModel(id: String) throws {
         var catalog = aiModelCatalog
         try catalog.selectModel(id: id)
 
-        var settings = aiProviderSettings
+        var settings = aiProviderProfile(for: .siliconFlow)
         settings.isEnabled = true
+        settings.provider = .siliconFlow
         settings.baseURL = V2AIProviderSettings.siliconFlowBaseURL
         settings.model = id
 
@@ -264,6 +351,7 @@ final class V2AppStore: ObservableObject {
         try V2AIModelCatalogStore.save(catalog)
 
         aiProviderSettings = settings
+        aiProviderProfiles[settings.provider] = settings
         aiModelCatalog = catalog
         let resolvedPlanningClient = V2ValidatedPlanningClient(client: basePlanningClient)
         planningClient = resolvedPlanningClient
@@ -280,10 +368,11 @@ final class V2AppStore: ObservableObject {
     }
 
     func disconnectAIService() throws {
-        let settings = V2AIProviderSettings.defaults
+        let settings = aiProviderSettings.provider.defaultSettings()
         let basePlanningClient = try Self.makePlanningClient(settings: settings)
         try V2AIProviderSettingsStore.save(settings)
         aiProviderSettings = settings
+        aiProviderProfiles[settings.provider] = settings
         let resolvedPlanningClient = V2ValidatedPlanningClient(client: basePlanningClient)
         planningClient = resolvedPlanningClient
         planningProviderLabel = resolvedPlanningClient.providerLabel
@@ -294,6 +383,14 @@ final class V2AppStore: ObservableObject {
     func submitPlanPrompt(_ prompt: String, at date: Date = Date()) async {
         let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !isPlanning else { return }
+        guard canUsePlanningAI else {
+            planningFailureMessage = "请先配置 AI 服务。"
+            return
+        }
+
+        if state.planConversationPhase == .complete {
+            resetPlanConversation()
+        }
 
         if let draft = state.currentPlanDraft {
             await requestPlan(
@@ -319,6 +416,10 @@ final class V2AppStore: ObservableObject {
     func submitPlanClarification(_ response: String, at date: Date = Date()) async {
         let trimmed = response.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !isPlanning else { return }
+        guard canUsePlanningAI else {
+            planningFailureMessage = "请先配置 AI 服务。"
+            return
+        }
         guard let prompt = activePlanningPrompt
             ?? state.planMessages.first(where: { $0.role == .user })?.text
         else {
@@ -988,6 +1089,7 @@ final class V2AppStore: ObservableObject {
             userPrompt: userPrompt,
             clarificationResponse: clarificationResponse,
             scope: planningRequestScope,
+            conversationIdentifier: activePlanningConversationID,
             referenceDate: date,
             timeZoneIdentifier: calendar.timeZone.identifier,
             tasks: engine.snapshot.tasks
@@ -1004,6 +1106,9 @@ final class V2AppStore: ObservableObject {
                     )
                 },
             memoryStatements: memoryEngine.activeStatements(at: date),
+            conversation: state.planMessages.suffix(40).map {
+                V2PlanningConversationMessage(role: $0.role, text: $0.text)
+            },
             currentDraft: currentDraft
         )
 
@@ -1020,6 +1125,7 @@ final class V2AppStore: ObservableObject {
                 state.planConversationPhase = .reviewingDraft
                 planningSuggestedReplies = []
                 appendPlanAgentMessage(proposal.message)
+                saveCurrentPlanDraft(at: date)
             }
             planningFailureMessage = nil
             errorMessage = nil
@@ -1046,6 +1152,17 @@ final class V2AppStore: ObservableObject {
                 text: text
             )
         )
+    }
+
+    private func resetPlanConversation() {
+        activePlanningPrompt = nil
+        activePlanningConversationID = UUID().uuidString
+        planningSuggestedReplies = []
+        planningFailureMessage = nil
+        state.planMessages = []
+        state.planConversationPhase = .empty
+        state.planScope = nil
+        state.currentPlanDraft = nil
     }
 
     private static func configuredPlanningClient(
@@ -1086,7 +1203,7 @@ final class V2AppStore: ObservableObject {
         settings: V2AIProviderSettings
     ) throws -> any V2PlanningClient {
         guard settings.isEnabled else {
-            return V2DeterministicPlanningClient()
+            return V2UnavailablePlanningClient(message: "请先配置 AI 服务")
         }
         return V2OpenAICompatiblePlanningClient(
             configuration: try settings.planningConfiguration()

@@ -30,10 +30,9 @@ final class ToughTrialUITests: XCTestCase {
     func testPlanCanConnectAndManageSiliconFlowModels() {
         let app = launchApp()
         app.tabBars.firstMatch.buttons["计划"].tap()
-        XCTAssertTrue(app.buttons["计划选项"].waitForExistence(timeout: 3))
-
-        app.buttons["计划选项"].tap()
-        app.buttons["AI 服务"].tap()
+        let connectAI = app.buttons["plan.connectAI"]
+        XCTAssertTrue(connectAI.waitForExistence(timeout: 3))
+        connectAI.tap()
         XCTAssertTrue(app.navigationBars["AI 服务"].waitForExistence(timeout: 3))
 
         let apiKey = app.secureTextFields["ai.settings.apiKey"]
@@ -45,15 +44,21 @@ final class ToughTrialUITests: XCTestCase {
         apiKey.typeText("fake-ui-key")
         app.buttons["ai.settings.connect"].tap()
         XCTAssertTrue(
-            app.staticTexts["ai.settings.connected"].waitForExistence(timeout: 5)
+            app.staticTexts["ai.settings.catalogLoaded"].waitForExistence(timeout: 5)
         )
 
         let currentModel = app.buttons["ai.settings.currentModel"]
         XCTAssertTrue(currentModel.waitForExistence(timeout: 3))
         currentModel.tap()
         app.buttons["Qwen/Qwen3-32B"].tap()
+        XCTAssertTrue(
+            app.staticTexts["ai.settings.connected"].waitForExistence(timeout: 3)
+        )
 
-        app.buttons["ai.settings.manageModels"].tap()
+        app.collectionViews.firstMatch.swipeUp()
+        let manageModels = app.buttons["ai.settings.manageModels"]
+        XCTAssertTrue(manageModels.waitForExistence(timeout: 3))
+        manageModels.tap()
         XCTAssertTrue(app.navigationBars["管理模型"].waitForExistence(timeout: 3))
         let selectedModelToggle = app.switches["ai.model.visible.Qwen/Qwen3-32B"]
         XCTAssertTrue(selectedModelToggle.waitForExistence(timeout: 3))
@@ -71,14 +76,157 @@ final class ToughTrialUITests: XCTestCase {
         app.navigationBars["管理模型"].buttons["AI 服务"].tap()
 
         app.navigationBars["AI 服务"].buttons["完成"].tap()
-        let planModelSelector = app.buttons["plan.modelSelector"]
-        XCTAssertTrue(planModelSelector.waitForExistence(timeout: 3))
-        XCTAssertTrue(planModelSelector.label.contains("Qwen/Qwen3-32B"))
-        planModelSelector.tap()
+        XCTAssertTrue(connectAI.waitForNonExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["plan.history"].exists)
+        XCTAssertFalse(app.buttons["plan.modelSelector"].exists)
+    }
+
+    @MainActor
+    func testPlanRequiresAIConfigurationBeforeAcceptingPrompts() {
+        let app = XCUIApplication()
+        app.launchEnvironment["TOUGH_TRIAL_UI_TESTING"] = "1"
+        app.launchEnvironment["TOUGH_TRIAL_UI_TEST_REQUIRE_AI_CONFIGURATION"] = "1"
+        app.launch()
+
+        app.tabBars.firstMatch.buttons["计划"].tap()
+
+        XCTAssertTrue(app.staticTexts["先连接 AI"].waitForExistence(timeout: 3))
+        XCTAssertFalse(app.textFields["plan.composer"].exists)
+        XCTAssertFalse(app.buttons["这周想跑 10 公里"].exists)
+        keepScreenshot(of: app, name: "plan-ai-configuration-required")
+
+        let configure = app.buttons["plan.configureAI"]
+        XCTAssertTrue(configure.exists)
+        configure.tap()
+        XCTAssertTrue(app.navigationBars["AI 服务"].waitForExistence(timeout: 3))
+
+        let apiKey = app.secureTextFields["ai.settings.apiKey"]
+        apiKey.tap()
+        apiKey.typeText("fake-ui-key")
+        app.buttons["ai.settings.connect"].tap()
+        XCTAssertTrue(app.staticTexts["ai.settings.catalogLoaded"].waitForExistence(timeout: 5))
+
+        let currentModel = app.buttons["ai.settings.currentModel"]
+        XCTAssertTrue(currentModel.waitForExistence(timeout: 3))
+        currentModel.tap()
+        app.buttons["Qwen/Qwen3-32B"].tap()
+        XCTAssertTrue(app.staticTexts["ai.settings.connected"].waitForExistence(timeout: 3))
+        app.navigationBars["AI 服务"].buttons["完成"].tap()
+
+        XCTAssertTrue(app.textFields["plan.composer"].waitForExistence(timeout: 3))
+        XCTAssertFalse(app.staticTexts["先连接 AI"].exists)
+    }
+
+    @MainActor
+    func testPlanCanConfigureKimiAndGLMCodingPlanPresets() {
+        let app = XCUIApplication()
+        app.launchEnvironment["TOUGH_TRIAL_UI_TESTING"] = "1"
+        app.launchEnvironment["TOUGH_TRIAL_UI_TEST_REQUIRE_AI_CONFIGURATION"] = "1"
+        app.launch()
+
+        app.tabBars.firstMatch.buttons["计划"].tap()
+        app.buttons["plan.configureAI"].tap()
+        XCTAssertTrue(app.navigationBars["AI 服务"].waitForExistence(timeout: 3))
+
+        let provider = app.buttons["ai.settings.provider"]
+        XCTAssertTrue(provider.waitForExistence(timeout: 3))
+        provider.tap()
+        app.buttons["Kimi Coding Plan"].tap()
+
+        let presetModel = app.buttons["ai.settings.presetModel"]
+        XCTAssertTrue(presetModel.waitForExistence(timeout: 3))
+        XCTAssertTrue(presetModel.label.contains("k3-256k"))
+
+        let kimiKey = app.secureTextFields["ai.settings.apiKey"]
+        kimiKey.tap()
+        kimiKey.typeText("fake-kimi-key")
+        app.buttons["ai.settings.usePreset"].tap()
+        XCTAssertTrue(app.textFields["plan.composer"].waitForExistence(timeout: 3))
+
+        app.buttons["plan.history"].tap()
+        app.buttons["plan.history.settings"].tap()
+        app.buttons["AI 服务"].tap()
+        XCTAssertTrue(app.navigationBars["AI 服务"].waitForExistence(timeout: 3))
+
+        app.buttons["ai.settings.provider"].tap()
+        app.buttons["GLM Coding Plan"].tap()
+        let glmPresetModel = app.buttons.matching(
+            NSPredicate(
+                format: "identifier == %@ AND label CONTAINS %@",
+                "ai.settings.presetModel",
+                "glm-5.2"
+            )
+        ).firstMatch
+        XCTAssertTrue(glmPresetModel.waitForExistence(timeout: 3))
+
+        let glmKey = app.secureTextFields["ai.settings.apiKey"]
+        XCTAssertEqual(glmKey.value as? String, "粘贴 API Key")
+        glmKey.tap()
+        glmKey.typeText("fake-glm-key")
+        app.buttons["ai.settings.usePreset"].tap()
+        XCTAssertTrue(app.textFields["plan.composer"].waitForExistence(timeout: 3))
+
+        app.buttons["plan.history"].tap()
+        app.buttons["plan.history.settings"].tap()
+        app.buttons["AI 服务"].tap()
+        app.buttons["ai.settings.provider"].tap()
+        app.buttons["Kimi Coding Plan"].tap()
+        let restoredKimiKey = app.secureTextFields["ai.settings.apiKey"]
+        XCTAssertTrue(restoredKimiKey.waitForExistence(timeout: 3))
+        XCTAssertNotEqual(restoredKimiKey.value as? String, "粘贴 API Key")
+    }
+
+    @MainActor
+    func testPlanDraftAutoSavesResumesAndAllowsDirectEditing() {
+        let app = launchApp()
+        app.tabBars.firstMatch.buttons["计划"].tap()
+
+        let composer = app.textFields["plan.composer"]
+        XCTAssertTrue(composer.waitForExistence(timeout: 3))
+        keepScreenshot(of: app, name: "plan-v2-empty")
+        composer.tap()
+        composer.typeText("这周跑 10 公里")
+        app.buttons["发送"].tap()
+        XCTAssertTrue(app.buttons["可以"].waitForExistence(timeout: 5))
+        app.buttons["可以"].tap()
+
+        XCTAssertTrue(app.buttons["plan.acceptDraft"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["草稿已自动保存"].exists)
+        keepScreenshot(of: app, name: "plan-v2-draft")
+
+        app.buttons["plan.history"].tap()
+        XCTAssertTrue(app.navigationBars["草稿历史"].waitForExistence(timeout: 3))
+        let resumable = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "继续计划：这周跑 10 公里")
+        ).firstMatch
+        XCTAssertTrue(resumable.waitForExistence(timeout: 3))
+
+        app.buttons["plan.history.new"].tap()
+        XCTAssertTrue(app.staticTexts["想怎么安排？"].waitForExistence(timeout: 3))
+        XCTAssertFalse(app.buttons["plan.acceptDraft"].exists)
+
+        app.buttons["plan.history"].tap()
+        XCTAssertTrue(resumable.waitForExistence(timeout: 3))
+        resumable.tap()
+        XCTAssertTrue(app.buttons["plan.acceptDraft"].waitForExistence(timeout: 3))
+
+        let editableItem = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "编辑安排：")
+        ).firstMatch
+        XCTAssertTrue(editableItem.waitForExistence(timeout: 3))
+        editableItem.tap()
+
+        let title = app.textFields["plan.editor.title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 3))
+        keepScreenshot(of: app, name: "plan-v2-editor")
+        title.tap()
+        title.typeText("（调整）")
+        app.buttons["plan.editor.save"].tap()
         XCTAssertTrue(
-            app.buttons["plan.model.moonshotai/Kimi-K2"].waitForExistence(timeout: 3)
+            app.buttons.matching(
+                NSPredicate(format: "label CONTAINS %@", "（调整）")
+            ).firstMatch.waitForExistence(timeout: 3)
         )
-        XCTAssertFalse(app.buttons["plan.model.deepseek-ai/DeepSeek-V3"].exists)
     }
 
     @MainActor

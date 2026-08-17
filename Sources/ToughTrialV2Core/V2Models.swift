@@ -306,7 +306,7 @@ public struct V2ActiveSession: Equatable, Sendable {
 }
 
 public struct V2PlanMessage: Equatable, Sendable {
-    public enum Role: String, Equatable, Sendable {
+    public enum Role: String, Codable, Equatable, Sendable {
         case user
         case agent
     }

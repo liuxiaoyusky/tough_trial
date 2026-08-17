@@ -3,56 +3,38 @@ import SwiftUI
 struct V2AIProviderSettingsView: View {
     @ObservedObject var store: V2AppStore
     @Environment(\.dismiss) private var dismiss
-    @State private var apiKey: String
-    @State private var customBaseURL: String
-    @State private var customModel: String
-    @State private var showsCustomProvider = false
+    @State private var selectedProvider: V2AIProviderPreset
+    @State private var profiles: [V2AIProviderPreset: V2AIProviderSettings]
     @State private var errorMessage: String?
 
     init(store: V2AppStore) {
         self.store = store
-        let settings = store.aiProviderSettings
-        _apiKey = State(initialValue: settings.apiKey)
-        _customBaseURL = State(initialValue: settings.baseURL)
-        _customModel = State(initialValue: settings.model)
+        let activeSettings = store.aiProviderSettings
+        var loadedProfiles = Dictionary(
+            uniqueKeysWithValues: V2AIProviderPreset.allCases.map {
+                ($0, store.aiProviderProfile(for: $0))
+            }
+        )
+        loadedProfiles[activeSettings.provider] = activeSettings
+        _selectedProvider = State(initialValue: activeSettings.provider)
+        _profiles = State(initialValue: loadedProfiles)
     }
 
     var body: some View {
         NavigationStack {
             Form {
-                siliconFlowSection
+                providerSection
 
-            if isSiliconFlowConnected {
-                modelSection
-            }
-
-                Section {
-                    DisclosureGroup(
-                        "其他 OpenAI 兼容服务",
-                        isExpanded: $showsCustomProvider
-                    ) {
-                        TextField("服务地址", text: $customBaseURL)
-                            .textInputAutocapitalization(.never)
-                            .keyboardType(.URL)
-                            .autocorrectionDisabled()
-                            .accessibilityIdentifier("ai.settings.baseURL")
-
-                        TextField("模型名称", text: $customModel)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .accessibilityIdentifier("ai.settings.model")
-
-                        SecureField("API Key", text: $apiKey)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-
-                        Button("使用此服务") {
-                            saveCustomProvider()
-                        }
-                        .disabled(!canSaveCustomProvider)
+                switch selectedProvider {
+                case .siliconFlow:
+                    siliconFlowSection
+                    if hasLoadedSiliconFlowModels {
+                        modelSection
                     }
-                } footer: {
-                    Text("适用于提供 /v1/chat/completions 的兼容服务。")
+                case .kimiCoding, .glmCoding:
+                    codingPlanSection
+                case .custom:
+                    customProviderSection
                 }
             }
             .navigationTitle("AI 服务")
@@ -71,9 +53,49 @@ struct V2AIProviderSettingsView: View {
         .presentationDetents([.medium, .large])
     }
 
+    private var providerSection: some View {
+        Section {
+            Menu {
+                ForEach(V2AIProviderPreset.allCases) { provider in
+                    Button {
+                        selectedProvider = provider
+                    } label: {
+                        if provider == selectedProvider {
+                            Label(provider.title, systemImage: "checkmark")
+                        } else {
+                            Text(provider.title)
+                        }
+                    }
+                }
+            } label: {
+                HStack {
+                    Text("AI 服务")
+                    Spacer()
+                    Text(selectedProvider.title)
+                        .foregroundStyle(V2Theme.secondary)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(V2Theme.tertiary)
+                }
+            }
+            .accessibilityLabel("AI 服务 \(selectedProvider.title)")
+            .accessibilityIdentifier("ai.settings.provider")
+
+            if store.hasConnectedAIService {
+                Label(
+                    "正在使用 \(store.aiProviderSettings.provider.title)",
+                    systemImage: "checkmark.circle.fill"
+                )
+                .foregroundStyle(V2Theme.mint)
+            }
+        } header: {
+            Text("提供商")
+        }
+    }
+
     private var siliconFlowSection: some View {
         Section {
-            if isSiliconFlowConnected {
+            if store.hasConnectedAIService && store.isUsingSiliconFlow {
                 Label {
                     Text("已连接 · \(store.aiModelCatalog.models.count) 个聊天模型")
                         .accessibilityIdentifier("ai.settings.connected")
@@ -81,9 +103,17 @@ struct V2AIProviderSettingsView: View {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(V2Theme.mint)
                 }
+            } else if hasLoadedSiliconFlowModels {
+                Label {
+                    Text("已读取 \(store.aiModelCatalog.models.count) 个模型，请选择模型")
+                        .accessibilityIdentifier("ai.settings.catalogLoaded")
+                } icon: {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .foregroundStyle(V2Theme.blue)
+                }
             }
 
-            SecureField("粘贴 API Key", text: $apiKey)
+            SecureField("粘贴 API Key", text: profileBinding(\.apiKey))
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .accessibilityIdentifier("ai.settings.apiKey")
@@ -96,14 +126,11 @@ struct V2AIProviderSettingsView: View {
                         ProgressView()
                             .controlSize(.small)
                     }
-                    Text(isSiliconFlowConnected ? "重新连接并更新模型" : "连接并更新模型")
+                    Text(hasLoadedSiliconFlowModels ? "重新连接并更新模型" : "连接并更新模型")
                 }
                 .frame(maxWidth: .infinity)
             }
-            .disabled(
-                store.isRefreshingAIModels
-                    || apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            )
+            .disabled(store.isRefreshingAIModels || !hasAPIKey)
             .accessibilityIdentifier("ai.settings.connect")
         } header: {
             Text("SiliconFlow")
@@ -112,14 +139,102 @@ struct V2AIProviderSettingsView: View {
         }
     }
 
+    private var codingPlanSection: some View {
+        Section {
+            SecureField("粘贴 API Key", text: profileBinding(\.apiKey))
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .accessibilityIdentifier("ai.settings.apiKey")
+
+            Menu {
+                ForEach(selectedProvider.models, id: \.self) { model in
+                    Button {
+                        updateProfile(\.model, to: model)
+                    } label: {
+                        if model == currentProfile.model {
+                            Label(model, systemImage: "checkmark")
+                        } else {
+                            Text(model)
+                        }
+                    }
+                }
+            } label: {
+                HStack {
+                    Text("模型")
+                    Spacer()
+                    Text(currentProfile.model)
+                        .foregroundStyle(V2Theme.secondary)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(V2Theme.tertiary)
+                }
+            }
+            .accessibilityLabel("模型 \(currentProfile.model)")
+            .accessibilityIdentifier("ai.settings.presetModel")
+
+            Button("使用此服务") {
+                saveCodingPlanProvider()
+            }
+            .frame(maxWidth: .infinity)
+            .disabled(!canSaveCurrentProfile)
+            .accessibilityIdentifier("ai.settings.usePreset")
+
+            if isEditingActiveProvider {
+                Button("移除此 API Key", role: .destructive) {
+                    disconnect()
+                }
+            }
+        } header: {
+            Text(selectedProvider.title)
+        } footer: {
+            Text(codingPlanFooter)
+        }
+    }
+
+    private var customProviderSection: some View {
+        Section {
+            TextField("服务地址", text: profileBinding(\.baseURL))
+                .textInputAutocapitalization(.never)
+                .keyboardType(.URL)
+                .autocorrectionDisabled()
+                .accessibilityIdentifier("ai.settings.baseURL")
+
+            TextField("模型名称", text: profileBinding(\.model))
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .accessibilityIdentifier("ai.settings.model")
+
+            SecureField("粘贴 API Key", text: profileBinding(\.apiKey))
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .accessibilityIdentifier("ai.settings.apiKey")
+
+            Button("使用此服务") {
+                saveCustomProvider()
+            }
+            .frame(maxWidth: .infinity)
+            .disabled(!canSaveCurrentProfile)
+
+            if isEditingActiveProvider {
+                Button("移除此 API Key", role: .destructive) {
+                    disconnect()
+                }
+            }
+        } header: {
+            Text("其他 OpenAI 兼容服务")
+        } footer: {
+            Text("适用于提供 /v1/chat/completions 的兼容服务。")
+        }
+    }
+
     private var modelSection: some View {
         Section {
             Menu {
-                ForEach(store.visibleAIModels, id: \.id) { model in
+                ForEach(store.aiModelCatalog.visibleModels, id: \.id) { model in
                     Button {
                         selectModel(model.id)
                     } label: {
-                        if model.id == store.selectedAIModelID {
+                        if model.id == siliconFlowSelectedModelID {
                             Label(model.id, systemImage: "checkmark")
                         } else {
                             Text(model.id)
@@ -131,7 +246,7 @@ struct V2AIProviderSettingsView: View {
                 HStack {
                     Text("当前模型")
                     Spacer()
-                    Text(store.selectedAIModelID ?? "选择模型")
+                    Text(siliconFlowSelectedModelID ?? "选择模型")
                         .foregroundStyle(V2Theme.secondary)
                         .lineLimit(1)
                     Image(systemName: "chevron.up.chevron.down")
@@ -139,7 +254,7 @@ struct V2AIProviderSettingsView: View {
                         .foregroundStyle(V2Theme.tertiary)
                 }
             }
-            .accessibilityLabel("当前模型 \(store.selectedAIModelID ?? "未选择")")
+            .accessibilityLabel("当前模型 \(siliconFlowSelectedModelID ?? "未选择")")
             .accessibilityIdentifier("ai.settings.currentModel")
 
             if store.aiModelCatalog.selectedModelID != nil,
@@ -157,12 +272,14 @@ struct V2AIProviderSettingsView: View {
             .accessibilityIdentifier("ai.settings.manageModels")
 
             Button("更新模型列表") {
-                refreshModels()
+                connectSiliconFlow()
             }
             .disabled(store.isRefreshingAIModels)
 
-            Button("移除 API Key", role: .destructive) {
-                disconnect()
+            if isEditingActiveProvider {
+                Button("移除 API Key", role: .destructive) {
+                    disconnect()
+                }
             }
         } header: {
             Text("模型")
@@ -171,31 +288,73 @@ struct V2AIProviderSettingsView: View {
         }
     }
 
-    private var canSaveCustomProvider: Bool {
-        !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !customBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !customModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    private var currentProfile: V2AIProviderSettings {
+        profiles[selectedProvider] ?? selectedProvider.defaultSettings()
     }
 
-    private var isSiliconFlowConnected: Bool {
-        store.hasConnectedAIService && store.isUsingSiliconFlow
+    private var hasAPIKey: Bool {
+        !currentProfile.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var canSaveCurrentProfile: Bool {
+        hasAPIKey
+            && !currentProfile.baseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !currentProfile.model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var hasLoadedSiliconFlowModels: Bool {
+        hasAPIKey
+            && store.aiModelCatalog.lastSuccessfulSyncAt != nil
+            && !store.aiModelCatalog.models.isEmpty
+    }
+
+    private var siliconFlowSelectedModelID: String? {
+        store.aiModelCatalog.isSelectedModelAvailable
+            ? store.aiModelCatalog.selectedModelID
+            : nil
+    }
+
+    private var isEditingActiveProvider: Bool {
+        store.aiProviderSettings.provider == selectedProvider
+            && !store.aiProviderSettings.apiKey
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .isEmpty
+    }
+
+    private var codingPlanFooter: String {
+        switch selectedProvider {
+        case .kimiCoding:
+            "请使用 Kimi Code 控制台生成的 API Key；它与开放平台 Key 不通用。"
+        case .glmCoding:
+            "Coding Plan 仅保证在供应商支持的编码工具中可用；若请求被拒绝，请改用智谱普通 API。"
+        case .siliconFlow, .custom:
+            ""
+        }
+    }
+
+    private func profileBinding<Value>(
+        _ keyPath: WritableKeyPath<V2AIProviderSettings, Value>
+    ) -> Binding<Value> {
+        Binding(
+            get: { currentProfile[keyPath: keyPath] },
+            set: { updateProfile(keyPath, to: $0) }
+        )
+    }
+
+    private func updateProfile<Value>(
+        _ keyPath: WritableKeyPath<V2AIProviderSettings, Value>,
+        to value: Value
+    ) {
+        var profile = currentProfile
+        profile[keyPath: keyPath] = value
+        profiles[selectedProvider] = profile
     }
 
     private func connectSiliconFlow() {
         Task { @MainActor in
             do {
-                try await store.connectSiliconFlow(apiKey: apiKey)
-                apiKey = store.aiProviderSettings.apiKey
-            } catch {
-                errorMessage = Self.message(for: error)
-            }
-        }
-    }
-
-    private func refreshModels() {
-        Task { @MainActor in
-            do {
-                try await store.refreshSiliconFlowModels()
+                try await store.connectSiliconFlow(apiKey: currentProfile.apiKey)
+                profiles[.siliconFlow] = store.aiProviderSettings
             } catch {
                 errorMessage = Self.message(for: error)
             }
@@ -205,21 +364,31 @@ struct V2AIProviderSettingsView: View {
     private func selectModel(_ id: String) {
         do {
             try store.selectAIModel(id: id)
+            profiles[.siliconFlow] = store.aiProviderSettings
         } catch {
             errorMessage = Self.message(for: error)
         }
     }
 
+    private func saveCodingPlanProvider() {
+        var settings = currentProfile
+        settings.provider = selectedProvider
+        settings.baseURL = selectedProvider.baseURL
+        settings.isEnabled = true
+        saveAndDismiss(settings)
+    }
+
     private func saveCustomProvider() {
+        var settings = currentProfile
+        settings.provider = .custom
+        settings.isEnabled = true
+        saveAndDismiss(settings)
+    }
+
+    private func saveAndDismiss(_ settings: V2AIProviderSettings) {
         do {
-            try store.updatePlanningSettings(
-                V2AIProviderSettings(
-                    isEnabled: true,
-                    baseURL: customBaseURL,
-                    model: customModel,
-                    apiKey: apiKey
-                )
-            )
+            try store.updatePlanningSettings(settings)
+            profiles[settings.provider] = store.aiProviderSettings
             dismiss()
         } catch {
             errorMessage = Self.message(for: error)
@@ -228,8 +397,9 @@ struct V2AIProviderSettingsView: View {
 
     private func disconnect() {
         do {
+            let provider = store.aiProviderSettings.provider
             try store.disconnectAIService()
-            apiKey = ""
+            profiles[provider] = store.aiProviderSettings
         } catch {
             errorMessage = Self.message(for: error)
         }
