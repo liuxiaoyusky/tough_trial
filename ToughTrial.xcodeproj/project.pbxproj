@@ -12,6 +12,7 @@
 		164D95835F31953D38B254C3 /* V2RecallHandwritingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ABB12FA7E2B4F6253F4AE7B /* V2RecallHandwritingView.swift */; };
 		17393D3F28C32C8A687FA8E0 /* ToughTrialLiveActivityBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2144CC9616E0B0324CD17DC /* ToughTrialLiveActivityBundle.swift */; };
 		198F981B5A5256A0871E6DFA /* V2AIProviderSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CB9AF9642D83F94E0A4A986 /* V2AIProviderSettings.swift */; };
+		25424AA62004DB513014BBFC /* V2AssistantTurnLoop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AD234EE4721F16CE3DE5A08 /* V2AssistantTurnLoop.swift */; };
 		27CB67F1C93967A6AA8F9DAE /* V2PlanAgentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABA6A1FFF10B01D2E53A839 /* V2PlanAgentView.swift */; };
 		33EB924760B7EE7B76AB392B /* V2Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC098F64104F891A638C7642 /* V2Theme.swift */; };
 		3B1C0341B571FCB4D961D720 /* ToughTrialV2App.swift in Sources */ = {isa = PBXBuildFile; fileRef = 232C6C7CC9BEE3D729AAA003 /* ToughTrialV2App.swift */; };
@@ -19,10 +20,13 @@
 		45C2E85D52E84C47102BA576 /* V2RecallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0017D24F92D72A81C33D4620 /* V2RecallView.swift */; };
 		49D0F8AC73D24FB3D86FAF69 /* FirstLaunchUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89B8FD2451C30CF5BE3F1F7B /* FirstLaunchUITests.swift */; };
 		653B167A9A5FD4BFECF96609 /* V2RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95F8A39501533A9884AFF851 /* V2RootView.swift */; };
+		76071D1D2DFDBA93680A4611 /* V2AssistantDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B2ED56D80693CB44E23196F /* V2AssistantDependencies.swift */; };
 		78F0CCDC7595B0A88FF2488C /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = CD8A7E285B1F9AA0212D3E3B /* PrivacyInfo.xcprivacy */; };
+		9ECF92158DCBCB3A3FB403B4 /* V2AssistantStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30B1A43C490465B04CF4DBAE /* V2AssistantStore.swift */; };
 		A73A1FCC3E5FAACF61EB1731 /* V2AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89126F3A1AF89FAE9F43D45C /* V2AppStore.swift */; };
 		AD0B4FDF8DE3ECD10F5D93DF /* V2TasksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A69542D08D6797F0653E8B04 /* V2TasksView.swift */; };
 		BE9A17036297FFEBCDFC74BB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1D2CB9D90C7487C743A03624 /* Assets.xcassets */; };
+		BF0CF04A77D678B6304CC7D7 /* V2AssistantStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 460EB40177B74935571B7B80 /* V2AssistantStoreTests.swift */; };
 		CE3874C2F91A95260D113F3D /* V2Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E6A85B953D563AC1A9C0C64 /* V2Components.swift */; };
 		D202F730EB92A0E3591F77FC /* V2TodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15AA1100342D40ED57AFDEF9 /* V2TodayView.swift */; };
 		D5F5CFDAEC2ABC34BF7D2E07 /* ToughTrialActivityShared in Frameworks */ = {isa = PBXBuildFile; productRef = 988D14C26791AC990C54E487 /* ToughTrialActivityShared */; };
@@ -48,6 +52,13 @@
 			remoteGlobalIDString = FB92F2C158ADF42A195BCB32;
 			remoteInfo = ToughTrialLiveActivity;
 		};
+		8D5AA3E3D12929362D6E8894 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AD9935788F92653B98D575F3 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 28241F5A3E85D205BF6E900E;
+			remoteInfo = ToughTrial;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -67,14 +78,19 @@
 /* Begin PBXFileReference section */
 		0017D24F92D72A81C33D4620 /* V2RecallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2RecallView.swift; sourceTree = "<group>"; };
 		048EE79F154041A62113CF6E /* V2NativeServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2NativeServices.swift; sourceTree = "<group>"; };
+		0AD234EE4721F16CE3DE5A08 /* V2AssistantTurnLoop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2AssistantTurnLoop.swift; sourceTree = "<group>"; };
 		0E6A85B953D563AC1A9C0C64 /* V2Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2Components.swift; sourceTree = "<group>"; };
 		15AA1100342D40ED57AFDEF9 /* V2TodayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2TodayView.swift; sourceTree = "<group>"; };
 		1ABB12FA7E2B4F6253F4AE7B /* V2RecallHandwritingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2RecallHandwritingView.swift; sourceTree = "<group>"; };
 		1D2CB9D90C7487C743A03624 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		232C6C7CC9BEE3D729AAA003 /* ToughTrialV2App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToughTrialV2App.swift; sourceTree = "<group>"; };
+		30B1A43C490465B04CF4DBAE /* V2AssistantStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2AssistantStore.swift; sourceTree = "<group>"; };
+		3694A43B9DABBC0F9CA8D44C /* ToughTrialV2AppTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ToughTrialV2AppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3CB9AF9642D83F94E0A4A986 /* V2AIProviderSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2AIProviderSettings.swift; sourceTree = "<group>"; };
 		400CA85D2F585BEF46001134 /* ToughTrial.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ToughTrial.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		460EB40177B74935571B7B80 /* V2AssistantStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2AssistantStoreTests.swift; sourceTree = "<group>"; };
 		5937E2365044428AFC0C7211 /* tough_trial */ = {isa = PBXFileReference; lastKnownFileType = folder; name = tough_trial; path = .; sourceTree = SOURCE_ROOT; };
+		6B2ED56D80693CB44E23196F /* V2AssistantDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2AssistantDependencies.swift; sourceTree = "<group>"; };
 		7B1EC2C1FAD5EB37F6421F24 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		88C469D85051DB6E544030F2 /* V2AIProviderSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2AIProviderSettingsView.swift; sourceTree = "<group>"; };
 		89126F3A1AF89FAE9F43D45C /* V2AppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2AppStore.swift; sourceTree = "<group>"; };
@@ -114,6 +130,15 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		19EB18059D4ECA9BAAAF38FC /* ToughTrialV2AppTests */ = {
+			isa = PBXGroup;
+			children = (
+				460EB40177B74935571B7B80 /* V2AssistantStoreTests.swift */,
+			);
+			name = ToughTrialV2AppTests;
+			path = Tests/ToughTrialV2AppTests;
+			sourceTree = "<group>";
+		};
 		20DF8AC35249889D7294671B /* ToughTrialV2App */ = {
 			isa = PBXGroup;
 			children = (
@@ -124,6 +149,9 @@
 				3CB9AF9642D83F94E0A4A986 /* V2AIProviderSettings.swift */,
 				88C469D85051DB6E544030F2 /* V2AIProviderSettingsView.swift */,
 				89126F3A1AF89FAE9F43D45C /* V2AppStore.swift */,
+				6B2ED56D80693CB44E23196F /* V2AssistantDependencies.swift */,
+				30B1A43C490465B04CF4DBAE /* V2AssistantStore.swift */,
+				0AD234EE4721F16CE3DE5A08 /* V2AssistantTurnLoop.swift */,
 				0E6A85B953D563AC1A9C0C64 /* V2Components.swift */,
 				048EE79F154041A62113CF6E /* V2NativeServices.swift */,
 				AABA6A1FFF10B01D2E53A839 /* V2PlanAgentView.swift */,
@@ -147,6 +175,7 @@
 				64F3995BBD4000C9C3160AB1 /* ToughTrialLiveActivity */,
 				D1BE49AF865731596017D754 /* ToughTrialUITests */,
 				20DF8AC35249889D7294671B /* ToughTrialV2App */,
+				19EB18059D4ECA9BAAAF38FC /* ToughTrialV2AppTests */,
 				8BA4A3F11F79CFD900334593 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -175,6 +204,7 @@
 				400CA85D2F585BEF46001134 /* ToughTrial.app */,
 				BB8FAFC251EB4C14EEDD432B /* ToughTrialLiveActivity.appex */,
 				F0C2865811BCA64D1C564DD3 /* ToughTrialUITests.xctest */,
+				3694A43B9DABBC0F9CA8D44C /* ToughTrialV2AppTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -192,6 +222,24 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		0CC1F65FD4945E37F06A422A /* ToughTrialV2AppTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5ADC607C77B145CC31621C26 /* Build configuration list for PBXNativeTarget "ToughTrialV2AppTests" */;
+			buildPhases = (
+				19C2985DAAAABAED6B73B202 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				003223881EC4E45AC7913220 /* PBXTargetDependency */,
+			);
+			name = ToughTrialV2AppTests;
+			packageProductDependencies = (
+			);
+			productName = ToughTrialV2AppTests;
+			productReference = 3694A43B9DABBC0F9CA8D44C /* ToughTrialV2AppTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		28241F5A3E85D205BF6E900E /* ToughTrial */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = F5301AA26A9816D27D809B23 /* Build configuration list for PBXNativeTarget "ToughTrial" */;
@@ -286,6 +334,7 @@
 				28241F5A3E85D205BF6E900E /* ToughTrial */,
 				FB92F2C158ADF42A195BCB32 /* ToughTrialLiveActivity */,
 				9F02CB45C389049D86DF70F1 /* ToughTrialUITests */,
+				0CC1F65FD4945E37F06A422A /* ToughTrialV2AppTests */,
 			);
 		};
 /* End PBXProject section */
@@ -303,6 +352,14 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		19C2985DAAAABAED6B73B202 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BF0CF04A77D678B6304CC7D7 /* V2AssistantStoreTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		4E17E42D6601BF7F38B0D3D8 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -320,6 +377,9 @@
 				198F981B5A5256A0871E6DFA /* V2AIProviderSettings.swift in Sources */,
 				423B9B67B5E785576CF2B5E6 /* V2AIProviderSettingsView.swift in Sources */,
 				A73A1FCC3E5FAACF61EB1731 /* V2AppStore.swift in Sources */,
+				76071D1D2DFDBA93680A4611 /* V2AssistantDependencies.swift in Sources */,
+				9ECF92158DCBCB3A3FB403B4 /* V2AssistantStore.swift in Sources */,
+				25424AA62004DB513014BBFC /* V2AssistantTurnLoop.swift in Sources */,
 				CE3874C2F91A95260D113F3D /* V2Components.swift in Sources */,
 				E720CC255227F8ACBEC16770 /* V2NativeServices.swift in Sources */,
 				27CB67F1C93967A6AA8F9DAE /* V2PlanAgentView.swift in Sources */,
@@ -345,6 +405,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		003223881EC4E45AC7913220 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 28241F5A3E85D205BF6E900E /* ToughTrial */;
+			targetProxy = 8D5AA3E3D12929362D6E8894 /* PBXContainerItemProxy */;
+		};
 		E7B24DD3E519744AE6F7D9B4 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 28241F5A3E85D205BF6E900E /* ToughTrial */;
@@ -358,6 +423,23 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		0926FA36F350715CE9269639 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.skyliu.toughtrial.AppTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ToughTrial.app/ToughTrial";
+			};
+			name = Release;
+		};
 		284FC12FD8A77359BE33463E /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -371,6 +453,23 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.skyliu.toughtrial;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		5BC8FA0A52C4CEED2F76FA75 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.skyliu.toughtrial.AppTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ToughTrial.app/ToughTrial";
 			};
 			name = Debug;
 		};
@@ -607,6 +706,15 @@
 			buildConfigurations = (
 				6F71BE5D52C24D5C6F998FC1 /* Debug */,
 				E04F77D1530B9FCB6C951696 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		5ADC607C77B145CC31621C26 /* Build configuration list for PBXNativeTarget "ToughTrialV2AppTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5BC8FA0A52C4CEED2F76FA75 /* Debug */,
+				0926FA36F350715CE9269639 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

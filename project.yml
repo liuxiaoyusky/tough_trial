@@ -80,6 +80,17 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.skyliu.toughtrial.UITests
         GENERATE_INFOPLIST_FILE: YES
+  ToughTrialV2AppTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests/ToughTrialV2AppTests
+    dependencies:
+      - target: ToughTrial
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.skyliu.toughtrial.AppTests
+        GENERATE_INFOPLIST_FILE: YES
 schemes:
   ToughTrial:
     build:
@@ -90,6 +101,7 @@ schemes:
     test:
       config: Debug
       targets:
+        - ToughTrialV2AppTests
         - ToughTrialUITests
     archive:
       config: Release

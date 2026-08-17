@@ -478,25 +478,34 @@ final class V2AppStore: ObservableObject {
 
         if isUITestMode {
             return V2AssistantDependencies(
-                modelResponse: { request in
-                    let action: V2AgentAction
-                    if let planObservation = request.observations.last(where: { $0.tool == .plan }) {
-                        action = .answer(text: planObservation.summary)
-                    } else if !request.observations.isEmpty {
-                        action = .answer(text: "测试回复已根据工具结果生成。")
-                    } else if request.userText.contains("网页") || request.userText.contains("搜索") {
-                        action = .webSearch(query: "Tough Trial 测试搜索")
-                    } else if request.userText.contains("资料") {
-                        action = .localSearch(query: request.userText)
-                    } else if request.userText.contains("计划") || request.userText.contains("安排") {
-                        action = .plan(query: request.userText)
-                    } else {
-                        action = .answer(text: "测试回复：\(request.userText)")
-                    }
-                    return V2AgentModelResult(
-                        action: action,
-                        providerLabel: "UI 测试 Agent",
-                        model: "deterministic-ui-test"
+                modelSnapshot: {
+                    V2AssistantModelSnapshot(
+                        identity: V2AssistantProviderIdentity(
+                            key: "ui-test-agent",
+                            label: "UI 测试 Agent",
+                            model: "deterministic-ui-test"
+                        ),
+                        respond: { request in
+                            let action: V2AgentAction
+                            if let observation = request.observations.last(where: { $0.tool == .plan }) {
+                                action = .answer(text: observation.summary)
+                            } else if !request.observations.isEmpty {
+                                action = .answer(text: "测试回复已根据工具结果生成。")
+                            } else if request.userText.contains("网页") || request.userText.contains("搜索") {
+                                action = .webSearch(query: "Tough Trial 测试搜索")
+                            } else if request.userText.contains("资料") {
+                                action = .localSearch(query: request.userText)
+                            } else if request.userText.contains("计划") || request.userText.contains("安排") {
+                                action = .plan(query: request.userText)
+                            } else {
+                                action = .answer(text: "测试回复：\(request.userText)")
+                            }
+                            return V2AgentModelResult(
+                                action: action,
+                                providerLabel: "UI 测试 Agent",
+                                model: "deterministic-ui-test"
+                            )
+                        }
                     )
                 },
                 webSearch: { _, limit in
@@ -525,8 +534,9 @@ final class V2AppStore: ObservableObject {
                 },
                 planAcceptance: { [weak self] draft, date in
                     guard let self else { throw V2AssistantAppStoreError.storeUnavailable }
-                    try self.acceptAssistantPlan(draft, at: date)
+                    return try self.acceptAssistantPlan(draft, at: date)
                 },
+                planDraftStatus: { [weak self] id in self?.assistantPlanDraftStatus(id: id) },
                 providerStatus: {
                     V2AssistantProviderStatus(
                         isConfigured: true,
@@ -540,10 +550,20 @@ final class V2AppStore: ObservableObject {
         let searchClient = V2DuckDuckGoSearchClient()
         let pageReader = V2URLSessionWebPageReader()
         return V2AssistantDependencies(
-            modelResponse: { [weak self] request in
+            modelSnapshot: { [weak self] in
                 guard let self else { throw V2AssistantAppStoreError.storeUnavailable }
-                let client = try self.aiProviderSettings.agentClient()
-                return try await client.respond(request)
+                let settings = self.aiProviderSettings
+                let client = try settings.agentClient()
+                let model = settings.model.trimmingCharacters(in: .whitespacesAndNewlines)
+                let baseURL = settings.baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+                return V2AssistantModelSnapshot(
+                    identity: V2AssistantProviderIdentity(
+                        key: "\(settings.provider.rawValue)|\(baseURL)|\(model)",
+                        label: client.providerLabel,
+                        model: model
+                    ),
+                    respond: { request in try await client.respond(request) }
+                )
             },
             webSearch: { query, limit in
                 try await searchClient.search(query: query, limit: limit)
@@ -564,8 +584,9 @@ final class V2AppStore: ObservableObject {
             },
             planAcceptance: { [weak self] draft, date in
                 guard let self else { throw V2AssistantAppStoreError.storeUnavailable }
-                try self.acceptAssistantPlan(draft, at: date)
+                return try self.acceptAssistantPlan(draft, at: date)
             },
+            planDraftStatus: { [weak self] id in self?.assistantPlanDraftStatus(id: id) },
             providerStatus: { [weak self] in
                 guard let self else {
                     return V2AssistantProviderStatus(
@@ -596,33 +617,37 @@ final class V2AppStore: ObservableObject {
         let request = V2PlanningRequest(
             agentSession: session,
             query: query,
-            tasks: engine.snapshot.tasks
-                .filter { $0.status != .archived }
-                .prefix(100)
-                .map {
-                    V2PlanningTaskContext(
-                        id: $0.id,
-                        title: $0.title,
-                        parentID: $0.parentID,
-                        contextID: $0.contextID,
-                        kind: $0.kind,
-                        status: $0.status
-                    )
-                },
-            memoryStatements: memoryEngine.activeStatements(at: date)
-                .prefix(50)
-                .map { String($0.prefix(500)) },
+            tasks: assistantPlanningTasks(session: session, query: query),
+            memoryStatements: assistantPlanningMemories(session: session, query: query, at: date),
             referenceDate: date,
             timeZoneIdentifier: calendar.timeZone.identifier
         )
         return try await planningClient.generate(request)
     }
 
-    func acceptAssistantPlan(_ draft: V2PlanDraft, at date: Date = Date()) throws {
+    func assistantPlanDraftStatus(id: String) -> V2PlanDraftRecord.Status? {
+        engine.snapshot.planDrafts.first(where: { $0.id == id })?.status
+    }
+
+    @discardableResult
+    func acceptAssistantPlan(
+        _ draft: V2PlanDraft,
+        at date: Date = Date()
+    ) throws -> V2PlanDraftRecord.Status {
         guard canWrite else {
             throw V2AssistantAppStoreError.storageUnavailable(
                 startupErrorMessage ?? "本地数据当前不可写。"
             )
+        }
+        if let status = assistantPlanDraftStatus(id: draft.id) {
+            switch status {
+            case .accepted:
+                return .accepted
+            case .discarded:
+                throw V2AssistantTurnError.planDiscarded
+            case .draft:
+                break
+            }
         }
         let record = draft.durableRecord(at: date)
         _ = try engine.savePlanDraft(record, at: date, calendar: calendar)
@@ -641,6 +666,113 @@ final class V2AppStore: ObservableObject {
                     ?? error.localizedDescription
             }
         }
+        return .accepted
+    }
+
+    func assistantPlanningTasks(
+        session: V2AgentSession,
+        query: String
+    ) -> [V2PlanningTaskContext] {
+        let activeTasks = engine.snapshot.tasks.filter { $0.status != .archived }
+        let byID = Dictionary(uniqueKeysWithValues: activeTasks.map { ($0.id, $0) })
+        var selected: [V2Task] = []
+        var selectedIDs = Set<String>()
+
+        func append(_ task: V2Task?) {
+            guard let task, selectedIDs.insert(task.id).inserted, selected.count < 24 else { return }
+            selected.append(task)
+        }
+
+        if let sourceID = session.sourceTask?.id, let source = byID[sourceID] {
+            append(source)
+            var parentID = source.parentID
+            while let id = parentID, let parent = byID[id], selected.count < 12 {
+                append(parent)
+                parentID = parent.parentID
+            }
+            activeTasks.filter { $0.parentID == source.id }
+                .sorted { $0.updatedAt > $1.updatedAt }
+                .prefix(6)
+                .forEach { append($0) }
+            if let parentID = source.parentID {
+                activeTasks.filter { $0.parentID == parentID && $0.id != source.id }
+                    .sorted { $0.updatedAt > $1.updatedAt }
+                    .prefix(4)
+                    .forEach { append($0) }
+            }
+        }
+
+        let terms = Self.assistantSpecificTerms(query)
+        activeTasks.filter { task in
+            guard !selectedIDs.contains(task.id) else { return false }
+            let value = "\(task.title) \(Self.assistantStatusLabel(task.status))".lowercased()
+            return terms.contains(where: value.contains)
+        }
+        .sorted { $0.updatedAt > $1.updatedAt }
+        .forEach { append($0) }
+
+        return selected.prefix(24).map {
+            V2PlanningTaskContext(
+                id: $0.id,
+                title: $0.title,
+                parentID: $0.parentID,
+                contextID: $0.contextID,
+                kind: $0.kind,
+                status: $0.status
+            )
+        }
+    }
+
+    func assistantPlanningMemories(
+        session: V2AgentSession,
+        query: String,
+        at date: Date
+    ) -> [String] {
+        let normalized = query.lowercased()
+        let terms = Self.assistantSpecificTerms(query)
+        let asksForSchedule = ["安排", "计划", "时间", "日程", "空闲", "routine", "schedule", "plan"]
+            .contains(where: normalized.contains)
+        let constraintTerms = ["可用", "时间", "工作日", "周末", "每天", "每周", "习惯", "例行", "通常",
+                               "available", "availability", "weekday", "weekend", "daily", "weekly", "routine"]
+
+        var selected: [String] = []
+        var selectedIDs = Set<String>()
+        let records = memoryEngine.activeRecords(at: date)
+        func append(_ record: V2UserMemoryRecord) {
+            guard selected.count < 12, selectedIDs.insert(record.id).inserted else { return }
+            selected.append(String(record.statement.prefix(500)))
+        }
+
+        if let source = session.sourceTask {
+            records.filter { record in
+                (record.scope == .task && record.scopeID == source.id)
+                    || (record.scope == .context && record.scopeID == source.contextID)
+            }
+            .forEach { append($0) }
+        }
+        records.filter { record in
+            let value = record.statement.lowercased()
+            if terms.contains(where: value.contains) { return true }
+            return asksForSchedule && constraintTerms.contains(where: value.contains)
+        }
+        .forEach { append($0) }
+        return selected
+    }
+
+    static func assistantSpecificTerms(_ query: String) -> [String] {
+        let genericTerms = [
+            "查找", "搜索", "看看", "告诉我", "显示", "列出", "我的", "相关", "资料", "记录",
+            "有哪些", "是什么", "怎么样", "一下", "任务", "计划", "记忆", "状态", "安排",
+            "show", "list", "find", "what", "which", "are", "is", "my", "me",
+            "task", "tasks", "plan", "plans", "memory", "schedule"
+        ]
+        let normalized = genericTerms.reduce(query.lowercased()) {
+            $0.replacingOccurrences(of: $1, with: " ")
+        }
+        return normalized
+            .split(whereSeparator: { $0.isWhitespace || $0.isPunctuation })
+            .map(String.init)
+            .filter { !$0.isEmpty }
     }
 
     func assistantLocalSearchSummary(
