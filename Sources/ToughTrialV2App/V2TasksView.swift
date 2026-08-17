@@ -623,7 +623,7 @@ private struct V2TaskDetailSheet: View {
                             )
                     }
                     .buttonStyle(.plain)
-                    .accessibilityHint("带当前任务上下文打开计划工作区")
+                    .accessibilityHint("带当前任务上下文打开助手")
                     .accessibilityIdentifier("tasks.detail.aiPlan")
                 }
                 .padding(.horizontal, 20)

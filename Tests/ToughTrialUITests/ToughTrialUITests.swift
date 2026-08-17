@@ -7,7 +7,7 @@ final class ToughTrialUITests: XCTestCase {
     }
 
     @MainActor
-    func testPrimaryNavigationAndPlanPresentation() {
+    func testPrimaryNavigationAndAssistantPresentation() {
         let app = launchApp()
         let tabBar = app.tabBars.firstMatch
         XCTAssertTrue(tabBar.buttons["今天"].waitForExistence(timeout: 5))
@@ -15,11 +15,15 @@ final class ToughTrialUITests: XCTestCase {
         tabBar.buttons["任务"].tap()
         XCTAssertTrue(app.staticTexts["任务"].firstMatch.waitForExistence(timeout: 3))
 
-        tabBar.buttons["计划"].tap()
-        XCTAssertTrue(app.staticTexts["想怎么安排？"].waitForExistence(timeout: 3))
+        tabBar.buttons["助手"].tap()
+        XCTAssertTrue(app.staticTexts["想一起处理什么？"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["assistant.starter.chat"].exists)
+        XCTAssertTrue(app.buttons["assistant.starter.web"].exists)
+        XCTAssertTrue(app.buttons["assistant.starter.local"].exists)
+        XCTAssertTrue(app.buttons["assistant.starter.plan"].exists)
         XCTAssertFalse(tabBar.isHittable)
 
-        app.buttons["关闭计划"].tap()
+        app.buttons["assistant.exit"].tap()
         XCTAssertTrue(tabBar.buttons["回想"].waitForExistence(timeout: 3))
 
         tabBar.buttons["回想"].tap()
@@ -27,12 +31,11 @@ final class ToughTrialUITests: XCTestCase {
     }
 
     @MainActor
-    func testPlanCanConnectAndManageSiliconFlowModels() {
+    func testAssistantCanConnectAndManageSiliconFlowModels() {
         let app = launchApp()
-        app.tabBars.firstMatch.buttons["计划"].tap()
-        let connectAI = app.buttons["plan.connectAI"]
-        XCTAssertTrue(connectAI.waitForExistence(timeout: 3))
-        connectAI.tap()
+        app.tabBars.firstMatch.buttons["助手"].tap()
+        app.buttons["assistant.more"].tap()
+        app.buttons["assistant.settings"].tap()
         XCTAssertTrue(app.navigationBars["AI 服务"].waitForExistence(timeout: 3))
 
         let apiKey = app.secureTextFields["ai.settings.apiKey"]
@@ -47,10 +50,13 @@ final class ToughTrialUITests: XCTestCase {
             app.staticTexts["ai.settings.catalogLoaded"].waitForExistence(timeout: 5)
         )
 
+        app.collectionViews.firstMatch.swipeUp()
         let currentModel = app.buttons["ai.settings.currentModel"]
         XCTAssertTrue(currentModel.waitForExistence(timeout: 3))
         currentModel.tap()
-        app.buttons["Qwen/Qwen3-32B"].tap()
+        let qwenModel = app.buttons["ai.settings.modelOption.Qwen/Qwen3-32B"]
+        XCTAssertTrue(qwenModel.waitForExistence(timeout: 3))
+        qwenModel.tap()
         XCTAssertTrue(
             app.staticTexts["ai.settings.connected"].waitForExistence(timeout: 3)
         )
@@ -76,26 +82,25 @@ final class ToughTrialUITests: XCTestCase {
         app.navigationBars["管理模型"].buttons["AI 服务"].tap()
 
         app.navigationBars["AI 服务"].buttons["完成"].tap()
-        XCTAssertTrue(connectAI.waitForNonExistence(timeout: 3))
-        XCTAssertTrue(app.buttons["plan.history"].exists)
-        XCTAssertFalse(app.buttons["plan.modelSelector"].exists)
+        XCTAssertTrue(app.buttons["assistant.sessions"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["assistant.more"].exists)
     }
 
     @MainActor
-    func testPlanRequiresAIConfigurationBeforeAcceptingPrompts() {
+    func testAssistantRequiresAIConfigurationBeforeAcceptingPrompts() {
         let app = XCUIApplication()
         app.launchEnvironment["TOUGH_TRIAL_UI_TESTING"] = "1"
         app.launchEnvironment["TOUGH_TRIAL_UI_TEST_REQUIRE_AI_CONFIGURATION"] = "1"
         app.launch()
 
-        app.tabBars.firstMatch.buttons["计划"].tap()
+        app.tabBars.firstMatch.buttons["助手"].tap()
 
         XCTAssertTrue(app.staticTexts["先连接 AI"].waitForExistence(timeout: 3))
-        XCTAssertFalse(app.textFields["plan.composer"].exists)
-        XCTAssertFalse(app.buttons["这周想跑 10 公里"].exists)
-        keepScreenshot(of: app, name: "plan-ai-configuration-required")
+        XCTAssertFalse(app.textFields["assistant.composer"].exists)
+        XCTAssertFalse(app.buttons["assistant.starter.plan"].exists)
+        keepScreenshot(of: app, name: "assistant-ai-configuration-required")
 
-        let configure = app.buttons["plan.configureAI"]
+        let configure = app.buttons["assistant.configureAI"]
         XCTAssertTrue(configure.exists)
         configure.tap()
         XCTAssertTrue(app.navigationBars["AI 服务"].waitForExistence(timeout: 3))
@@ -106,26 +111,29 @@ final class ToughTrialUITests: XCTestCase {
         app.buttons["ai.settings.connect"].tap()
         XCTAssertTrue(app.staticTexts["ai.settings.catalogLoaded"].waitForExistence(timeout: 5))
 
+        app.collectionViews.firstMatch.swipeUp()
         let currentModel = app.buttons["ai.settings.currentModel"]
         XCTAssertTrue(currentModel.waitForExistence(timeout: 3))
         currentModel.tap()
-        app.buttons["Qwen/Qwen3-32B"].tap()
+        let qwenModel = app.buttons["ai.settings.modelOption.Qwen/Qwen3-32B"]
+        XCTAssertTrue(qwenModel.waitForExistence(timeout: 3))
+        qwenModel.tap()
         XCTAssertTrue(app.staticTexts["ai.settings.connected"].waitForExistence(timeout: 3))
         app.navigationBars["AI 服务"].buttons["完成"].tap()
 
-        XCTAssertTrue(app.textFields["plan.composer"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.textFields["assistant.composer"].waitForExistence(timeout: 3))
         XCTAssertFalse(app.staticTexts["先连接 AI"].exists)
     }
 
     @MainActor
-    func testPlanCanConfigureKimiAndGLMCodingPlanPresets() {
+    func testAssistantCanConfigureKimiAndGLMCodingPlanPresets() {
         let app = XCUIApplication()
         app.launchEnvironment["TOUGH_TRIAL_UI_TESTING"] = "1"
         app.launchEnvironment["TOUGH_TRIAL_UI_TEST_REQUIRE_AI_CONFIGURATION"] = "1"
         app.launch()
 
-        app.tabBars.firstMatch.buttons["计划"].tap()
-        app.buttons["plan.configureAI"].tap()
+        app.tabBars.firstMatch.buttons["助手"].tap()
+        app.buttons["assistant.configureAI"].tap()
         XCTAssertTrue(app.navigationBars["AI 服务"].waitForExistence(timeout: 3))
 
         let provider = app.buttons["ai.settings.provider"]
@@ -141,11 +149,10 @@ final class ToughTrialUITests: XCTestCase {
         kimiKey.tap()
         kimiKey.typeText("fake-kimi-key")
         app.buttons["ai.settings.usePreset"].tap()
-        XCTAssertTrue(app.textFields["plan.composer"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.textFields["assistant.composer"].waitForExistence(timeout: 3))
 
-        app.buttons["plan.history"].tap()
-        app.buttons["plan.history.settings"].tap()
-        app.buttons["AI 服务"].tap()
+        app.buttons["assistant.more"].tap()
+        app.buttons["assistant.settings"].tap()
         XCTAssertTrue(app.navigationBars["AI 服务"].waitForExistence(timeout: 3))
 
         app.buttons["ai.settings.provider"].tap()
@@ -164,11 +171,10 @@ final class ToughTrialUITests: XCTestCase {
         glmKey.tap()
         glmKey.typeText("fake-glm-key")
         app.buttons["ai.settings.usePreset"].tap()
-        XCTAssertTrue(app.textFields["plan.composer"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.textFields["assistant.composer"].waitForExistence(timeout: 3))
 
-        app.buttons["plan.history"].tap()
-        app.buttons["plan.history.settings"].tap()
-        app.buttons["AI 服务"].tap()
+        app.buttons["assistant.more"].tap()
+        app.buttons["assistant.settings"].tap()
         app.buttons["ai.settings.provider"].tap()
         app.buttons["Kimi Coding Plan"].tap()
         let restoredKimiKey = app.secureTextFields["ai.settings.apiKey"]
@@ -177,38 +183,27 @@ final class ToughTrialUITests: XCTestCase {
     }
 
     @MainActor
-    func testPlanDraftAutoSavesResumesAndAllowsDirectEditing() {
+    func testAssistantPlanDraftAutoSavesAndAllowsDirectEditing() {
         let app = launchApp()
-        app.tabBars.firstMatch.buttons["计划"].tap()
+        app.tabBars.firstMatch.buttons["助手"].tap()
 
-        let composer = app.textFields["plan.composer"]
+        let composer = app.textFields["assistant.composer"]
         XCTAssertTrue(composer.waitForExistence(timeout: 3))
-        keepScreenshot(of: app, name: "plan-v2-empty")
+        keepScreenshot(of: app, name: "assistant-empty")
         composer.tap()
-        composer.typeText("这周跑 10 公里")
-        app.buttons["发送"].tap()
-        XCTAssertTrue(app.buttons["可以"].waitForExistence(timeout: 5))
-        app.buttons["可以"].tap()
+        composer.typeText("帮我安排计划")
+        app.buttons["assistant.send"].tap()
+        XCTAssertTrue(
+            app.staticTexts["我可以先给一个轻量安排，只确定最重要的推进点，其余时间保留弹性。这样可以吗？"]
+                .waitForExistence(timeout: 5)
+        )
+        composer.tap()
+        composer.typeText("帮我安排计划，可以")
+        app.buttons["assistant.send"].tap()
 
-        XCTAssertTrue(app.buttons["plan.acceptDraft"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["草稿已自动保存"].exists)
-        keepScreenshot(of: app, name: "plan-v2-draft")
-
-        app.buttons["plan.history"].tap()
-        XCTAssertTrue(app.navigationBars["草稿历史"].waitForExistence(timeout: 3))
-        let resumable = app.buttons.matching(
-            NSPredicate(format: "label BEGINSWITH %@", "继续计划：这周跑 10 公里")
-        ).firstMatch
-        XCTAssertTrue(resumable.waitForExistence(timeout: 3))
-
-        app.buttons["plan.history.new"].tap()
-        XCTAssertTrue(app.staticTexts["想怎么安排？"].waitForExistence(timeout: 3))
-        XCTAssertFalse(app.buttons["plan.acceptDraft"].exists)
-
-        app.buttons["plan.history"].tap()
-        XCTAssertTrue(resumable.waitForExistence(timeout: 3))
-        resumable.tap()
-        XCTAssertTrue(app.buttons["plan.acceptDraft"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["assistant.plan.accept"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["计划草稿 · 自动保存"].exists)
+        keepScreenshot(of: app, name: "assistant-plan-artifact")
 
         let editableItem = app.buttons.matching(
             NSPredicate(format: "label BEGINSWITH %@", "编辑安排：")
@@ -216,12 +211,12 @@ final class ToughTrialUITests: XCTestCase {
         XCTAssertTrue(editableItem.waitForExistence(timeout: 3))
         editableItem.tap()
 
-        let title = app.textFields["plan.editor.title"]
+        let title = app.textFields["assistant.plan.editor.title"]
         XCTAssertTrue(title.waitForExistence(timeout: 3))
         keepScreenshot(of: app, name: "plan-v2-editor")
         title.tap()
         title.typeText("（调整）")
-        app.buttons["plan.editor.save"].tap()
+        app.buttons["assistant.plan.editor.save"].tap()
         XCTAssertTrue(
             app.buttons.matching(
                 NSPredicate(format: "label CONTAINS %@", "（调整）")
@@ -230,36 +225,96 @@ final class ToughTrialUITests: XCTestCase {
     }
 
     @MainActor
-    func testPlanRequestFailureStaysVisibleInConversation() {
+    func testAssistantRequestFailureStaysVisibleInConversation() {
         let app = XCUIApplication()
         app.launchEnvironment["TOUGH_TRIAL_UI_TESTING"] = "1"
         app.launchEnvironment["TOUGH_TRIAL_UI_TEST_PLANNING_FAILURE"] = "1"
         app.launch()
 
-        app.tabBars.firstMatch.buttons["计划"].tap()
-        let composer = app.textFields["plan.composer"]
+        app.tabBars.firstMatch.buttons["助手"].tap()
+        let composer = app.textFields["assistant.composer"]
         XCTAssertTrue(composer.waitForExistence(timeout: 3))
         composer.tap()
         composer.typeText("帮我安排明天")
-        app.buttons["发送"].tap()
+        app.buttons["assistant.send"].tap()
 
         XCTAssertTrue(app.staticTexts["没有收到可用回复"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["plan.failure.settings"].exists)
+        XCTAssertTrue(app.buttons["assistant.retry"].exists)
     }
 
     @MainActor
-    func testPlanComposerKeepsEnteredTextVisible() {
+    func testAssistantComposerKeepsEnteredTextVisible() {
         let app = XCUIApplication()
         app.launchEnvironment["TOUGH_TRIAL_UI_TESTING"] = "1"
         app.launch()
 
-        app.tabBars.firstMatch.buttons["计划"].tap()
-        let composer = app.textFields["plan.composer"]
+        app.tabBars.firstMatch.buttons["助手"].tap()
+        let composer = app.textFields["assistant.composer"]
         XCTAssertTrue(composer.waitForExistence(timeout: 3))
         composer.tap()
         composer.typeText("这周想跑十公里")
         XCTAssertEqual(composer.value as? String, "这周想跑十公里")
-        keepScreenshot(of: app, name: "plan-composer-dark")
+        keepScreenshot(of: app, name: "assistant-composer")
+    }
+
+    @MainActor
+    func testAssistantSessionsKeepConversationIsolatedAndSearchable() {
+        let app = launchApp()
+        app.tabBars.firstMatch.buttons["助手"].tap()
+        let composer = app.textFields["assistant.composer"]
+        XCTAssertTrue(composer.waitForExistence(timeout: 3))
+
+        composer.tap()
+        composer.typeText("第一段独立对话")
+        app.buttons["assistant.send"].tap()
+        XCTAssertTrue(app.staticTexts["测试回复：第一段独立对话"].waitForExistence(timeout: 5))
+
+        app.buttons["assistant.newSession"].tap()
+        XCTAssertTrue(app.staticTexts["想一起处理什么？"].waitForExistence(timeout: 3))
+        composer.tap()
+        composer.typeText("第二段独立对话")
+        app.buttons["assistant.send"].tap()
+        XCTAssertTrue(app.staticTexts["测试回复：第二段独立对话"].waitForExistence(timeout: 5))
+
+        app.buttons["assistant.sessions"].tap()
+        let search = app.textFields["assistant.sessions.search"]
+        XCTAssertTrue(search.waitForExistence(timeout: 3))
+        keepScreenshot(of: app, name: "assistant-session-list")
+        search.tap()
+        search.typeText("第一段")
+        XCTAssertTrue(app.buttons["第一段独立对话"].waitForExistence(timeout: 3))
+        XCTAssertFalse(app.buttons["第二段独立对话"].exists)
+        app.buttons["第一段独立对话"].tap()
+
+        XCTAssertTrue(app.staticTexts["第一段独立对话"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["测试回复：第一段独立对话"].exists)
+        XCTAssertFalse(app.staticTexts["第二段独立对话"].exists)
+    }
+
+    @MainActor
+    func testAssistantRendersTraceSourcesAndFullSessionDetails() {
+        let app = launchApp()
+        app.tabBars.firstMatch.buttons["助手"].tap()
+        let composer = app.textFields["assistant.composer"]
+        composer.tap()
+        composer.typeText("搜索网页")
+        app.buttons["assistant.send"].tap()
+
+        XCTAssertTrue(app.staticTexts["测试回复已根据工具结果生成。"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Tough Trial 测试来源"].exists)
+        let trace = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "完成 3 个步骤")
+        ).firstMatch
+        XCTAssertTrue(trace.waitForExistence(timeout: 3))
+        trace.tap()
+        XCTAssertTrue(app.staticTexts["搜索网页"].waitForExistence(timeout: 3))
+        keepScreenshot(of: app, name: "assistant-conversation-trace")
+
+        app.buttons["assistant.more"].tap()
+        app.buttons["assistant.details"].tap()
+        XCTAssertTrue(app.navigationBars["会话详情"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["UI 测试 Agent"].exists)
+        XCTAssertTrue(app.staticTexts["deterministic-ui-test"].exists)
     }
 
     @MainActor
@@ -322,7 +377,7 @@ final class ToughTrialUITests: XCTestCase {
     }
 
     @MainActor
-    func testTaskDetailOpensContextualPlanAndWritesOnlyOnAccept() {
+    func testTaskDetailOpensContextualAssistantAndWritesOnlyOnAccept() {
         let app = launchApp()
         app.tabBars.firstMatch.buttons["任务"].tap()
 
@@ -338,22 +393,27 @@ final class ToughTrialUITests: XCTestCase {
         keepScreenshot(of: app, name: "remediation-task-detail")
         app.buttons["tasks.detail.aiPlan"].tap()
 
-        let context = app.staticTexts["plan.context.task"]
+        let context = app.staticTexts["assistant.context.task"]
         XCTAssertTrue(context.waitForExistence(timeout: 5))
         XCTAssertEqual(context.label, "来自任务：定位")
         XCTAssertFalse(app.buttons["加入计划"].exists)
-        keepScreenshot(of: app, name: "remediation-task-plan-context")
+        keepScreenshot(of: app, name: "remediation-task-assistant-context")
 
-        let composer = app.textFields["plan.composer"]
+        let composer = app.textFields["assistant.composer"]
         XCTAssertTrue(composer.waitForExistence(timeout: 3))
         composer.tap()
-        composer.typeText("这周跑 10 公里")
-        app.buttons["发送"].tap()
-        XCTAssertTrue(app.buttons["可以"].waitForExistence(timeout: 5))
-        app.buttons["可以"].tap()
-        XCTAssertTrue(app.buttons["加入计划"].waitForExistence(timeout: 5))
+        composer.typeText("帮我安排这周跑 10 公里")
+        app.buttons["assistant.send"].tap()
+        XCTAssertTrue(
+            app.staticTexts["分三次会比较轻松：3 + 3 + 4 公里，最长的一次放在周末。这样安排可以吗？"]
+                .waitForExistence(timeout: 5)
+        )
+        composer.tap()
+        composer.typeText("可以，继续安排")
+        app.buttons["assistant.send"].tap()
+        XCTAssertTrue(app.buttons["assistant.plan.accept"].waitForExistence(timeout: 5))
 
-        app.buttons["关闭计划"].tap()
+        app.buttons["assistant.exit"].tap()
         app.tabBars.firstMatch.buttons["今天"].tap()
         assertTaskIsMissingFromZenSearch("轻松跑 3 公里", in: app)
 
@@ -361,10 +421,11 @@ final class ToughTrialUITests: XCTestCase {
         XCTAssertTrue(details.waitForExistence(timeout: 3))
         details.tap()
         app.buttons["tasks.detail.aiPlan"].tap()
-        XCTAssertTrue(app.buttons["加入计划"].waitForExistence(timeout: 5))
-        app.buttons["加入计划"].tap()
-        XCTAssertTrue(app.buttons["加入计划"].waitForNonExistence(timeout: 5))
-        app.buttons["关闭计划"].tap()
+        XCTAssertTrue(app.buttons["assistant.plan.accept"].waitForExistence(timeout: 5))
+        app.buttons["assistant.plan.accept"].tap()
+        XCTAssertTrue(app.staticTexts["已加入计划"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["assistant.plan.accept"].exists)
+        app.buttons["assistant.exit"].tap()
 
         app.tabBars.firstMatch.buttons["今天"].tap()
         assertTaskCanBeFoundForZen("轻松跑 3 公里", in: app)
@@ -585,11 +646,11 @@ final class ToughTrialUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["任务"].firstMatch.waitForExistence(timeout: 3))
         keepScreenshot(of: app, name: "02-tasks")
 
-        tabBar.buttons["计划"].tap()
-        XCTAssertTrue(app.staticTexts["想怎么安排？"].waitForExistence(timeout: 3))
-        keepScreenshot(of: app, name: "03-plan")
+        tabBar.buttons["助手"].tap()
+        XCTAssertTrue(app.staticTexts["想一起处理什么？"].waitForExistence(timeout: 3))
+        keepScreenshot(of: app, name: "03-assistant")
 
-        app.buttons["关闭计划"].tap()
+        app.buttons["assistant.exit"].tap()
         tabBar.buttons["回想"].tap()
         XCTAssertTrue(app.staticTexts["回想"].firstMatch.waitForExistence(timeout: 3))
         keepScreenshot(of: app, name: "04-recall")

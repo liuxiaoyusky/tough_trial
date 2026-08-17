@@ -3,6 +3,7 @@ import ToughTrialV2Core
 
 struct V2RootView: View {
     @StateObject private var store: V2AppStore
+    @StateObject private var assistantStore: V2AssistantStore
     @State private var selectedTab = V2RootTab.today
     private let recallDrawingStore: V2RecallDrawingStore
 
@@ -18,11 +19,9 @@ struct V2RootView: View {
                     )
             )
             : V2RecallDrawingStore()
-        _store = StateObject(
-            wrappedValue: isUITesting
-                ? Self.makeUITestStore()
-                : V2AppStore()
-        )
+        let appStore = isUITesting ? Self.makeUITestStore() : V2AppStore()
+        _store = StateObject(wrappedValue: appStore)
+        _assistantStore = StateObject(wrappedValue: V2AssistantStore(appStore: appStore))
     }
 
     var body: some View {
@@ -43,9 +42,9 @@ struct V2RootView: View {
 
                     Color.clear
                         .tabItem {
-                            Label("计划", systemImage: "sparkles")
+                            Label("助手", systemImage: "sparkles")
                         }
-                        .tag(V2RootTab.plan)
+                        .tag(V2RootTab.assistant)
 
                     V2RecallView(
                         store: store,
@@ -63,7 +62,21 @@ struct V2RootView: View {
             }
         }
         .fullScreenCover(isPresented: $store.isPlanPresented) {
-            V2PlanAgentView(store: store)
+            V2AssistantView(
+                store: assistantStore,
+                appStore: store,
+                onExit: store.closePlanAgent
+            )
+            .onAppear {
+                guard let task = store.planningSourceTask else { return }
+                _ = assistantStore.openContextSession(
+                    for: V2AgentSourceTask(
+                        id: task.id,
+                        title: task.title,
+                        note: task.subtitle
+                    )
+                )
+            }
         }
         .fullScreenCover(isPresented: zenPresentationBinding) {
             if let session = store.zenSession {
@@ -91,7 +104,7 @@ struct V2RootView: View {
         Binding(
             get: { selectedTab },
             set: { newTab in
-                if newTab == .plan {
+                if newTab == .assistant {
                     store.openPlanAgent()
                 } else {
                     if newTab == .recall {
@@ -179,6 +192,6 @@ struct V2RootView: View {
 private enum V2RootTab: Hashable {
     case today
     case tasks
-    case plan
+    case assistant
     case recall
 }

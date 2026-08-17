@@ -554,8 +554,9 @@ private struct V2PlanFailureRow: View {
     }
 }
 
-private struct V2PlanInlineDraft: View {
+struct V2PlanInlineDraft: View {
     let draft: V2PlanDraft
+    var isAccepted = false
     let onEdit: (V2PlanDraftScheduleItem) -> Void
     let onAccept: () -> Void
     @State private var showsReasons = false
@@ -594,6 +595,7 @@ private struct V2PlanInlineDraft: View {
                         V2PlanDraftRow(
                             item: item,
                             isLast: index == draft.scheduleItems.count - 1,
+                            isEditable: !isAccepted,
                             onEdit: { onEdit(item) }
                         )
                     }
@@ -619,13 +621,19 @@ private struct V2PlanInlineDraft: View {
 
                 HStack(spacing: 10) {
                     Spacer(minLength: 8)
-                    Button("加入计划", action: onAccept)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 18)
-                        .frame(height: 44)
-                        .background(V2Theme.blue)
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                        .accessibilityIdentifier("plan.acceptDraft")
+                    if isAccepted {
+                        Label("已加入计划", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(V2Theme.mint)
+                            .accessibilityIdentifier("assistant.plan.accepted")
+                    } else {
+                        Button("加入计划", action: onAccept)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 18)
+                            .frame(height: 44)
+                            .background(V2Theme.blue)
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .accessibilityIdentifier("assistant.plan.accept")
+                    }
                 }
                 .font(.system(size: 14, weight: .semibold))
                 .buttonStyle(.plain)
@@ -638,6 +646,7 @@ private struct V2PlanInlineDraft: View {
 private struct V2PlanDraftRow: View {
     let item: V2PlanDraftScheduleItem
     let isLast: Bool
+    var isEditable = true
     let onEdit: () -> Void
 
     var body: some View {
@@ -668,17 +677,20 @@ private struct V2PlanDraftRow: View {
 
                 Spacer(minLength: 8)
 
-                Image(systemName: "pencil")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(V2Theme.tertiary)
-                    .frame(width: 26, height: 26)
+                if isEditable {
+                    Image(systemName: "pencil")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(V2Theme.tertiary)
+                        .frame(width: 26, height: 26)
+                }
             }
             .frame(minHeight: 62, alignment: .top)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("编辑安排：\(item.title)")
-        .accessibilityIdentifier("plan.draft.item.\(item.id)")
+        .disabled(!isEditable)
+        .accessibilityLabel(isEditable ? "编辑安排：\(item.title)" : item.title)
+        .accessibilityIdentifier("assistant.plan.item.\(item.id)")
     }
 
     private var timelineMarker: some View {
@@ -805,7 +817,7 @@ private struct V2PlanComposer: View {
     }
 }
 
-private struct V2PlanScheduleItemEditor: View {
+struct V2PlanScheduleItemEditor: View {
     let item: V2PlanDraftScheduleItem
     let onSave: (V2PlanDraftScheduleItem) -> Void
 
@@ -833,19 +845,19 @@ private struct V2PlanScheduleItemEditor: View {
                 Section("安排") {
                     TextField("任务名称", text: $title, axis: .vertical)
                         .lineLimit(1...3)
-                        .accessibilityIdentifier("plan.editor.title")
+                        .accessibilityIdentifier("assistant.plan.editor.title")
                 }
 
                 Section("日期与时间") {
                     DatePicker("日期", selection: $date, displayedComponents: .date)
-                        .accessibilityIdentifier("plan.editor.date")
+                        .accessibilityIdentifier("assistant.plan.editor.date")
 
                     Toggle("指定时间", isOn: $hasTime)
-                        .accessibilityIdentifier("plan.editor.hasTime")
+                        .accessibilityIdentifier("assistant.plan.editor.hasTime")
 
                     if hasTime {
                         DatePicker("开始", selection: $time, displayedComponents: .hourAndMinute)
-                            .accessibilityIdentifier("plan.editor.time")
+                            .accessibilityIdentifier("assistant.plan.editor.time")
                     }
                 }
             }
@@ -861,7 +873,7 @@ private struct V2PlanScheduleItemEditor: View {
                         dismiss()
                     }
                     .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    .accessibilityIdentifier("plan.editor.save")
+                    .accessibilityIdentifier("assistant.plan.editor.save")
                 }
             }
         }

@@ -91,9 +91,29 @@ final class V2AssistantStore: ObservableObject {
     }
 
     @discardableResult
+    func openContextSession(for sourceTask: V2AgentSourceTask) -> Bool {
+        guard mayMutate else { return false }
+        if let existing = workspace.sessions
+            .filter({ $0.sourceTask?.id == sourceTask.id })
+            .max(by: { $0.updatedAt < $1.updatedAt }) {
+            return selectSession(id: existing.id)
+        }
+        return commitWorkspace {
+            _ = $0.createSession(at: now(), sourceTask: sourceTask)
+        }
+    }
+
+    @discardableResult
     func selectSession(id: String) -> Bool {
         guard mayMutate, workspace.session(id: id) != nil else { return false }
         return commitWorkspace { _ = $0.selectSession(id: id) }
+    }
+
+    @discardableResult
+    func deleteSession(id: String) -> Bool {
+        guard mayMutate, currentTurn == nil, workspace.sessions.count > 1,
+              workspace.session(id: id) != nil else { return false }
+        return commitWorkspace { _ = $0.deleteSession(id: id) }
     }
 
     func send(_ text: String) {
@@ -269,6 +289,43 @@ final class V2AssistantStore: ObservableObject {
             operationErrorMessage = Self.userFacingMessage(for: error)
         }
     }
+
+    @discardableResult
+    func updatePlanItem(_ item: V2PlanDraftScheduleItem, in planID: String) -> Bool {
+        guard currentTurn == nil, mayMutate,
+              dependencies.planDraftStatus(planID) != .accepted,
+              let sessionID = owningSessionID(forPlanID: planID),
+              let session = workspace.session(id: sessionID),
+              session.pendingPlan?.scheduleItems.contains(where: { $0.id == item.id }) == true else {
+            return false
+        }
+
+        return commitWorkspace { workspace in
+            guard let sessionIndex = workspace.sessions.firstIndex(where: { $0.id == sessionID }) else {
+                return
+            }
+            if let itemIndex = workspace.sessions[sessionIndex].pendingPlan?.scheduleItems
+                .firstIndex(where: { $0.id == item.id }) {
+                workspace.sessions[sessionIndex].pendingPlan?.scheduleItems[itemIndex] = item
+            }
+            for messageIndex in workspace.sessions[sessionIndex].messages.indices {
+                for partIndex in workspace.sessions[sessionIndex].messages[messageIndex].parts.indices {
+                    guard case var .plan(plan) = workspace.sessions[sessionIndex]
+                        .messages[messageIndex].parts[partIndex], plan.id == planID,
+                        let itemIndex = plan.scheduleItems.firstIndex(where: { $0.id == item.id }) else {
+                        continue
+                    }
+                    plan.scheduleItems[itemIndex] = item
+                    workspace.sessions[sessionIndex].messages[messageIndex].parts[partIndex] = .plan(plan)
+                }
+            }
+            workspace.sessions[sessionIndex].updatedAt = now()
+        }
+    }
+
+    func isPlanAccepted(_ draft: V2PlanDraft) -> Bool {
+        dependencies.planDraftStatus(draft.id) == .accepted
+    }
 }
 
 extension V2AssistantStore {
@@ -383,10 +440,11 @@ extension V2AssistantStore {
             workspace.sessions[sessionIndex].pendingPlanPrompt = nil
         }
         for messageIndex in workspace.sessions[sessionIndex].messages.indices {
-            workspace.sessions[sessionIndex].messages[messageIndex].parts.removeAll { part in
+            guard workspace.sessions[sessionIndex].messages[messageIndex].parts.contains(where: { part in
                 guard case let .plan(plan) = part else { return false }
                 return plan.id == planID
-            }
+            }) else { continue }
+            workspace.sessions[sessionIndex].messages[messageIndex].updatedAt = date
         }
         workspace.sessions[sessionIndex].updatedAt = date
     }

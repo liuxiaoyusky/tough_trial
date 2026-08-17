@@ -1,4 +1,5 @@
 import SwiftUI
+import ToughTrialV2Core
 
 struct V2AIProviderSettingsView: View {
     @ObservedObject var store: V2AppStore
@@ -6,6 +7,7 @@ struct V2AIProviderSettingsView: View {
     @State private var selectedProvider: V2AIProviderPreset
     @State private var profiles: [V2AIProviderPreset: V2AIProviderSettings]
     @State private var errorMessage: String?
+    @FocusState private var isEditingField: Bool
 
     init(store: V2AppStore) {
         self.store = store
@@ -116,6 +118,8 @@ struct V2AIProviderSettingsView: View {
             SecureField("粘贴 API Key", text: profileBinding(\.apiKey))
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
+                .focused($isEditingField)
+                .submitLabel(.done)
                 .accessibilityIdentifier("ai.settings.apiKey")
 
             Button {
@@ -144,6 +148,8 @@ struct V2AIProviderSettingsView: View {
             SecureField("粘贴 API Key", text: profileBinding(\.apiKey))
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
+                .focused($isEditingField)
+                .submitLabel(.done)
                 .accessibilityIdentifier("ai.settings.apiKey")
 
             Menu {
@@ -197,16 +203,22 @@ struct V2AIProviderSettingsView: View {
                 .textInputAutocapitalization(.never)
                 .keyboardType(.URL)
                 .autocorrectionDisabled()
+                .focused($isEditingField)
+                .submitLabel(.done)
                 .accessibilityIdentifier("ai.settings.baseURL")
 
             TextField("模型名称", text: profileBinding(\.model))
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
+                .focused($isEditingField)
+                .submitLabel(.done)
                 .accessibilityIdentifier("ai.settings.model")
 
             SecureField("粘贴 API Key", text: profileBinding(\.apiKey))
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
+                .focused($isEditingField)
+                .submitLabel(.done)
                 .accessibilityIdentifier("ai.settings.apiKey")
 
             Button("使用此服务") {
@@ -229,22 +241,16 @@ struct V2AIProviderSettingsView: View {
 
     private var modelSection: some View {
         Section {
-            Menu {
-                ForEach(store.aiModelCatalog.visibleModels, id: \.id) { model in
-                    Button {
-                        selectModel(model.id)
-                    } label: {
-                        if model.id == siliconFlowSelectedModelID {
-                            Label(model.id, systemImage: "checkmark")
-                        } else {
-                            Text(model.id)
-                        }
-                    }
-                    .accessibilityLabel(model.id)
-                }
+            NavigationLink {
+                V2AIModelSelectionView(
+                    models: store.aiModelCatalog.visibleModels,
+                    selectedModelID: siliconFlowSelectedModelID,
+                    onSelect: selectModel
+                )
             } label: {
                 HStack {
                     Text("当前模型")
+                        .foregroundStyle(V2Theme.ink)
                     Spacer()
                     Text(siliconFlowSelectedModelID ?? "选择模型")
                         .foregroundStyle(V2Theme.secondary)
@@ -351,6 +357,7 @@ struct V2AIProviderSettingsView: View {
     }
 
     private func connectSiliconFlow() {
+        isEditingField = false
         Task { @MainActor in
             do {
                 try await store.connectSiliconFlow(apiKey: currentProfile.apiKey)
@@ -361,16 +368,19 @@ struct V2AIProviderSettingsView: View {
         }
     }
 
-    private func selectModel(_ id: String) {
+    private func selectModel(_ id: String) -> Bool {
         do {
             try store.selectAIModel(id: id)
             profiles[.siliconFlow] = store.aiProviderSettings
+            return true
         } catch {
             errorMessage = Self.message(for: error)
+            return false
         }
     }
 
     private func saveCodingPlanProvider() {
+        isEditingField = false
         var settings = currentProfile
         settings.provider = selectedProvider
         settings.baseURL = selectedProvider.baseURL
@@ -379,6 +389,7 @@ struct V2AIProviderSettingsView: View {
     }
 
     private func saveCustomProvider() {
+        isEditingField = false
         var settings = currentProfile
         settings.provider = .custom
         settings.isEnabled = true
@@ -418,6 +429,50 @@ struct V2AIProviderSettingsView: View {
 
     private static func message(for error: Error) -> String {
         (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+    }
+}
+
+private struct V2AIModelSelectionView: View {
+    let models: [V2AIModel]
+    let selectedModelID: String?
+    let onSelect: (String) -> Bool
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var searchText = ""
+
+    var body: some View {
+        List(filteredModels, id: \.id) { model in
+            Button {
+                if onSelect(model.id) {
+                    dismiss()
+                }
+            } label: {
+                HStack(spacing: 12) {
+                    Text(model.id)
+                        .foregroundStyle(V2Theme.ink)
+                        .multilineTextAlignment(.leading)
+                    Spacer(minLength: 12)
+                    if model.id == selectedModelID {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(V2Theme.blue)
+                    }
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(model.id)
+            .accessibilityIdentifier("ai.settings.modelOption.\(model.id)")
+        }
+        .navigationTitle("选择模型")
+        .navigationBarTitleDisplayMode(.inline)
+        .searchable(text: $searchText, prompt: "搜索模型")
+    }
+
+    private var filteredModels: [V2AIModel] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return models }
+        return models.filter { $0.id.localizedCaseInsensitiveContains(query) }
     }
 }
 

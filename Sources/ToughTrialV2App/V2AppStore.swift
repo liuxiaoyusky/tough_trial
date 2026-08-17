@@ -540,11 +540,12 @@ final class V2AppStore: ObservableObject {
                     return try self.acceptAssistantPlan(draft, at: date)
                 },
                 planDraftStatus: { [weak self] id in self?.assistantPlanDraftStatus(id: id) },
-                providerStatus: {
-                    V2AssistantProviderStatus(
-                        isConfigured: true,
-                        providerLabel: "UI 测试 Agent",
-                        message: nil
+                providerStatus: { [weak self] in
+                    let isConfigured = self?.canUsePlanningAI == true
+                    return V2AssistantProviderStatus(
+                        isConfigured: isConfigured,
+                        providerLabel: isConfigured ? "UI 测试 Agent" : "AI 未连接",
+                        message: isConfigured ? nil : "请先配置 AI 服务。"
                     )
                 }
             )

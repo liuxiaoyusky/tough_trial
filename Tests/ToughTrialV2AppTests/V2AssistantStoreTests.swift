@@ -257,6 +257,57 @@ final class V2AssistantStoreTests: XCTestCase {
         XCTAssertEqual(store.selectedSession?.messages[1].status, .cancelled)
     }
 
+    func testContextSessionSelectsExistingTaskSessionWithoutLockingConversation() {
+        let fixture = AssistantFixture()
+        let store = fixture.makeStore()
+        let sourceTask = V2AgentSourceTask(id: "task-1", title: "定位")
+
+        XCTAssertTrue(store.openContextSession(for: sourceTask))
+        let contextualSessionID = store.selectedSession?.id
+        XCTAssertEqual(store.selectedSession?.sourceTask, sourceTask)
+        XCTAssertTrue(store.selectedSession?.messages.isEmpty == true)
+
+        store.createSession()
+        XCTAssertNotEqual(store.selectedSession?.id, contextualSessionID)
+        XCTAssertTrue(store.openContextSession(for: sourceTask))
+        XCTAssertEqual(store.selectedSession?.id, contextualSessionID)
+        XCTAssertEqual(store.workspace.sessions.filter { $0.sourceTask?.id == sourceTask.id }.count, 1)
+    }
+
+    func testSessionDeletionIsGuardedAndSelectsRemainingSession() {
+        let fixture = AssistantFixture()
+        let store = fixture.makeStore()
+        let firstID = try! XCTUnwrap(store.selectedSession?.id)
+
+        XCTAssertFalse(store.deleteSession(id: firstID))
+        store.createSession()
+        let secondID = try! XCTUnwrap(store.selectedSession?.id)
+
+        XCTAssertTrue(store.deleteSession(id: secondID))
+        XCTAssertEqual(store.selectedSession?.id, firstID)
+        XCTAssertEqual(store.workspace.sessions.count, 1)
+    }
+
+    func testPlanItemUpdatePersistsInPendingArtifactAndMessageOrder() {
+        let draft = AssistantFixture.planDraft()
+        var workspace = V2AgentWorkspace.empty
+        let session = workspace.createSession(at: AssistantFixture.date)
+        workspace.sessions[0].pendingPlan = draft
+        workspace.appendMessage(
+            V2AgentMessage(role: .agent, parts: [.plan(draft)], createdAt: AssistantFixture.date),
+            to: session.id
+        )
+        let fixture = AssistantFixture(workspace: workspace)
+        let store = fixture.makeStore()
+        var updatedItem = draft.scheduleItems[0]
+        updatedItem.title = "调整后的安排"
+
+        XCTAssertTrue(store.updatePlanItem(updatedItem, in: draft.id))
+        XCTAssertEqual(store.selectedSession?.pendingPlan?.scheduleItems[0].title, "调整后的安排")
+        XCTAssertEqual(store.selectedSession?.messages[0].plans[0].scheduleItems[0].title, "调整后的安排")
+        XCTAssertEqual(fixture.persistence.lastSaved?.selectedSession?.pendingPlan?.scheduleItems[0].title, "调整后的安排")
+    }
+
     func testAcceptedPlanReconcilesWithoutDuplicateAcceptanceAndSurvivesWorkspaceSaveFailure() {
         let draft = AssistantFixture.planDraft()
         var workspace = V2AgentWorkspace.empty
@@ -271,7 +322,8 @@ final class V2AssistantStoreTests: XCTestCase {
         acceptedFixture.plan.statuses[draft.id] = .accepted
         let acceptedStore = acceptedFixture.makeStore()
         XCTAssertNil(acceptedStore.selectedSession?.pendingPlan)
-        XCTAssertTrue(acceptedStore.selectedSession?.messages[0].plans.isEmpty == true)
+        XCTAssertEqual(acceptedStore.selectedSession?.messages[0].plans.map(\.id), [draft.id])
+        XCTAssertTrue(acceptedStore.isPlanAccepted(draft))
         XCTAssertEqual(acceptedFixture.plan.acceptanceCount, 0)
 
         let draftFixture = AssistantFixture(workspace: workspace)
@@ -283,6 +335,7 @@ final class V2AssistantStoreTests: XCTestCase {
         XCTAssertEqual(draftFixture.plan.acceptanceCount, 1)
         XCTAssertEqual(draftFixture.plan.statuses[draft.id], .accepted)
         XCTAssertNil(draftStore.selectedSession?.pendingPlan)
+        XCTAssertTrue(draftStore.isPlanAccepted(draft))
         XCTAssertEqual(draftStore.storageState, .transientWriteFailure)
         XCTAssertTrue(draftStore.retryStorage())
         XCTAssertNil(draftFixture.persistence.lastSaved?.selectedSession?.pendingPlan)

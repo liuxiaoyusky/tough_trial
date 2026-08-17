@@ -16,6 +16,8 @@
 		27CB67F1C93967A6AA8F9DAE /* V2PlanAgentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABA6A1FFF10B01D2E53A839 /* V2PlanAgentView.swift */; };
 		33EB924760B7EE7B76AB392B /* V2Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC098F64104F891A638C7642 /* V2Theme.swift */; };
 		3B1C0341B571FCB4D961D720 /* ToughTrialV2App.swift in Sources */ = {isa = PBXBuildFile; fileRef = 232C6C7CC9BEE3D729AAA003 /* ToughTrialV2App.swift */; };
+		3D529D292AC0B72D896F8439 /* V2AssistantView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84B7BB23F4C969A5DB7F9BA1 /* V2AssistantView.swift */; };
+		416FBCC9EFFBD59CB37DC201 /* V2AssistantSessionViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2847FC02C58EF0166B0DC437 /* V2AssistantSessionViews.swift */; };
 		423B9B67B5E785576CF2B5E6 /* V2AIProviderSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88C469D85051DB6E544030F2 /* V2AIProviderSettingsView.swift */; };
 		45C2E85D52E84C47102BA576 /* V2RecallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0017D24F92D72A81C33D4620 /* V2RecallView.swift */; };
 		49D0F8AC73D24FB3D86FAF69 /* FirstLaunchUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89B8FD2451C30CF5BE3F1F7B /* FirstLaunchUITests.swift */; };
@@ -84,6 +86,7 @@
 		1ABB12FA7E2B4F6253F4AE7B /* V2RecallHandwritingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2RecallHandwritingView.swift; sourceTree = "<group>"; };
 		1D2CB9D90C7487C743A03624 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		232C6C7CC9BEE3D729AAA003 /* ToughTrialV2App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToughTrialV2App.swift; sourceTree = "<group>"; };
+		2847FC02C58EF0166B0DC437 /* V2AssistantSessionViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2AssistantSessionViews.swift; sourceTree = "<group>"; };
 		30B1A43C490465B04CF4DBAE /* V2AssistantStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2AssistantStore.swift; sourceTree = "<group>"; };
 		3694A43B9DABBC0F9CA8D44C /* ToughTrialV2AppTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ToughTrialV2AppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3CB9AF9642D83F94E0A4A986 /* V2AIProviderSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2AIProviderSettings.swift; sourceTree = "<group>"; };
@@ -92,6 +95,7 @@
 		5937E2365044428AFC0C7211 /* tough_trial */ = {isa = PBXFileReference; lastKnownFileType = folder; name = tough_trial; path = .; sourceTree = SOURCE_ROOT; };
 		6B2ED56D80693CB44E23196F /* V2AssistantDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2AssistantDependencies.swift; sourceTree = "<group>"; };
 		7B1EC2C1FAD5EB37F6421F24 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		84B7BB23F4C969A5DB7F9BA1 /* V2AssistantView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2AssistantView.swift; sourceTree = "<group>"; };
 		88C469D85051DB6E544030F2 /* V2AIProviderSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2AIProviderSettingsView.swift; sourceTree = "<group>"; };
 		89126F3A1AF89FAE9F43D45C /* V2AppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2AppStore.swift; sourceTree = "<group>"; };
 		89B8FD2451C30CF5BE3F1F7B /* FirstLaunchUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstLaunchUITests.swift; sourceTree = "<group>"; };
@@ -150,8 +154,10 @@
 				88C469D85051DB6E544030F2 /* V2AIProviderSettingsView.swift */,
 				89126F3A1AF89FAE9F43D45C /* V2AppStore.swift */,
 				6B2ED56D80693CB44E23196F /* V2AssistantDependencies.swift */,
+				2847FC02C58EF0166B0DC437 /* V2AssistantSessionViews.swift */,
 				30B1A43C490465B04CF4DBAE /* V2AssistantStore.swift */,
 				0AD234EE4721F16CE3DE5A08 /* V2AssistantTurnLoop.swift */,
+				84B7BB23F4C969A5DB7F9BA1 /* V2AssistantView.swift */,
 				0E6A85B953D563AC1A9C0C64 /* V2Components.swift */,
 				048EE79F154041A62113CF6E /* V2NativeServices.swift */,
 				AABA6A1FFF10B01D2E53A839 /* V2PlanAgentView.swift */,
@@ -378,8 +384,10 @@
 				423B9B67B5E785576CF2B5E6 /* V2AIProviderSettingsView.swift in Sources */,
 				A73A1FCC3E5FAACF61EB1731 /* V2AppStore.swift in Sources */,
 				76071D1D2DFDBA93680A4611 /* V2AssistantDependencies.swift in Sources */,
+				416FBCC9EFFBD59CB37DC201 /* V2AssistantSessionViews.swift in Sources */,
 				9ECF92158DCBCB3A3FB403B4 /* V2AssistantStore.swift in Sources */,
 				25424AA62004DB513014BBFC /* V2AssistantTurnLoop.swift in Sources */,
+				3D529D292AC0B72D896F8439 /* V2AssistantView.swift in Sources */,
 				CE3874C2F91A95260D113F3D /* V2Components.swift in Sources */,
 				E720CC255227F8ACBEC16770 /* V2NativeServices.swift in Sources */,
 				27CB67F1C93967A6AA8F9DAE /* V2PlanAgentView.swift in Sources */,
