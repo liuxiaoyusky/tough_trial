@@ -215,19 +215,7 @@ private enum V2AgentTraceSanitizer {
 }
 
 private enum V2AgentTraceValueValidation {
-    static let appGeneratedIDCharacters = CharacterSet(
-        charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
-    )
-
     static let searchQueryDelimiters = CharacterSet(charactersIn: "{}[]\"\\:;,=")
-
-    static func appGeneratedID(_ value: String) -> String? {
-        guard (1...128).contains(value.count),
-              value.unicodeScalars.allSatisfy(appGeneratedIDCharacters.contains) else {
-            return nil
-        }
-        return value
-    }
 
     static func containsLongTokenLikeRun(_ value: String) -> Bool {
         let tokenCharacters = CharacterSet(
@@ -325,14 +313,18 @@ public struct V2AgentTraceWebURL: Codable, Equatable, Sendable {
     public init?(_ rawURL: URL) {
         guard let scheme = rawURL.scheme?.lowercased(),
               ["http", "https"].contains(scheme),
-              rawURL.host != nil else {
+              let host = rawURL.host,
+              let rawComponents = URLComponents(url: rawURL, resolvingAgainstBaseURL: false) else {
             return nil
         }
 
-        var components = URLComponents(url: rawURL, resolvingAgainstBaseURL: false)
-        components?.user = nil
-        components?.password = nil
-        self.url = components?.url ?? rawURL
+        var components = URLComponents()
+        components.scheme = scheme
+        components.host = host
+        components.port = rawURL.port
+        components.percentEncodedPath = rawComponents.percentEncodedPath
+        guard let url = components.url else { return nil }
+        self.url = url
     }
 
     public init?(string: String) {
@@ -361,11 +353,15 @@ public struct V2AgentTraceWebURL: Codable, Equatable, Sendable {
 }
 
 public struct V2AgentTraceSourceID: Codable, Equatable, Sendable {
-    public let value: String
+    public let value: UUID
+
+    public init(_ value: UUID) {
+        self.value = value
+    }
 
     public init?(_ rawValue: String) {
-        guard let value = V2AgentTraceValueValidation.appGeneratedID(rawValue) else { return nil }
-        self.value = value
+        guard let value = UUID(uuidString: rawValue) else { return nil }
+        self.init(value)
     }
 
     public init(from decoder: Decoder) throws {
@@ -382,7 +378,7 @@ public struct V2AgentTraceSourceID: Codable, Equatable, Sendable {
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
-        try container.encode(value)
+        try container.encode(value.uuidString)
     }
 }
 
@@ -394,11 +390,15 @@ public enum V2AgentTraceLocalScope: String, Codable, Equatable, Sendable {
 }
 
 public struct V2AgentTraceArtifactID: Codable, Equatable, Sendable {
-    public let value: String
+    public let value: UUID
+
+    public init(_ value: UUID) {
+        self.value = value
+    }
 
     public init?(_ rawValue: String) {
-        guard let value = V2AgentTraceValueValidation.appGeneratedID(rawValue) else { return nil }
-        self.value = value
+        guard let value = UUID(uuidString: rawValue) else { return nil }
+        self.init(value)
     }
 
     public init(from decoder: Decoder) throws {
@@ -415,7 +415,7 @@ public struct V2AgentTraceArtifactID: Codable, Equatable, Sendable {
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
-        try container.encode(value)
+        try container.encode(value.uuidString)
     }
 }
 
@@ -433,11 +433,11 @@ public enum V2AgentTraceSubject: Codable, Equatable, Sendable {
         case let .sourceURL(url):
             return url.displayText
         case let .sourceID(sourceID):
-            return sourceID.value
+            return sourceID.value.uuidString
         case let .localScope(scope):
             return scope.rawValue
         case let .planArtifact(artifactID):
-            return artifactID.value
+            return artifactID.value.uuidString
         }
     }
 

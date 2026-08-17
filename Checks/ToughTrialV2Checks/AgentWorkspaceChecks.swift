@@ -123,25 +123,60 @@ func checkAgentTraceSubjectValueBoundaries() throws {
     require(decodedSearchSubject == searchSubject, "Safe search query subject must round-trip")
     require(decodedSearchSubject.displayText == normalQueryValue, "Safe search query subject must display its readable value")
 
-    let webURL = V2AgentTraceWebURL(string: "https://example.com/source")
+    let webURL = V2AgentTraceWebURL(string: "https://reader:password@example.com:8443/source?sessionKey=top-secret#fragment-token")
     require(webURL != nil, "HTTP(S) source URL must construct a Trace subject value")
+    require(
+        webURL?.displayText == "https://example.com:8443/source",
+        "Trace web URL construction must retain only scheme, host, port, and path"
+    )
+    let encodedWebURL = try JSONEncoder().encode(webURL!)
+    let encodedWebURLText = String(data: encodedWebURL, encoding: .utf8) ?? ""
+    for unsafeURLComponent in ["reader", "password", "sessionKey", "top-secret", "fragment-token"] {
+        require(!encodedWebURLText.contains(unsafeURLComponent), "Trace web URL persistence must omit \(unsafeURLComponent)")
+    }
     require(V2AgentTraceWebURL(string: "file:///private/data") == nil, "Non-HTTP(S) URL must not construct a Trace subject")
-    let sourceID = V2AgentTraceSourceID("source-1")
-    require(sourceID != nil, "App-generated source ID must construct a Trace subject value")
-    require(V2AgentTraceSourceID("source title") == nil, "Free-form source text must not construct a Trace subject")
+    let decodedWebURL = try JSONDecoder().decode(
+        V2AgentTraceWebURL.self,
+        from: Data(#""https://reader:password@example.com:8443/source?signature=top-secret#fragment-token""#.utf8)
+    )
+    require(
+        decodedWebURL.displayText == "https://example.com:8443/source",
+        "Trace web URL decoding must retain only scheme, host, port, and path"
+    )
 
-    let artifactID = V2AgentTraceArtifactID("artifact-1")
-    require(artifactID != nil, "App-generated artifact ID must construct a Trace subject value")
-    for invalidID in ["sessionKey=top-secret", "计划标题", "id/with/slashes"] {
+    let sourceUUID = UUID(uuidString: "0C1C4BEE-18BA-41CB-A3EE-A6907105EF1C")!
+    let sourceID = V2AgentTraceSourceID(sourceUUID)
+    require(sourceID.value == sourceUUID, "UUID source IDs must construct a Trace subject value")
+    require(V2AgentTraceSourceID(sourceUUID.uuidString)?.value == sourceUUID, "UUID source ID strings must construct a Trace subject value")
+
+    let artifactUUID = UUID(uuidString: "6F156BBF-DB0B-4798-89AD-DB6C942A7F6A")!
+    let artifactID = V2AgentTraceArtifactID(artifactUUID)
+    require(artifactID.value == artifactUUID, "UUID artifact IDs must construct a Trace subject value")
+    require(V2AgentTraceArtifactID(artifactUUID.uuidString)?.value == artifactUUID, "UUID artifact ID strings must construct a Trace subject value")
+    for invalidID in ["sessionKey=top-secret", "计划标题", "id/with/slashes", "sk-4Vj7aK9mQ2xL8pR5tN3cD6wB1zY0uE"] {
+        require(V2AgentTraceSourceID(invalidID) == nil, "Invalid source ID must not construct a Trace subject")
         require(V2AgentTraceArtifactID(invalidID) == nil, "Invalid artifact ID must not construct a Trace subject")
+        let encodedID = Data("\"\(invalidID)\"".utf8)
+        do {
+            _ = try JSONDecoder().decode(V2AgentTraceSourceID.self, from: encodedID)
+            fatalError("Invalid encoded source ID must not construct a Trace subject")
+        } catch {
+            // Expected: Codable must preserve the same UUID boundary as the public initializer.
+        }
+        do {
+            _ = try JSONDecoder().decode(V2AgentTraceArtifactID.self, from: encodedID)
+            fatalError("Invalid encoded artifact ID must not construct a Trace subject")
+        } catch {
+            // Expected: Codable must preserve the same UUID boundary as the public initializer.
+        }
     }
 
     let subjects: [V2AgentTraceSubject] = [
         searchSubject,
         .sourceURL(webURL!),
-        .sourceID(sourceID!),
+        .sourceID(sourceID),
         .localScope(.mixed),
-        .planArtifact(artifactID!)
+        .planArtifact(artifactID)
     ]
     for subject in subjects {
         let encoded = try JSONEncoder().encode(subject)
@@ -154,8 +189,8 @@ func checkAgentTraceAPIShapeAndRoundTrips() throws {
     let date = Date(timeIntervalSince1970: 1_800_000_000)
     let searchQuery = V2AgentSafeSearchQuery("如何安排今晚的学习时间")!
     let sourceURL = V2AgentTraceWebURL(string: "https://example.com/source")!
-    let sourceID = V2AgentTraceSourceID("source-1")!
-    let artifactID = V2AgentTraceArtifactID("artifact-1")!
+    let sourceID = V2AgentTraceSourceID(UUID(uuidString: "0C1C4BEE-18BA-41CB-A3EE-A6907105EF1C")!)
+    let artifactID = V2AgentTraceArtifactID(UUID(uuidString: "6F156BBF-DB0B-4798-89AD-DB6C942A7F6A")!)
     let trace = V2AgentTrace(
         id: "trace-1",
         status: .succeeded,
@@ -285,11 +320,11 @@ func checkAgentTraceAPIShapeAndRoundTrips() throws {
         case let .sourceURL(url):
             traceStrings.append(url.url.absoluteString)
         case let .sourceID(sourceID):
-            traceStrings.append(sourceID.value)
+            traceStrings.append(sourceID.value.uuidString)
         case let .localScope(scope):
             traceStrings.append(scope.rawValue)
         case let .planArtifact(artifactID):
-            traceStrings.append(artifactID.value)
+            traceStrings.append(artifactID.value.uuidString)
         case nil:
             break
         }
