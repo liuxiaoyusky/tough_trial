@@ -39,6 +39,165 @@ func checkAgentBrowserStateRoundTrips() throws {
     require(browser?.scrollOffsetY == 428, "Scroll position must survive relaunch")
 }
 
+func checkAgentProviderStateStaysIsolatedAndPersists() throws {
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("ToughTrialAgentProvider-\(UUID().uuidString)", isDirectory: true)
+    let store = V2AgentWorkspaceJSONStore(fileURL: directory.appendingPathComponent("workspace.json"))
+    let date = Date(timeIntervalSince1970: 1_800_000_000)
+    var workspace = V2AgentWorkspace.empty
+    let first = workspace.createSession(at: date)
+    let second = workspace.createSession(at: date.addingTimeInterval(1))
+
+    workspace.updateProviderState(
+        V2AgentProviderState(
+            providerLabel: "Provider One",
+            model: "model-one",
+            remoteConversationID: "conversation-one",
+            remoteResponseID: "response-one",
+            updatedAt: date.addingTimeInterval(2)
+        ),
+        in: first.id
+    )
+    workspace.updateProviderState(
+        V2AgentProviderState(
+            providerLabel: "Provider Two",
+            model: "model-two",
+            remoteConversationID: "conversation-two",
+            remoteResponseID: "response-two",
+            updatedAt: date.addingTimeInterval(3)
+        ),
+        in: second.id
+    )
+
+    require(workspace.session(id: first.id)?.traces.isEmpty == true, "Provider state must not require a trace")
+    require(workspace.session(id: second.id)?.traces.isEmpty == true, "Provider state must not require a trace")
+    require(workspace.session(id: first.id)?.providerState?.model == "model-one", "First provider state must stay local")
+    require(workspace.session(id: second.id)?.providerState?.model == "model-two", "Second provider state must stay local")
+
+    try store.save(workspace)
+    let restored = try store.load()
+    require(
+        restored.session(id: first.id)?.providerState == V2AgentProviderState(
+            providerLabel: "Provider One",
+            model: "model-one",
+            remoteConversationID: "conversation-one",
+            remoteResponseID: "response-one",
+            updatedAt: date.addingTimeInterval(2)
+        ),
+        "First provider state must persist independently"
+    )
+    require(
+        restored.session(id: second.id)?.providerState?.remoteConversationID == "conversation-two",
+        "Second provider conversation state must persist independently"
+    )
+    require(restored.session(id: first.id)?.traces.isEmpty == true, "Provider state round-trip must not invent a trace")
+}
+
+func checkAgentTraceLayersAndRedactsCredentials() throws {
+    let date = Date(timeIntervalSince1970: 1_800_000_000)
+    let endedAt = date.addingTimeInterval(1.5)
+    let trace = V2AgentTrace(
+        id: "trace-1",
+        summary: "Authorization: Bearer auth-secret",
+        status: .succeeded,
+        steps: [
+            V2AgentTraceStep(
+                id: "step-1",
+                tool: .webRead,
+                summary: "Cookie: cookie-secret",
+                status: .succeeded,
+                startedAt: date,
+                endedAt: endedAt,
+                metadata: [
+                    "Authorization": "Bearer metadata-secret",
+                    "normal": "Bearer inline-secret"
+                ],
+                parameters: [
+                    "api-key": "api-secret",
+                    "query": "token=token-secret"
+                ],
+                resultSummary: "access_token: result-secret"
+            )
+        ],
+        startedAt: date,
+        endedAt: endedAt,
+        providerLabel: "Provider",
+        model: "model",
+        requestID: "request-1",
+        responseID: "response-1",
+        providerSessionID: "provider-session-1",
+        metadata: ["Cookie": "session=cookie-metadata-secret"]
+    )
+    let summary = V2AgentTraceSummary(trace)
+    require(summary.status == .succeeded, "User trace summary must use a typed status")
+    require(summary.toolLabels == [.webRead], "User trace summary must use typed tool labels")
+    require(summary.duration == 1.5, "User trace summary must carry a typed duration")
+
+    var workspace = V2AgentWorkspace.empty
+    let session = workspace.createSession(at: date)
+    workspace.appendMessage(
+        V2AgentMessage(
+            role: .agent,
+            parts: [.trace(summary)],
+            createdAt: date
+        ),
+        to: session.id
+    )
+    workspace.sessions[0].traces.append(trace)
+
+    let encodedPart = try JSONEncoder().encode(workspace.sessions[0].messages[0].parts[0])
+    let encodedPartText = String(decoding: encodedPart, as: UTF8.self)
+    require(!encodedPartText.contains("providerSessionID"), "User trace summary must not expose full trace metadata")
+    require(!encodedPartText.contains("parameters"), "User trace summary must not expose full trace parameters")
+
+    let fullTrace = workspace.sessions[0].traces[0]
+    var traceStrings: [String] = [
+        fullTrace.summary,
+        fullTrace.providerLabel ?? "",
+        fullTrace.model ?? "",
+        fullTrace.requestID ?? "",
+        fullTrace.responseID ?? "",
+        fullTrace.providerSessionID ?? ""
+    ]
+    traceStrings.append(contentsOf: fullTrace.metadata.flatMap { [$0.key, $0.value] })
+    for step in fullTrace.steps {
+        traceStrings.append(step.summary)
+        traceStrings.append(step.resultSummary ?? "")
+        traceStrings.append(contentsOf: step.metadata.flatMap { [$0.key, $0.value] })
+        traceStrings.append(contentsOf: step.parameters.flatMap { [$0.key, $0.value] })
+    }
+    for secret in [
+        "auth-secret",
+        "cookie-secret",
+        "metadata-secret",
+        "inline-secret",
+        "api-secret",
+        "token-secret",
+        "result-secret",
+        "cookie-metadata-secret"
+    ] {
+        require(!traceStrings.contains { $0.contains(secret) }, "Full Trace must redact \(secret)")
+    }
+    require(traceStrings.contains { $0.contains("[REDACTED]") }, "Full Trace must show redaction markers")
+
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("ToughTrialAgentTrace-\(UUID().uuidString)", isDirectory: true)
+    let store = V2AgentWorkspaceJSONStore(fileURL: directory.appendingPathComponent("workspace.json"))
+    try store.save(workspace)
+    let restored = try store.load()
+    require(restored.session(id: session.id)?.traces.count == 1, "Full Trace must persist in the Session boundary")
+    require(restored.session(id: session.id)?.messages.first?.parts.first == .trace(summary), "Message must persist only the summary layer")
+}
+
+func checkWebSourceStringInitializerRejectsInvalidURL() {
+    require(
+        V2WebSource(id: "invalid", title: "Invalid", url: "not a URL") == nil,
+        "Invalid source URL text must not become about:blank"
+    )
+    let valid = V2WebSource(id: "valid", title: "Valid", url: "https://example.com")
+    require(valid?.url.absoluteString == "https://example.com", "Valid source URL text should be accepted")
+}
+
 func checkAgentWorkspaceTitleAndSelectionRules() {
     let date = Date(timeIntervalSince1970: 1_800_000_000)
     var workspace = V2AgentWorkspace.empty
