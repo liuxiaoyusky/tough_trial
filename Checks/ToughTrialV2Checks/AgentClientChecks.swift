@@ -163,6 +163,81 @@ func checkAgentClientRejectsInvalidOutputAndHandlesOptionalMetadata() async thro
         }
         require(statusCode == 503, "HTTP failures should preserve the status code")
     }
+
+    try checkAgentClientDecodesEveryValidActionAndRejectsHTTPWebRead()
+}
+
+func checkAgentClientDecodesEveryValidActionAndRejectsHTTPWebRead() throws {
+    struct ValidActionFixture {
+        var name: String
+        var envelope: [String: String]
+        var expected: V2AgentAction
+    }
+
+    let httpsURL = URL(string: "https://example.com/article")!
+    let fixtures = [
+        ValidActionFixture(
+            name: "answer",
+            envelope: ["action": "answer", "text": "可以", "query": "", "url": ""],
+            expected: .answer(text: "可以")
+        ),
+        ValidActionFixture(
+            name: "web_search",
+            envelope: ["action": "web_search", "text": "", "query": "香港天气", "url": ""],
+            expected: .webSearch(query: "香港天气")
+        ),
+        ValidActionFixture(
+            name: "web_read",
+            envelope: ["action": "web_read", "text": "", "query": "", "url": httpsURL.absoluteString],
+            expected: .webRead(url: httpsURL)
+        ),
+        ValidActionFixture(
+            name: "local_search",
+            envelope: ["action": "local_search", "text": "", "query": "我的任务", "url": ""],
+            expected: .localSearch(query: "我的任务")
+        ),
+        ValidActionFixture(
+            name: "plan",
+            envelope: ["action": "plan", "text": "", "query": "安排明天", "url": ""],
+            expected: .plan(query: "安排明天")
+        ),
+    ]
+    let client = V2OpenAICompatibleAgentClient(
+        configuration: .init(
+            endpoint: URL(string: "https://example.com/v1/chat/completions")!,
+            apiKey: "secret",
+            model: "test",
+            providerLabel: "Test"
+        ),
+        transport: RecordingPlanningTransport(responseData: Data(), statusCode: 200)
+    )
+
+    for fixture in fixtures {
+        let result = try client.decodeResponse(agentActionResponseData(fixture.envelope))
+        require(result.action == fixture.expected, "\(fixture.name) should decode its valid action envelope")
+    }
+
+    do {
+        _ = try client.decodeResponse(
+            agentActionResponseData(
+                ["action": "web_read", "text": "", "query": "", "url": "http://example.com/article"]
+            )
+        )
+        fatalError("HTTP web_read URLs must fail")
+    } catch V2AgentClientError.invalidOutput {
+        // Expected: web reads may only target HTTPS URLs.
+    }
+}
+
+private func agentActionResponseData(_ action: [String: String]) throws -> Data {
+    let content = String(
+        data: try JSONSerialization.data(withJSONObject: action, options: [.sortedKeys]),
+        encoding: .utf8
+    )!
+    return try JSONSerialization.data(
+        withJSONObject: ["choices": [["message": ["content": content]]]],
+        options: [.sortedKeys]
+    )
 }
 
 private actor RecordingPlanningTransport: V2PlanningHTTPTransport {
