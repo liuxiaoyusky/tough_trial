@@ -329,7 +329,7 @@ public enum V2PlanConversationPhase: String, Equatable, Sendable {
     case complete
 }
 
-public struct V2PlanDraftScheduleItem: Identifiable, Equatable, Sendable {
+public struct V2PlanDraftScheduleItem: Identifiable, Codable, Equatable, Sendable {
     public var id: String
     public var date: Date
     public var startAt: Date?
@@ -357,7 +357,7 @@ public struct V2PlanDraftScheduleItem: Identifiable, Equatable, Sendable {
     }
 }
 
-public struct V2PlanDraftTaskChange: Identifiable, Equatable, Sendable {
+public struct V2PlanDraftTaskChange: Identifiable, Codable, Equatable, Sendable {
     public var id: String
     public var title: String
     public var parentID: String?
@@ -379,7 +379,7 @@ public struct V2PlanDraftTaskChange: Identifiable, Equatable, Sendable {
     }
 }
 
-public struct V2PlanDraft: Equatable, Sendable {
+public struct V2PlanDraft: Codable, Equatable, Sendable {
     public var id: String
     public var userPrompt: String
     public var title: String
