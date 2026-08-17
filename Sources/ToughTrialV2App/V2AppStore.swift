@@ -471,6 +471,246 @@ final class V2AppStore: ObservableObject {
         }
     }
 
+    func makeAssistantDependencies() -> V2AssistantDependencies {
+        let environment = ProcessInfo.processInfo.environment
+        let isUITestMode = environment["TOUGH_TRIAL_UI_TEST_EMPTY"] == "1"
+            || environment["TOUGH_TRIAL_UI_TESTING"] == "1"
+
+        if isUITestMode {
+            return V2AssistantDependencies(
+                modelResponse: { request in
+                    let action: V2AgentAction
+                    if let planObservation = request.observations.last(where: { $0.tool == .plan }) {
+                        action = .answer(text: planObservation.summary)
+                    } else if !request.observations.isEmpty {
+                        action = .answer(text: "测试回复已根据工具结果生成。")
+                    } else if request.userText.contains("网页") || request.userText.contains("搜索") {
+                        action = .webSearch(query: "Tough Trial 测试搜索")
+                    } else if request.userText.contains("资料") {
+                        action = .localSearch(query: request.userText)
+                    } else if request.userText.contains("计划") || request.userText.contains("安排") {
+                        action = .plan(query: request.userText)
+                    } else {
+                        action = .answer(text: "测试回复：\(request.userText)")
+                    }
+                    return V2AgentModelResult(
+                        action: action,
+                        providerLabel: "UI 测试 Agent",
+                        model: "deterministic-ui-test"
+                    )
+                },
+                webSearch: { _, limit in
+                    Array([
+                        V2WebSearchResult(
+                            title: "Tough Trial 测试来源",
+                            url: URL(string: "https://example.com/tough-trial")!,
+                            snippet: "仅用于 UI 自动化的确定性搜索结果。",
+                            siteName: "example.com"
+                        )
+                    ].prefix(limit))
+                },
+                webRead: { url, maxCharacters in
+                    String("UI 自动化读取：\(url.host ?? "example.com")".prefix(maxCharacters))
+                },
+                localSearch: { [weak self] query in
+                    self?.assistantLocalSearchSummary(query: query) ?? "未找到相关本地资料。"
+                },
+                planGeneration: { [weak self] session, query, date in
+                    guard let self else { throw V2AssistantAppStoreError.storeUnavailable }
+                    return try await self.assistantPlanningOutcome(
+                        session: session,
+                        query: query,
+                        at: date
+                    )
+                },
+                planAcceptance: { [weak self] draft, date in
+                    guard let self else { throw V2AssistantAppStoreError.storeUnavailable }
+                    try self.acceptAssistantPlan(draft, at: date)
+                },
+                providerStatus: {
+                    V2AssistantProviderStatus(
+                        isConfigured: true,
+                        providerLabel: "UI 测试 Agent",
+                        message: nil
+                    )
+                }
+            )
+        }
+
+        let searchClient = V2DuckDuckGoSearchClient()
+        let pageReader = V2URLSessionWebPageReader()
+        return V2AssistantDependencies(
+            modelResponse: { [weak self] request in
+                guard let self else { throw V2AssistantAppStoreError.storeUnavailable }
+                let client = try self.aiProviderSettings.agentClient()
+                return try await client.respond(request)
+            },
+            webSearch: { query, limit in
+                try await searchClient.search(query: query, limit: limit)
+            },
+            webRead: { url, maxCharacters in
+                try await pageReader.read(url: url, maxCharacters: maxCharacters)
+            },
+            localSearch: { [weak self] query in
+                self?.assistantLocalSearchSummary(query: query) ?? "未找到相关本地资料。"
+            },
+            planGeneration: { [weak self] session, query, date in
+                guard let self else { throw V2AssistantAppStoreError.storeUnavailable }
+                return try await self.assistantPlanningOutcome(
+                    session: session,
+                    query: query,
+                    at: date
+                )
+            },
+            planAcceptance: { [weak self] draft, date in
+                guard let self else { throw V2AssistantAppStoreError.storeUnavailable }
+                try self.acceptAssistantPlan(draft, at: date)
+            },
+            providerStatus: { [weak self] in
+                guard let self else {
+                    return V2AssistantProviderStatus(
+                        isConfigured: false,
+                        providerLabel: "AI 未连接",
+                        message: "助手状态不可用。"
+                    )
+                }
+                return V2AssistantProviderStatus(
+                    isConfigured: self.hasConnectedAIService,
+                    providerLabel: self.hasConnectedAIService
+                        ? self.planningProviderLabel
+                        : "AI 未连接",
+                    message: self.hasConnectedAIService ? nil : "请先配置 AI 服务。"
+                )
+            }
+        )
+    }
+
+    func assistantPlanningOutcome(
+        session: V2AgentSession,
+        query: String,
+        at date: Date = Date()
+    ) async throws -> V2PlanningOutcome {
+        guard canUsePlanningAI else {
+            throw V2AssistantAppStoreError.aiNotConfigured
+        }
+        let request = V2PlanningRequest(
+            agentSession: session,
+            query: query,
+            tasks: engine.snapshot.tasks
+                .filter { $0.status != .archived }
+                .prefix(100)
+                .map {
+                    V2PlanningTaskContext(
+                        id: $0.id,
+                        title: $0.title,
+                        parentID: $0.parentID,
+                        contextID: $0.contextID,
+                        kind: $0.kind,
+                        status: $0.status
+                    )
+                },
+            memoryStatements: memoryEngine.activeStatements(at: date)
+                .prefix(50)
+                .map { String($0.prefix(500)) },
+            referenceDate: date,
+            timeZoneIdentifier: calendar.timeZone.identifier
+        )
+        return try await planningClient.generate(request)
+    }
+
+    func acceptAssistantPlan(_ draft: V2PlanDraft, at date: Date = Date()) throws {
+        guard canWrite else {
+            throw V2AssistantAppStoreError.storageUnavailable(
+                startupErrorMessage ?? "本地数据当前不可写。"
+            )
+        }
+        let record = draft.durableRecord(at: date)
+        _ = try engine.savePlanDraft(record, at: date, calendar: calendar)
+        let acceptance = try engine.acceptPlanDraft(id: record.id, at: date, calendar: calendar)
+        errorMessage = nil
+        refreshProjection(at: date)
+        Task {
+            do {
+                _ = try await notificationService.scheduleIfAuthorized(
+                    planItems: acceptance.createdPlanItems,
+                    now: date,
+                    calendar: calendar
+                )
+            } catch {
+                errorMessage = (error as? LocalizedError)?.errorDescription
+                    ?? error.localizedDescription
+            }
+        }
+    }
+
+    func assistantLocalSearchSummary(
+        query: String,
+        at date: Date = Date()
+    ) -> String {
+        let normalizedQuery = query.lowercased()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedQuery.isEmpty else { return "未找到相关本地资料。" }
+
+        let genericTerms = [
+            "查找", "搜索", "看看", "告诉我", "显示", "列出", "我的", "相关", "资料", "记录",
+            "有哪些", "是什么", "怎么样", "一下", "任务", "计划", "记忆", "状态",
+            "show", "list", "find", "what", "which", "are", "is", "my", "me",
+            "task", "tasks", "plan", "plans", "memory"
+        ]
+        let specificQuery = genericTerms.reduce(normalizedQuery) {
+            $0.replacingOccurrences(of: $1, with: " ")
+        }
+        let terms = specificQuery
+            .split(whereSeparator: { $0.isWhitespace || $0.isPunctuation })
+            .map(String.init)
+            .filter { !$0.isEmpty }
+        func matches(_ value: String, categoryTerms: [String]) -> Bool {
+            let candidate = value.lowercased()
+            if !terms.isEmpty {
+                return terms.contains(where: candidate.contains)
+            }
+            return categoryTerms.contains(where: normalizedQuery.contains)
+        }
+
+        let taskLines = engine.snapshot.tasks
+            .filter {
+                $0.status != .archived
+                    && matches(
+                        "\($0.title) \(Self.assistantStatusLabel($0.status))",
+                        categoryTerms: ["任务", "task"]
+                    )
+            }
+            .sorted { $0.updatedAt > $1.updatedAt }
+            .prefix(5)
+            .map { "- \(String($0.title.prefix(180))) [\(Self.assistantStatusLabel($0.status))]" }
+
+        let planLines = engine.snapshot.planItems
+            .filter {
+                $0.status != .canceled
+                    && matches(
+                        "\($0.title) \(Self.assistantDateLabel($0.date, calendar: calendar))",
+                        categoryTerms: ["计划", "plan"]
+                    )
+            }
+            .sorted { $0.date > $1.date }
+            .prefix(5)
+            .map {
+                "- \(String($0.title.prefix(180))) [\(Self.assistantDateLabel($0.date, calendar: calendar))]"
+            }
+
+        let memoryLines = memoryEngine.activeStatements(at: date)
+            .filter { matches($0, categoryTerms: ["记忆", "memory", "资料"]) }
+            .prefix(5)
+            .map { "- \(String($0.prefix(240)))" }
+
+        var sections: [String] = []
+        if !taskLines.isEmpty { sections.append("任务\n" + taskLines.joined(separator: "\n")) }
+        if !planLines.isEmpty { sections.append("计划\n" + planLines.joined(separator: "\n")) }
+        if !memoryLines.isEmpty { sections.append("Memory\n" + memoryLines.joined(separator: "\n")) }
+        guard !sections.isEmpty else { return "未找到相关本地资料。" }
+        return String(sections.joined(separator: "\n\n").prefix(4_000))
+    }
+
     @discardableResult
     func addMemory(
         statement: String,
@@ -1253,6 +1493,31 @@ final class V2AppStore: ObservableObject {
         }
     }
 
+    private static func assistantStatusLabel(_ status: V2Task.Status) -> String {
+        switch status {
+        case .notStarted:
+            "未开始"
+        case .active:
+            "进行中"
+        case .paused:
+            "已暂停"
+        case .done:
+            "已完成"
+        case .archived:
+            "已归档"
+        }
+    }
+
+    private static func assistantDateLabel(_ date: Date, calendar: Calendar) -> String {
+        let components = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(
+            format: "%04d-%02d-%02d",
+            components.year ?? 0,
+            components.month ?? 0,
+            components.day ?? 0
+        )
+    }
+
     private static func shortTime(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
@@ -1325,6 +1590,23 @@ final class V2AppStore: ObservableObject {
             return "写下一点内容或手写后再完成。"
         default:
             return "操作没有保存，请稍后再试。"
+        }
+    }
+}
+
+private enum V2AssistantAppStoreError: LocalizedError {
+    case aiNotConfigured
+    case storageUnavailable(String)
+    case storeUnavailable
+
+    var errorDescription: String? {
+        switch self {
+        case .aiNotConfigured:
+            "请先配置 AI 服务。"
+        case let .storageUnavailable(message):
+            message
+        case .storeUnavailable:
+            "助手依赖的 App 状态已不可用。"
         }
     }
 }

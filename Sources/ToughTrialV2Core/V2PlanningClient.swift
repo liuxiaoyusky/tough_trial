@@ -70,6 +70,46 @@ public struct V2PlanningRequest: Equatable, Sendable {
         self.conversation = conversation
         self.currentDraft = currentDraft
     }
+
+    public init(
+        agentSession: V2AgentSession,
+        query: String,
+        tasks: [V2PlanningTaskContext],
+        memoryStatements: [String],
+        referenceDate: Date,
+        timeZoneIdentifier: String
+    ) {
+        let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let pendingPrompt = agentSession.pendingPlanPrompt?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let draftPrompt = agentSession.pendingPlan?.userPrompt
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let originalPrompt = [pendingPrompt, draftPrompt]
+            .compactMap { $0 }
+            .first { !$0.isEmpty }
+
+        self.init(
+            userPrompt: originalPrompt ?? normalizedQuery,
+            clarificationResponse: originalPrompt == nil ? nil : normalizedQuery,
+            scope: agentSession.sourceTask.map {
+                "聚焦任务：\($0.title)（task_id: \($0.id)）"
+            },
+            conversationIdentifier: agentSession.id,
+            referenceDate: referenceDate,
+            timeZoneIdentifier: timeZoneIdentifier,
+            tasks: tasks,
+            memoryStatements: memoryStatements,
+            conversation: agentSession.messages.suffix(40).compactMap { message in
+                let text = message.plainText.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !text.isEmpty else { return nil }
+                return V2PlanningConversationMessage(
+                    role: message.role == .user ? .user : .agent,
+                    text: String(text.prefix(4_000))
+                )
+            },
+            currentDraft: agentSession.pendingPlan
+        )
+    }
 }
 
 public struct V2PlanningClarification: Equatable, Sendable {

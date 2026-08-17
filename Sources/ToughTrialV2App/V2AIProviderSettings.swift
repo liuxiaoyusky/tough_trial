@@ -125,6 +125,13 @@ struct V2AIProviderSettings: Equatable {
         )
     }
 
+    func agentClient() throws -> any V2AgentClient {
+        guard isEnabled else {
+            throw V2AIProviderSettingsError.invalidValue("请先配置 AI 服务")
+        }
+        return V2OpenAICompatibleAgentClient(configuration: try agentConfiguration())
+    }
+
     private func resolvedConfiguration() throws -> (
         endpoint: URL,
         apiKey: String,
