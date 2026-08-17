@@ -121,7 +121,7 @@ public enum V2AgentTraceStatus: String, Codable, Equatable, Sendable {
     case cancelled
 }
 
-public enum V2AgentTraceTool: String, Codable, Equatable, Sendable {
+public enum V2AgentTool: String, Codable, Equatable, Sendable {
     case model
     case webSearch
     case webRead
@@ -147,8 +147,45 @@ public enum V2AgentTraceTool: String, Codable, Equatable, Sendable {
     }
 }
 
-public enum V2AgentTraceSanitizer {
-    public static func redact(_ text: String) -> String {
+public typealias V2AgentTraceTool = V2AgentTool
+
+public enum V2AgentTraceErrorCategory: String, Codable, Equatable, Sendable {
+    case model
+    case web
+    case localData
+    case planning
+    case network
+    case provider
+    case cancelled
+}
+
+public enum V2AgentTraceErrorCode: String, Codable, Equatable, Sendable {
+    case unauthorized
+    case forbidden
+    case timeout
+    case rateLimited
+    case invalidRequest
+    case invalidResponse
+    case unavailable
+    case cancelled
+    case unknown
+}
+
+public struct V2AgentTraceError: Codable, Equatable, Sendable {
+    public var category: V2AgentTraceErrorCategory
+    public var code: V2AgentTraceErrorCode
+
+    public init(
+        category: V2AgentTraceErrorCategory,
+        code: V2AgentTraceErrorCode
+    ) {
+        self.category = category
+        self.code = code
+    }
+}
+
+private enum V2AgentTraceSanitizer {
+    static func redact(_ text: String) -> String {
         let patterns: [(String, String)] = [
             (#"(?i)(authorization|proxy-authorization)\s*[:=]\s*(?:bearer\s+)?[^\s,;]+"#, "$1: [REDACTED]"),
             (#"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]+"#, "Bearer [REDACTED]"),
@@ -164,13 +201,6 @@ public enum V2AgentTraceSanitizer {
         }
     }
 
-    public static func redact(_ values: [String: String]) -> [String: String] {
-        values.reduce(into: [:]) { result, entry in
-            let key = redact(entry.key)
-            result[key] = isCredentialKey(entry.key) ? "[REDACTED]" : redact(entry.value)
-        }
-    }
-
     private static func replacing(_ value: String, pattern: String, with replacement: String) -> String {
         guard let expression = try? NSRegularExpression(pattern: pattern) else { return value }
         let range = NSRange(value.startIndex..<value.endIndex, in: value)
@@ -181,84 +211,81 @@ public enum V2AgentTraceSanitizer {
             withTemplate: replacement
         )
     }
-
-    private static func isCredentialKey(_ key: String) -> Bool {
-        let normalized = key.lowercased()
-            .replacingOccurrences(of: "-", with: "_")
-            .replacingOccurrences(of: " ", with: "_")
-        return normalized.contains("authorization")
-            || normalized.contains("api_key")
-            || normalized.contains("apikey")
-            || normalized.contains("cookie")
-            || normalized == "token"
-            || normalized.hasSuffix("_token")
-            || normalized.contains("secret")
-            || normalized.contains("password")
-    }
 }
 
-public struct V2AgentTraceSummary: Codable, Equatable, Sendable {
-    public private(set) var summary: String
-    public private(set) var status: V2AgentTraceStatus
-    public private(set) var toolLabels: [V2AgentTraceTool]
-    public private(set) var duration: TimeInterval?
+public enum V2AgentTraceSubject: Codable, Equatable, Sendable {
+    case searchQuery(String)
+    case sourceURL(URL)
+    case sourceTitle(String)
+    case localScope(String)
+    case planTitle(String)
 
-    public init(
-        summary: String,
-        status: V2AgentTraceStatus,
-        toolLabels: [V2AgentTraceTool],
-        duration: TimeInterval?
-    ) {
-        self.summary = V2AgentTraceSanitizer.redact(summary)
-        self.status = status
-        self.toolLabels = toolLabels
-        self.duration = duration.map { max(0, $0) }
-    }
-
-    public init(_ trace: V2AgentTrace) {
-        self.init(
-            summary: trace.summary,
-            status: trace.status,
-            toolLabels: trace.steps.map(\.tool),
-            duration: trace.duration
-        )
+    fileprivate func sanitized() -> Self {
+        switch self {
+        case let .searchQuery(query):
+            return .searchQuery(V2AgentTraceSanitizer.redact(query))
+        case let .sourceURL(url):
+            var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            components?.user = nil
+            components?.password = nil
+            return .sourceURL(components?.url ?? url)
+        case let .sourceTitle(title):
+            return .sourceTitle(V2AgentTraceSanitizer.redact(title))
+        case let .localScope(scope):
+            return .localScope(V2AgentTraceSanitizer.redact(scope))
+        case let .planTitle(title):
+            return .planTitle(V2AgentTraceSanitizer.redact(title))
+        }
     }
 
     private enum CodingKeys: String, CodingKey {
-        case summary
-        case status
-        case toolLabels
-        case duration
-        case steps
-        case startedAt
-        case endedAt
+        case type
+        case value
+    }
+
+    private enum Tag: String, Codable {
+        case searchQuery
+        case sourceURL
+        case sourceTitle
+        case localScope
+        case planTitle
     }
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(summary, forKey: .summary)
-        try container.encode(status, forKey: .status)
-        try container.encode(toolLabels, forKey: .toolLabels)
-        try container.encodeIfPresent(duration, forKey: .duration)
+        switch self {
+        case let .searchQuery(query):
+            try container.encode(Tag.searchQuery, forKey: .type)
+            try container.encode(V2AgentTraceSanitizer.redact(query), forKey: .value)
+        case let .sourceURL(url):
+            try container.encode(Tag.sourceURL, forKey: .type)
+            try container.encode(url, forKey: .value)
+        case let .sourceTitle(title):
+            try container.encode(Tag.sourceTitle, forKey: .type)
+            try container.encode(V2AgentTraceSanitizer.redact(title), forKey: .value)
+        case let .localScope(scope):
+            try container.encode(Tag.localScope, forKey: .type)
+            try container.encode(V2AgentTraceSanitizer.redact(scope), forKey: .value)
+        case let .planTitle(title):
+            try container.encode(Tag.planTitle, forKey: .type)
+            try container.encode(V2AgentTraceSanitizer.redact(title), forKey: .value)
+        }
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        let legacySteps = try container.decodeIfPresent([V2AgentTraceStep].self, forKey: .steps) ?? []
-        let startedAt = try container.decodeIfPresent(Date.self, forKey: .startedAt)
-        let endedAt = try container.decodeIfPresent(Date.self, forKey: .endedAt)
-        let legacyDuration: TimeInterval? = {
-            guard let startedAt, let endedAt else { return nil }
-            return max(0, endedAt.timeIntervalSince(startedAt))
-        }()
-        let duration = try container.decodeIfPresent(TimeInterval.self, forKey: .duration) ?? legacyDuration
-        self.init(
-            summary: try container.decodeIfPresent(String.self, forKey: .summary) ?? "",
-            status: try container.decodeIfPresent(V2AgentTraceStatus.self, forKey: .status) ?? .succeeded,
-            toolLabels: try container.decodeIfPresent([V2AgentTraceTool].self, forKey: .toolLabels)
-                ?? legacySteps.map(\.tool),
-            duration: duration
-        )
+        switch try container.decode(Tag.self, forKey: .type) {
+        case .searchQuery:
+            self = .searchQuery(V2AgentTraceSanitizer.redact(try container.decode(String.self, forKey: .value)))
+        case .sourceURL:
+            self = .sourceURL(try container.decode(URL.self, forKey: .value)).sanitized()
+        case .sourceTitle:
+            self = .sourceTitle(V2AgentTraceSanitizer.redact(try container.decode(String.self, forKey: .value)))
+        case .localScope:
+            self = .localScope(V2AgentTraceSanitizer.redact(try container.decode(String.self, forKey: .value)))
+        case .planTitle:
+            self = .planTitle(V2AgentTraceSanitizer.redact(try container.decode(String.self, forKey: .value)))
+        }
     }
 }
 
@@ -266,109 +293,56 @@ public struct V2AgentTraceStep: Identifiable, Codable, Equatable, Sendable {
     public typealias Status = V2AgentTraceStatus
 
     public private(set) var id: String
-    public private(set) var tool: V2AgentTraceTool
-    public private(set) var summary: String
+    public private(set) var tool: V2AgentTool
     public private(set) var status: V2AgentTraceStatus
-    public private(set) var startedAt: Date
-    public private(set) var endedAt: Date?
-    public private(set) var metadata: [String: String]
-    public private(set) var parameters: [String: String]
-    public private(set) var resultSummary: String?
+    public private(set) var duration: TimeInterval
+    public private(set) var subject: V2AgentTraceSubject?
+    public private(set) var error: V2AgentTraceError?
 
     public init(
         id: String = UUID().uuidString,
-        tool: V2AgentTraceTool,
-        summary: String = "",
-        status: V2AgentTraceStatus = .succeeded,
-        startedAt: Date,
-        endedAt: Date? = nil,
-        metadata: [String: String] = [:],
-        parameters: [String: String] = [:],
-        resultSummary: String? = nil
+        tool: V2AgentTool,
+        status: V2AgentTraceStatus,
+        duration: TimeInterval,
+        subject: V2AgentTraceSubject? = nil,
+        error: V2AgentTraceError? = nil
     ) {
         self.id = V2AgentTraceSanitizer.redact(id)
         self.tool = tool
-        self.summary = V2AgentTraceSanitizer.redact(summary)
         self.status = status
-        self.startedAt = startedAt
-        self.endedAt = endedAt
-        self.metadata = V2AgentTraceSanitizer.redact(metadata)
-        self.parameters = V2AgentTraceSanitizer.redact(parameters)
-        self.resultSummary = resultSummary.map(V2AgentTraceSanitizer.redact)
-    }
-
-    public init(
-        id: String = UUID().uuidString,
-        label: String,
-        detail: String = "",
-        status: V2AgentTraceStatus = .succeeded,
-        startedAt: Date,
-        endedAt: Date? = nil,
-        metadata: [String: String] = [:],
-        parameters: [String: String] = [:],
-        resultSummary: String? = nil
-    ) {
-        self.init(
-            id: id,
-            tool: V2AgentTraceTool(label: label),
-            summary: detail,
-            status: status,
-            startedAt: startedAt,
-            endedAt: endedAt,
-            metadata: metadata,
-            parameters: parameters,
-            resultSummary: resultSummary
-        )
-    }
-
-    public var label: String { tool.rawValue }
-
-    public var detail: String { summary }
-
-    public var duration: TimeInterval? {
-        guard let endedAt else { return nil }
-        return max(0, endedAt.timeIntervalSince(startedAt))
+        self.duration = max(0, duration)
+        self.subject = subject?.sanitized()
+        self.error = error
     }
 
     private enum CodingKeys: String, CodingKey {
         case id
         case tool
-        case name
-        case summary
         case status
-        case startedAt
-        case endedAt
-        case metadata
-        case parameters
-        case resultSummary
+        case duration
+        case subject
+        case error
     }
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
         try container.encode(tool, forKey: .tool)
-        try container.encode(summary, forKey: .summary)
         try container.encode(status, forKey: .status)
-        try container.encode(startedAt, forKey: .startedAt)
-        try container.encodeIfPresent(endedAt, forKey: .endedAt)
-        try container.encode(metadata, forKey: .metadata)
-        try container.encode(parameters, forKey: .parameters)
-        try container.encodeIfPresent(resultSummary, forKey: .resultSummary)
+        try container.encode(duration, forKey: .duration)
+        try container.encodeIfPresent(subject, forKey: .subject)
+        try container.encodeIfPresent(error, forKey: .error)
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.init(
             id: try container.decode(String.self, forKey: .id),
-            tool: try container.decodeIfPresent(V2AgentTraceTool.self, forKey: .tool)
-                ?? V2AgentTraceTool(label: try container.decodeIfPresent(String.self, forKey: .name) ?? "other"),
-            summary: try container.decodeIfPresent(String.self, forKey: .summary) ?? "",
-            status: try container.decodeIfPresent(V2AgentTraceStatus.self, forKey: .status) ?? .succeeded,
-            startedAt: try container.decode(Date.self, forKey: .startedAt),
-            endedAt: try container.decodeIfPresent(Date.self, forKey: .endedAt),
-            metadata: try container.decodeIfPresent([String: String].self, forKey: .metadata) ?? [:],
-            parameters: try container.decodeIfPresent([String: String].self, forKey: .parameters) ?? [:],
-            resultSummary: try container.decodeIfPresent(String.self, forKey: .resultSummary)
+            tool: try container.decode(V2AgentTool.self, forKey: .tool),
+            status: try container.decode(V2AgentTraceStatus.self, forKey: .status),
+            duration: try container.decode(TimeInterval.self, forKey: .duration),
+            subject: try container.decodeIfPresent(V2AgentTraceSubject.self, forKey: .subject),
+            error: try container.decodeIfPresent(V2AgentTraceError.self, forKey: .error)
         )
     }
 }
@@ -377,50 +351,44 @@ public struct V2AgentTrace: Identifiable, Codable, Equatable, Sendable {
     public typealias Status = V2AgentTraceStatus
 
     public private(set) var id: String
-    public private(set) var summary: String
     public private(set) var status: V2AgentTraceStatus
     public private(set) var steps: [V2AgentTraceStep]
     public private(set) var startedAt: Date
     public private(set) var endedAt: Date?
     public private(set) var providerLabel: String?
     public private(set) var model: String?
+    public private(set) var providerSessionID: String?
     public private(set) var requestID: String?
     public private(set) var responseID: String?
-    public private(set) var providerSessionID: String?
-    public private(set) var metadata: [String: String]
     public private(set) var promptTokens: Int?
     public private(set) var completionTokens: Int?
     public private(set) var totalTokens: Int?
 
     public init(
         id: String = UUID().uuidString,
-        summary: String = "",
         status: V2AgentTraceStatus = .succeeded,
         steps: [V2AgentTraceStep] = [],
         startedAt: Date,
         endedAt: Date? = nil,
         providerLabel: String? = nil,
         model: String? = nil,
+        providerSessionID: String? = nil,
         requestID: String? = nil,
         responseID: String? = nil,
-        providerSessionID: String? = nil,
-        metadata: [String: String] = [:],
         promptTokens: Int? = nil,
         completionTokens: Int? = nil,
         totalTokens: Int? = nil
     ) {
         self.id = V2AgentTraceSanitizer.redact(id)
-        self.summary = V2AgentTraceSanitizer.redact(summary)
         self.status = status
         self.steps = steps
         self.startedAt = startedAt
         self.endedAt = endedAt
         self.providerLabel = providerLabel.map(V2AgentTraceSanitizer.redact)
         self.model = model.map(V2AgentTraceSanitizer.redact)
+        self.providerSessionID = providerSessionID.map(V2AgentTraceSanitizer.redact)
         self.requestID = requestID.map(V2AgentTraceSanitizer.redact)
         self.responseID = responseID.map(V2AgentTraceSanitizer.redact)
-        self.providerSessionID = providerSessionID.map(V2AgentTraceSanitizer.redact)
-        self.metadata = V2AgentTraceSanitizer.redact(metadata)
         self.promptTokens = promptTokens
         self.completionTokens = completionTokens
         self.totalTokens = totalTokens
@@ -433,17 +401,15 @@ public struct V2AgentTrace: Identifiable, Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case id
-        case summary
         case status
         case steps
         case startedAt
         case endedAt
         case providerLabel
         case model
+        case providerSessionID
         case requestID
         case responseID
-        case providerSessionID
-        case metadata
         case promptTokens
         case completionTokens
         case totalTokens
@@ -452,17 +418,15 @@ public struct V2AgentTrace: Identifiable, Codable, Equatable, Sendable {
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
-        try container.encode(summary, forKey: .summary)
         try container.encode(status, forKey: .status)
         try container.encode(steps, forKey: .steps)
         try container.encode(startedAt, forKey: .startedAt)
         try container.encodeIfPresent(endedAt, forKey: .endedAt)
         try container.encodeIfPresent(providerLabel, forKey: .providerLabel)
         try container.encodeIfPresent(model, forKey: .model)
+        try container.encodeIfPresent(providerSessionID, forKey: .providerSessionID)
         try container.encodeIfPresent(requestID, forKey: .requestID)
         try container.encodeIfPresent(responseID, forKey: .responseID)
-        try container.encodeIfPresent(providerSessionID, forKey: .providerSessionID)
-        try container.encode(metadata, forKey: .metadata)
         try container.encodeIfPresent(promptTokens, forKey: .promptTokens)
         try container.encodeIfPresent(completionTokens, forKey: .completionTokens)
         try container.encodeIfPresent(totalTokens, forKey: .totalTokens)
@@ -472,20 +436,76 @@ public struct V2AgentTrace: Identifiable, Codable, Equatable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.init(
             id: try container.decode(String.self, forKey: .id),
-            summary: try container.decodeIfPresent(String.self, forKey: .summary) ?? "",
-            status: try container.decodeIfPresent(V2AgentTraceStatus.self, forKey: .status) ?? .succeeded,
-            steps: try container.decodeIfPresent([V2AgentTraceStep].self, forKey: .steps) ?? [],
+            status: try container.decode(V2AgentTraceStatus.self, forKey: .status),
+            steps: try container.decode([V2AgentTraceStep].self, forKey: .steps),
             startedAt: try container.decode(Date.self, forKey: .startedAt),
             endedAt: try container.decodeIfPresent(Date.self, forKey: .endedAt),
             providerLabel: try container.decodeIfPresent(String.self, forKey: .providerLabel),
             model: try container.decodeIfPresent(String.self, forKey: .model),
+            providerSessionID: try container.decodeIfPresent(String.self, forKey: .providerSessionID),
             requestID: try container.decodeIfPresent(String.self, forKey: .requestID),
             responseID: try container.decodeIfPresent(String.self, forKey: .responseID),
-            providerSessionID: try container.decodeIfPresent(String.self, forKey: .providerSessionID),
-            metadata: try container.decodeIfPresent([String: String].self, forKey: .metadata) ?? [:],
             promptTokens: try container.decodeIfPresent(Int.self, forKey: .promptTokens),
             completionTokens: try container.decodeIfPresent(Int.self, forKey: .completionTokens),
             totalTokens: try container.decodeIfPresent(Int.self, forKey: .totalTokens)
+        )
+    }
+}
+
+public struct V2AgentTraceSummary: Codable, Equatable, Sendable {
+    public private(set) var status: V2AgentTraceStatus
+    public private(set) var toolCount: Int
+    public private(set) var duration: TimeInterval?
+
+    public var displayText: String {
+        let statusText: String
+        switch status {
+        case .running:
+            statusText = "进行中"
+        case .succeeded:
+            statusText = "完成"
+        case .failed:
+            statusText = "失败"
+        case .cancelled:
+            statusText = "已取消"
+        }
+
+        let stepText = "\(toolCount) 个步骤"
+        guard let duration else {
+            return "\(statusText) \(stepText)"
+        }
+        return "\(statusText) \(stepText) · \(String(format: "%.1f", duration)) 秒"
+    }
+
+    public init(status: V2AgentTraceStatus, toolCount: Int, duration: TimeInterval?) {
+        self.status = status
+        self.toolCount = max(0, toolCount)
+        self.duration = duration.map { max(0, $0) }
+    }
+
+    public init(_ trace: V2AgentTrace) {
+        self.init(status: trace.status, toolCount: trace.steps.count, duration: trace.duration)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case status
+        case toolCount
+        case duration
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(status, forKey: .status)
+        try container.encode(toolCount, forKey: .toolCount)
+        try container.encodeIfPresent(duration, forKey: .duration)
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            status: try container.decode(V2AgentTraceStatus.self, forKey: .status),
+            toolCount: try container.decode(Int.self, forKey: .toolCount),
+            duration: try container.decodeIfPresent(TimeInterval.self, forKey: .duration)
         )
     }
 }
@@ -737,7 +757,7 @@ public struct V2AgentSession: Identifiable, Codable, Equatable, Sendable {
 }
 
 public struct V2AgentWorkspace: Codable, Equatable, Sendable {
-    public static let currentSchemaVersion = 1
+    public static let currentSchemaVersion = 2
     public static let empty = V2AgentWorkspace()
 
     public var schemaVersion: Int

@@ -93,45 +93,85 @@ func checkAgentProviderStateStaysIsolatedAndPersists() throws {
     require(restored.session(id: first.id)?.traces.isEmpty == true, "Provider state round-trip must not invent a trace")
 }
 
-func checkAgentTraceLayersAndRedactsCredentials() throws {
+func checkAgentTraceAPIShapeAndRoundTrips() throws {
     let date = Date(timeIntervalSince1970: 1_800_000_000)
-    let endedAt = date.addingTimeInterval(1.5)
     let trace = V2AgentTrace(
         id: "trace-1",
-        summary: "Authorization: Bearer auth-secret",
         status: .succeeded,
         steps: [
             V2AgentTraceStep(
-                id: "step-1",
-                tool: .webRead,
-                summary: "Cookie: cookie-secret",
+                id: "step-search",
+                tool: .webSearch,
                 status: .succeeded,
-                startedAt: date,
-                endedAt: endedAt,
-                metadata: [
-                    "Authorization": "Bearer metadata-secret",
-                    "normal": "Bearer inline-secret"
-                ],
-                parameters: [
-                    "api-key": "api-secret",
-                    "query": "token=token-secret"
-                ],
-                resultSummary: "access_token: result-secret"
+                duration: 0.4,
+                subject: .searchQuery("Authorization: Bearer auth-secret token=token-secret")
+            ),
+            V2AgentTraceStep(
+                id: "step-source",
+                tool: .webRead,
+                status: .succeeded,
+                duration: 1.1,
+                subject: .sourceTitle("Cookie: cookie-secret")
+            ),
+            V2AgentTraceStep(
+                id: "step-local",
+                tool: .localSearch,
+                status: .failed,
+                duration: 0.2,
+                subject: .localScope("api-key=api-secret"),
+                error: V2AgentTraceError(category: .network, code: .invalidResponse)
+            ),
+            V2AgentTraceStep(
+                id: "step-plan",
+                tool: .plan,
+                status: .succeeded,
+                duration: 0.3,
+                subject: .planTitle("Bearer plan-secret")
             )
         ],
         startedAt: date,
-        endedAt: endedAt,
+        endedAt: date.addingTimeInterval(2),
         providerLabel: "Provider",
         model: "model",
+        providerSessionID: "provider-session-1",
         requestID: "request-1",
         responseID: "response-1",
-        providerSessionID: "provider-session-1",
-        metadata: ["Cookie": "session=cookie-metadata-secret"]
+        promptTokens: 12,
+        completionTokens: 8,
+        totalTokens: 20
     )
     let summary = V2AgentTraceSummary(trace)
+    let typedTool: V2AgentTool = .webSearch
+    require(typedTool == trace.steps[0].tool, "Trace steps must use the typed tool enum")
     require(summary.status == .succeeded, "User trace summary must use a typed status")
-    require(summary.toolLabels == [.webRead], "User trace summary must use typed tool labels")
-    require(summary.duration == 1.5, "User trace summary must carry a typed duration")
+    require(summary.toolCount == 4, "User trace summary must derive its tool count")
+    require(summary.duration == 2, "User trace summary must derive its duration")
+    require(summary.displayText.contains("4 个步骤"), "User trace summary must expose computed display text")
+    require(trace.steps[2].error == V2AgentTraceError(category: .network, code: .invalidResponse), "Trace errors must use typed category and code")
+
+    let forbiddenFields = [
+        "summary",
+        "reasoning",
+        "headers",
+        "cookies",
+        "authorization",
+        "rawBody",
+        "requestBody",
+        "responseBody",
+        "parameters",
+        "results",
+        "result",
+        "metadata"
+    ]
+    func assertNoForbiddenFields<T>(_ value: T, context: String) {
+        let labels = Set(Mirror(reflecting: value).children.compactMap(\.label))
+        for field in forbiddenFields {
+            require(!labels.contains(field), "\(context) must not expose a \(field) field")
+        }
+    }
+    assertNoForbiddenFields(summary, context: "User trace summary")
+    assertNoForbiddenFields(trace, context: "Full trace")
+    assertNoForbiddenFields(trace.steps[0], context: "Trace step")
 
     var workspace = V2AgentWorkspace.empty
     let session = workspace.createSession(at: date)
@@ -147,46 +187,55 @@ func checkAgentTraceLayersAndRedactsCredentials() throws {
 
     let encodedPart = try JSONEncoder().encode(workspace.sessions[0].messages[0].parts[0])
     let encodedPartText = String(decoding: encodedPart, as: UTF8.self)
-    require(!encodedPartText.contains("providerSessionID"), "User trace summary must not expose full trace metadata")
-    require(!encodedPartText.contains("parameters"), "User trace summary must not expose full trace parameters")
+    require(encodedPartText.contains("toolCount"), "User trace summary must persist typed tool count")
+    require(encodedPartText.contains("duration"), "User trace summary must persist typed duration")
+    require(!encodedPartText.contains("providerSessionID"), "User trace summary must not expose full trace identifiers")
+    require(!encodedPartText.contains("parameters"), "User trace summary must not expose arbitrary parameters")
 
-    let fullTrace = workspace.sessions[0].traces[0]
-    var traceStrings: [String] = [
-        fullTrace.summary,
-        fullTrace.providerLabel ?? "",
-        fullTrace.model ?? "",
-        fullTrace.requestID ?? "",
-        fullTrace.responseID ?? "",
-        fullTrace.providerSessionID ?? ""
+    let encodedTrace = try JSONEncoder().encode(trace)
+    let encodedTraceText = String(decoding: encodedTrace, as: UTF8.self)
+    for field in forbiddenFields {
+        require(!encodedTraceText.contains("\"\(field)\""), "Full trace JSON must not expose a \(field) field")
+    }
+    let decodedTrace = try JSONDecoder().decode(V2AgentTrace.self, from: encodedTrace)
+    require(decodedTrace == trace, "Typed full trace must round-trip through JSON")
+
+    var traceStrings = [
+        trace.id,
+        trace.providerLabel ?? "",
+        trace.model ?? "",
+        trace.providerSessionID ?? "",
+        trace.requestID ?? "",
+        trace.responseID ?? ""
     ]
-    traceStrings.append(contentsOf: fullTrace.metadata.flatMap { [$0.key, $0.value] })
-    for step in fullTrace.steps {
-        traceStrings.append(step.summary)
-        traceStrings.append(step.resultSummary ?? "")
-        traceStrings.append(contentsOf: step.metadata.flatMap { [$0.key, $0.value] })
-        traceStrings.append(contentsOf: step.parameters.flatMap { [$0.key, $0.value] })
+    for step in trace.steps {
+        switch step.subject {
+        case let .searchQuery(query), let .sourceTitle(query), let .localScope(query), let .planTitle(query):
+            traceStrings.append(query)
+        case let .sourceURL(url):
+            traceStrings.append(url.absoluteString)
+        case nil:
+            break
+        }
     }
     for secret in [
         "auth-secret",
-        "cookie-secret",
-        "metadata-secret",
-        "inline-secret",
-        "api-secret",
         "token-secret",
-        "result-secret",
-        "cookie-metadata-secret"
+        "cookie-secret",
+        "api-secret",
+        "plan-secret"
     ] {
-        require(!traceStrings.contains { $0.contains(secret) }, "Full Trace must redact \(secret)")
+        require(!traceStrings.contains { $0.contains(secret) }, "Typed Trace subjects must redact \(secret)")
     }
-    require(traceStrings.contains { $0.contains("[REDACTED]") }, "Full Trace must show redaction markers")
+    require(traceStrings.contains { $0.contains("[REDACTED]") }, "Credential-pattern tests must remain defense in depth")
 
     let directory = FileManager.default.temporaryDirectory
         .appendingPathComponent("ToughTrialAgentTrace-\(UUID().uuidString)", isDirectory: true)
     let store = V2AgentWorkspaceJSONStore(fileURL: directory.appendingPathComponent("workspace.json"))
     try store.save(workspace)
     let restored = try store.load()
-    require(restored.session(id: session.id)?.traces.count == 1, "Full Trace must persist in the Session boundary")
-    require(restored.session(id: session.id)?.messages.first?.parts.first == .trace(summary), "Message must persist only the summary layer")
+    require(restored.session(id: session.id)?.traces == [trace], "Full Trace must persist in the Session boundary")
+    require(restored.session(id: session.id)?.messages.first?.parts.first == .trace(summary), "Message must persist only the typed summary layer")
 }
 
 func checkWebSourceStringInitializerRejectsInvalidURL() {
