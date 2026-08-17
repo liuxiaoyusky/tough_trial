@@ -1,13 +1,17 @@
 # Tough Trial Product Spec
 
 Status: active source-of-truth entrypoint
-Last updated: 2026-07-24
+Last updated: 2026-08-17
 
 ## Canonical Design Source
 
-The detailed Chinese product spec remains:
+The canonical detailed product specs are:
 
 - `docs/superpowers/specs/2026-05-30-tough-trial-interaction-redesign-design-zh.md`
+- `docs/superpowers/specs/2026-08-17-tough-trial-general-assistant-design-zh.md`
+
+The 2026-08-17 assistant spec supersedes the older plan-page information
+architecture. The planning rules remain active as one assistant capability.
 
 The active visual role system is:
 
@@ -20,14 +24,16 @@ behavior.
 ## Product Definition
 
 Tough Trial is not a heavy project-management system. It is a light assistant
-for seeing tasks, arranging them, executing today, and reflecting from evidence.
+for seeing tasks, getting contextual help, executing today, and reflecting from
+evidence.
 
 The product has four main surfaces:
 
 - `今天`: today's execution manager. It should stay quiet and focused.
 - `任务`: a multi-view task cognition layer for goals, task breakdowns,
   execution history, future possibilities, and endpoints.
-- `计划`: a chat-first AI planning workspace for a day or longer period.
+- `助手`: a general, multi-session AI workspace for conversation, web search,
+  personal-data retrieval, and planning artifacts.
 - `回想`: an evidence-based reflection space grounded in real execution records.
 
 ## Current Direction
@@ -41,8 +47,10 @@ wide, horizontally scrollable and pinch-zoomable map. Nodes show progress throug
 a completion signal: leaf nodes are `1` when done and `0` otherwise; parent nodes
 average their children. The UI reads that signal and renders green fill.
 
-`计划` should default to low-friction chat. Structured inputs are optional for
-complex plans. Planning AI may generate structured drafts, but durable writes
+`助手` should default to unrestricted natural-language chat and automatically
+select read-only tools when useful. It supports multiple isolated sessions,
+source-linked inline web views, and user/debug trace layers. Planning is one
+assistant tool: it may generate structured drafts, but durable writes still
 need user confirmation.
 
 `回想` should remain minimal, writing-first, and evidence-grounded. Its active
@@ -59,6 +67,10 @@ detached modal. Analysis belongs here, not in today's execution flow.
 - Tasks may be parallel. The system records what happened; it does not decide
   how far a task must be executed.
 - AI suggestions and Dreaming outputs are drafts until the user confirms them.
+- Assistant read-only tools may run automatically; durable writes and external
+  side effects require explicit user confirmation.
+- The first web scope is search, read, cite, and user-controlled browsing. The
+  agent does not click, scroll, fill, or submit web pages.
 - Do not add heavy project-management mechanics unless the user explicitly asks.
 
 ## Implementation Surfaces

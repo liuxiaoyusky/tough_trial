@@ -11,17 +11,20 @@
 ## Current Product Direction
 
 Tough Trial is a native SwiftUI iOS prototype for task execution, task cognition,
-planning, and reflection. The current product source-of-truth entrypoint is:
+general AI assistance, and reflection. The current product source-of-truth
+entrypoint is:
 
 - `docs/spec.md`
 - `docs/superpowers/specs/2026-05-30-tough-trial-interaction-redesign-design-zh.md`
+- `docs/superpowers/specs/2026-08-17-tough-trial-general-assistant-design-zh.md`
 
 Follow that spec before changing UI or behavior. In short:
 
 - `今天` is only for today's execution. Keep it quiet and focused.
 - `任务` is a multi-view layer for goals, tasks, execution history, future
   possibilities, and endpoints.
-- `计划` is a chat-first AI planning workspace for a day or longer period.
+- `助手` is a general, multi-session chat workspace for conversation, web
+  search, personal-data retrieval, and planning artifacts.
 - `回想` is evidence-based reflection using real execution records.
 - Dreaming suggests empty-time arrangements and long-term goal breakdowns, but
   never writes durable data without user confirmation.
@@ -34,8 +37,11 @@ Follow that spec before changing UI or behavior. In short:
 - Do not force conflict resolution, replacement, capacity calculation, or
   single-task execution rules for urgent inserts.
 - Put time-ratio and category analysis in `回想`, not in the execution flow.
-- Planning AI should default to low-friction chat input and return a structured
-  draft. Structured forms are optional for complex plans.
+- The assistant defaults to low-friction chat and automatically selects
+  read-only tools. Planning remains a structured artifact, and durable writes
+  always require explicit user confirmation.
+- Web scope starts with search, read, cite, and user-controlled WKWebView
+  browsing. Do not add autonomous web clicking or form submission.
 - User intent has priority over architectural neatness. Reduce interaction
   burden whenever there is a tradeoff.
 
