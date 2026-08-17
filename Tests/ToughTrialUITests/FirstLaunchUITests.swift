@@ -17,9 +17,9 @@ final class FirstLaunchUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["任务"].firstMatch.waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts["还没有任务结构"].waitForExistence(timeout: 3))
 
-        tabBar.buttons["计划"].tap()
-        XCTAssertTrue(app.textFields["plan.composer"].waitForExistence(timeout: 3))
-        app.buttons["关闭计划"].tap()
+        tabBar.buttons["助手"].tap()
+        XCTAssertTrue(app.buttons["assistant.exit"].waitForExistence(timeout: 3))
+        app.buttons["assistant.exit"].tap()
 
         XCTAssertTrue(tabBar.buttons["回想"].waitForExistence(timeout: 3))
         tabBar.buttons["回想"].tap()

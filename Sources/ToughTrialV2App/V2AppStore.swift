@@ -475,6 +475,7 @@ final class V2AppStore: ObservableObject {
         let environment = ProcessInfo.processInfo.environment
         let isUITestMode = environment["TOUGH_TRIAL_UI_TEST_EMPTY"] == "1"
             || environment["TOUGH_TRIAL_UI_TESTING"] == "1"
+        let usesBrowserFixture = environment["TOUGH_TRIAL_UI_TEST_BROWSER_FIXTURE"] == "1"
 
         if isUITestMode {
             return V2AssistantDependencies(
@@ -520,14 +521,25 @@ final class V2AppStore: ObservableObject {
                     )
                 },
                 webSearch: { _, limit in
-                    Array([
+                    var results = [
                         V2WebSearchResult(
                             title: "Tough Trial 测试来源",
                             url: URL(string: "https://example.com/tough-trial")!,
                             snippet: "仅用于 UI 自动化的确定性搜索结果。",
                             siteName: "example.com"
                         )
-                    ].prefix(limit))
+                    ]
+                    if usesBrowserFixture {
+                        results.append(
+                            V2WebSearchResult(
+                                title: "Tough Trial 第二测试来源",
+                                url: URL(string: "https://example.com/tough-trial/second")!,
+                                snippet: "用于验证多个内嵌网页会话。",
+                                siteName: "example.com"
+                            )
+                        )
+                    }
+                    return Array(results.prefix(limit))
                 },
                 webRead: { url, maxCharacters in
                     String("UI 自动化读取：\(url.host ?? "example.com")".prefix(maxCharacters))

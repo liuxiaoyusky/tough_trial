@@ -174,6 +174,9 @@ struct V2AssistantMessageView: View {
     let message: V2AgentMessage
     let session: V2AgentSession
     @ObservedObject var store: V2AssistantStore
+    @ObservedObject var browserRegistry: V2AssistantBrowserRegistry
+    let availableHeight: CGFloat
+    let onPresentFullscreen: (V2AssistantBrowserPresentation) -> Void
     let onEditPlanItem: (String, V2PlanDraftScheduleItem) -> Void
 
     var body: some View {
@@ -222,7 +225,14 @@ struct V2AssistantMessageView: View {
                 identifier: message.id
             )
         case let .sources(sources):
-            V2AssistantSourcesView(sources: sources)
+            V2AssistantSourcesView(
+                sources: sources,
+                session: session,
+                store: store,
+                browserRegistry: browserRegistry,
+                availableHeight: availableHeight,
+                onPresentFullscreen: onPresentFullscreen
+            )
         case let .plan(draft):
             V2PlanInlineDraft(
                 draft: draft,
@@ -346,11 +356,18 @@ private struct V2AssistantTraceStepRow: View {
 
 private struct V2AssistantSourcesView: View {
     let sources: [V2WebSource]
+    let session: V2AgentSession
+    @ObservedObject var store: V2AssistantStore
+    @ObservedObject var browserRegistry: V2AssistantBrowserRegistry
+    let availableHeight: CGFloat
+    let onPresentFullscreen: (V2AssistantBrowserPresentation) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
             ForEach(sources) { source in
-                Link(destination: source.url) {
+                Button {
+                    _ = store.toggleBrowser(source: source, sessionID: session.id)
+                } label: {
                     HStack(spacing: 11) {
                         Image(systemName: "chart.bar.doc.horizontal.fill")
                             .font(.system(size: 13, weight: .semibold))
@@ -370,21 +387,47 @@ private struct V2AssistantSourcesView: View {
                                 .lineLimit(1)
                         }
                         Spacer(minLength: 8)
-                        Image(systemName: "arrow.up.right")
+                        Image(
+                            systemName: isExpanded(source)
+                                ? "chevron.up"
+                                : "chevron.down"
+                        )
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(V2Theme.blue)
                     }
                     .frame(minHeight: 50)
                     .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
                 .accessibilityLabel(source.title)
                 .accessibilityIdentifier("assistant.source.\(source.id)")
+
+                if let browser = browserState(for: source), browser.isExpanded, !browser.isFullscreen {
+                    V2AssistantInlineBrowser(
+                        store: store,
+                        registry: browserRegistry,
+                        sessionID: session.id,
+                        source: source,
+                        state: browser,
+                        availableHeight: availableHeight,
+                        onFullscreen: onPresentFullscreen
+                    )
+                }
+
                 Divider().overlay(V2Theme.line.opacity(0.75))
             }
         }
         .overlay(alignment: .top) {
             Divider().overlay(V2Theme.line.opacity(0.75))
         }
+    }
+
+    private func browserState(for source: V2WebSource) -> V2BrowserSessionState? {
+        session.browserSessions.first { $0.sourceID == source.id }
+    }
+
+    private func isExpanded(_ source: V2WebSource) -> Bool {
+        browserState(for: source)?.isExpanded == true
     }
 }
 

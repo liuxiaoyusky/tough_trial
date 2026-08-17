@@ -159,19 +159,119 @@ final class V2AssistantStoreTests: XCTestCase {
         let store = fixture.makeStore()
 
         XCTAssertTrue(store.toggleBrowser(source: source, sessionID: first.id))
-        guard var browser = store.workspace.session(id: first.id)?.browserSessions.first else {
+        guard let browser = store.workspace.session(id: first.id)?.browserSessions.first else {
             return XCTFail("Expected browser state")
         }
         _ = store.selectSession(id: second.id)
-        browser.scrollOffsetY = 320
+        let update = V2AssistantBrowserNavigationUpdate(
+            browserID: browser.id,
+            lastURL: URL(string: "https://example.com/b")!,
+            navigationHistory: [source.url],
+            scrollOffsetY: 320
+        )
 
-        XCTAssertFalse(store.updateBrowserState(browser, sessionID: second.id))
-        XCTAssertTrue(store.updateBrowserState(browser, sessionID: first.id))
+        XCTAssertFalse(store.updateBrowserNavigation(update, sessionID: second.id))
+        XCTAssertTrue(store.updateBrowserNavigation(update, sessionID: first.id))
         XCTAssertTrue(store.workspace.session(id: second.id)?.browserSessions.isEmpty == true)
         XCTAssertEqual(
             store.workspace.session(id: first.id)?.browserSessions.first?.scrollOffsetY,
             320
         )
+    }
+
+    func testBrowserNavigationCallbackPreservesNewerPresentationState() {
+        let date = AssistantFixture.date
+        let source = V2WebSource(
+            id: UUID().uuidString,
+            title: "来源",
+            url: URL(string: "https://example.com/a")!
+        )
+        var workspace = V2AgentWorkspace.empty
+        let session = workspace.createSession(at: date)
+        workspace.appendMessage(
+            V2AgentMessage(role: .agent, parts: [.sources([source])], createdAt: date),
+            to: session.id
+        )
+        let fixture = AssistantFixture(workspace: workspace)
+        let store = fixture.makeStore()
+
+        XCTAssertTrue(store.toggleBrowser(source: source, sessionID: session.id))
+        guard let browser = store.selectedSession?.browserSessions.first else {
+            return XCTFail("Expected browser state")
+        }
+        XCTAssertTrue(
+            store.updateBrowserPresentation(
+                browserID: browser.id,
+                sessionID: session.id,
+                isExpanded: true,
+                isFullscreen: true
+            )
+        )
+
+        XCTAssertTrue(
+            store.updateBrowserNavigation(
+                V2AssistantBrowserNavigationUpdate(
+                    browserID: browser.id,
+                    lastURL: URL(string: "https://example.com/latest")!,
+                    navigationHistory: [
+                        source.url,
+                        URL(fileURLWithPath: "/tmp/not-web"),
+                        URL(string: "https://example.com/latest")!
+                    ],
+                    scrollOffsetY: 480
+                ),
+                sessionID: session.id
+            )
+        )
+
+        let updated = store.selectedSession?.browserSessions.first
+        XCTAssertEqual(updated?.isExpanded, true)
+        XCTAssertEqual(updated?.isFullscreen, true)
+        XCTAssertEqual(updated?.lastURL.absoluteString, "https://example.com/latest")
+        XCTAssertEqual(updated?.navigationHistory.map(\.absoluteString), [
+            "https://example.com/a",
+            "https://example.com/latest"
+        ])
+        XCTAssertEqual(updated?.scrollOffsetY, 480)
+    }
+
+    func testReloadReturnsFullscreenBrowserToItsExpandedInlinePosition() {
+        let date = AssistantFixture.date
+        let source = V2WebSource(
+            id: UUID().uuidString,
+            title: "来源",
+            url: URL(string: "https://example.com/article")!
+        )
+        var workspace = V2AgentWorkspace.empty
+        let session = workspace.createSession(at: date)
+        workspace.appendMessage(
+            V2AgentMessage(role: .agent, parts: [.sources([source])], createdAt: date),
+            to: session.id
+        )
+        _ = workspace.updateBrowserState(
+            V2BrowserSessionState(
+                id: UUID().uuidString,
+                sourceID: source.id,
+                lastURL: source.url,
+                isExpanded: true,
+                isFullscreen: true,
+                scrollOffsetY: 420,
+                updatedAt: date
+            ),
+            in: session.id
+        )
+        let persistence = RecordingWorkspacePersistence(workspace: workspace)
+
+        let store = AssistantFixture().makeStore(
+            persistence: persistence.adapter,
+            loadFromPersistence: true
+        )
+
+        let recovered = store.selectedSession?.browserSessions.first
+        XCTAssertEqual(recovered?.isExpanded, true)
+        XCTAssertEqual(recovered?.isFullscreen, false)
+        XCTAssertEqual(recovered?.scrollOffsetY, 420)
+        XCTAssertEqual(persistence.lastSaved?.selectedSession?.browserSessions.first, recovered)
     }
 
     func testProviderSnapshotIsStableAcrossModelIterations() async {

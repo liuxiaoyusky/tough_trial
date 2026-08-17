@@ -72,9 +72,14 @@ final class V2AssistantStore: ObservableObject {
         }
 
         var normalized = workspace
-        let recoveredInterruptedTurns = Self.recoverInterruptedTurns(in: &normalized, at: now())
+        let recoveryDate = now()
+        let recoveredInterruptedTurns = Self.recoverInterruptedTurns(in: &normalized, at: recoveryDate)
+        let recoveredBrowserPresentation = Self.recoverBrowserPresentationState(
+            in: &normalized,
+            at: recoveryDate
+        )
         let reconciledPlans = reconcileAcceptedArtifacts(in: &normalized)
-        var changed = recoveredInterruptedTurns || reconciledPlans
+        var changed = recoveredInterruptedTurns || recoveredBrowserPresentation || reconciledPlans
         if normalized.selectedSession == nil {
             _ = normalized.createSession(at: now())
             changed = true
@@ -209,7 +214,9 @@ final class V2AssistantStore: ObservableObject {
               currentTurn == nil else { return false }
         do {
             var loaded = try persistence.load()
-            _ = Self.recoverInterruptedTurns(in: &loaded, at: now())
+            let recoveryDate = now()
+            _ = Self.recoverInterruptedTurns(in: &loaded, at: recoveryDate)
+            _ = Self.recoverBrowserPresentationState(in: &loaded, at: recoveryDate)
             _ = reconcileAcceptedArtifacts(in: &loaded)
             if loaded.selectedSession == nil { _ = loaded.createSession(at: now()) }
             workspace = loaded
@@ -227,7 +234,10 @@ final class V2AssistantStore: ObservableObject {
 
     @discardableResult
     func toggleBrowser(source: V2WebSource, sessionID: String) -> Bool {
-        guard mayMutate, sessionOwns(sourceID: source.id, sessionID: sessionID) else { return false }
+        guard mayMutate, Self.isSupportedWebURL(source.url),
+              sessionOwns(sourceID: source.id, sessionID: sessionID) else {
+            return false
+        }
         return commitWorkspace { workspace in
             guard let index = workspace.sessions.firstIndex(where: { $0.id == sessionID }) else { return }
             if let browserIndex = workspace.sessions[index].browserSessions
@@ -250,19 +260,63 @@ final class V2AssistantStore: ObservableObject {
     }
 
     @discardableResult
-    func updateBrowserState(_ state: V2BrowserSessionState, sessionID: String) -> Bool {
+    func updateBrowserPresentation(
+        browserID: String,
+        sessionID: String,
+        isExpanded: Bool? = nil,
+        isFullscreen: Bool? = nil
+    ) -> Bool {
         let owners = workspace.sessions.filter { session in
-            session.browserSessions.contains(where: { $0.id == state.id })
+            session.browserSessions.contains(where: { $0.id == browserID })
         }
         guard mayMutate, owners.count == 1, owners[0].id == sessionID else { return false }
         return commitWorkspace { workspace in
-            guard let index = workspace.sessions.firstIndex(where: { $0.id == sessionID }) else { return }
-            if state.isFullscreen {
-                for browserIndex in workspace.sessions[index].browserSessions.indices {
-                    workspace.sessions[index].browserSessions[browserIndex].isFullscreen = false
+            guard let sessionIndex = workspace.sessions.firstIndex(where: { $0.id == sessionID }),
+                  let browserIndex = workspace.sessions[sessionIndex].browserSessions
+                    .firstIndex(where: { $0.id == browserID }) else {
+                return
+            }
+            if isFullscreen == true {
+                for browserIndex in workspace.sessions[sessionIndex].browserSessions.indices {
+                    workspace.sessions[sessionIndex].browserSessions[browserIndex].isFullscreen = false
                 }
             }
-            _ = workspace.updateBrowserState(state, in: sessionID)
+            if let isExpanded {
+                workspace.sessions[sessionIndex].browserSessions[browserIndex].isExpanded = isExpanded
+            }
+            if let isFullscreen {
+                workspace.sessions[sessionIndex].browserSessions[browserIndex].isFullscreen = isFullscreen
+            }
+            workspace.sessions[sessionIndex].browserSessions[browserIndex].updatedAt = now()
+            workspace.sessions[sessionIndex].updatedAt = now()
+        }
+    }
+
+    @discardableResult
+    func updateBrowserNavigation(
+        _ update: V2AssistantBrowserNavigationUpdate,
+        sessionID: String
+    ) -> Bool {
+        let owners = workspace.sessions.filter { session in
+            session.browserSessions.contains(where: { $0.id == update.browserID })
+        }
+        guard mayMutate, owners.count == 1, owners[0].id == sessionID,
+              Self.isSupportedWebURL(update.lastURL) else {
+            return false
+        }
+        return commitWorkspace { workspace in
+            guard let sessionIndex = workspace.sessions.firstIndex(where: { $0.id == sessionID }),
+                  let browserIndex = workspace.sessions[sessionIndex].browserSessions
+                    .firstIndex(where: { $0.id == update.browserID }) else {
+                return
+            }
+            workspace.sessions[sessionIndex].browserSessions[browserIndex].lastURL = update.lastURL
+            workspace.sessions[sessionIndex].browserSessions[browserIndex].navigationHistory =
+                update.navigationHistory.filter(Self.isSupportedWebURL)
+            workspace.sessions[sessionIndex].browserSessions[browserIndex].scrollOffsetY =
+                max(0, update.scrollOffsetY)
+            workspace.sessions[sessionIndex].browserSessions[browserIndex].updatedAt = now()
+            workspace.sessions[sessionIndex].updatedAt = now()
         }
     }
 
@@ -512,6 +566,30 @@ extension V2AssistantStore {
         return changed
     }
 
+    static func recoverBrowserPresentationState(
+        in workspace: inout V2AgentWorkspace,
+        at date: Date
+    ) -> Bool {
+        var changed = false
+        for sessionIndex in workspace.sessions.indices {
+            var recoveredSession = false
+            for browserIndex in workspace.sessions[sessionIndex].browserSessions.indices {
+                guard workspace.sessions[sessionIndex].browserSessions[browserIndex].isFullscreen else {
+                    continue
+                }
+                workspace.sessions[sessionIndex].browserSessions[browserIndex].isFullscreen = false
+                workspace.sessions[sessionIndex].browserSessions[browserIndex].isExpanded = true
+                workspace.sessions[sessionIndex].browserSessions[browserIndex].updatedAt = date
+                recoveredSession = true
+                changed = true
+            }
+            if recoveredSession {
+                workspace.sessions[sessionIndex].updatedAt = date
+            }
+        }
+        return changed
+    }
+
     func owningSessionID(forPlanID planID: String) -> String? {
         let owners = workspace.sessions.filter { $0.pendingPlan?.id == planID }
         return owners.count == 1 ? owners[0].id : nil
@@ -525,6 +603,11 @@ extension V2AssistantStore {
                 return sources.contains(where: { $0.id == sourceID })
             }
         }
+    }
+
+    static func isSupportedWebURL(_ url: URL) -> Bool {
+        guard let scheme = url.scheme?.lowercased() else { return false }
+        return ["http", "https"].contains(scheme) && url.host != nil
     }
 
     @discardableResult

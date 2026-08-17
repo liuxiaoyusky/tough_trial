@@ -1,5 +1,6 @@
 import SwiftUI
 import ToughTrialV2Core
+import UIKit
 
 struct V2AssistantView: View {
     @ObservedObject var store: V2AssistantStore
@@ -11,13 +12,17 @@ struct V2AssistantView: View {
     @State private var showSettings = false
     @State private var showDetails = false
     @State private var editingPlanItem: V2AssistantPlanItemEditorContext?
+    @State private var fullscreenBrowser: V2AssistantBrowserPresentation?
+    @StateObject private var browserRegistry = V2AssistantBrowserRegistry()
     @FocusState private var isComposerFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
             header
             Divider().overlay(V2Theme.line.opacity(0.7))
-            content
+            GeometryReader { proxy in
+                content(availableHeight: proxy.size.height)
+            }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if store.providerStatus.isConfigured {
@@ -46,8 +51,30 @@ struct V2AssistantView: View {
                 _ = store.updatePlanItem(updatedItem, in: context.planID)
             }
         }
+        .fullScreenCover(item: $fullscreenBrowser) { presentation in
+            V2AssistantBrowserFullscreenView(
+                store: store,
+                registry: browserRegistry,
+                sessionID: presentation.sessionID,
+                browserID: presentation.browserID,
+                source: presentation.source,
+                onMinimize: { fullscreenBrowser = nil },
+                onDisappear: { finishFullscreenBrowserPresentation(presentation) }
+            )
+        }
         .v2ScreenBackground()
         .interactiveDismissDisabled()
+        .onAppear {
+            browserRegistry.prune(keeping: persistedBrowserKeys)
+        }
+        .onChange(of: persistedBrowserKeyIDs) { _, _ in
+            browserRegistry.prune(keeping: persistedBrowserKeys)
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)
+        ) { _ in
+            browserRegistry.prune(keeping: activeBrowserKeys)
+        }
     }
 
     private var header: some View {
@@ -110,7 +137,7 @@ struct V2AssistantView: View {
     }
 
     @ViewBuilder
-    private var content: some View {
+    private func content(availableHeight: CGFloat) -> some View {
         if !store.providerStatus.isConfigured {
             V2AssistantConfigurationPrompt(message: store.providerStatus.message) {
                 showSettings = true
@@ -132,6 +159,9 @@ struct V2AssistantView: View {
                                     message: message,
                                     session: session,
                                     store: store,
+                                    browserRegistry: browserRegistry,
+                                    availableHeight: availableHeight,
+                                    onPresentFullscreen: presentFullscreenBrowser,
                                     onEditPlanItem: { planID, item in
                                         editingPlanItem = V2AssistantPlanItemEditorContext(
                                             planID: planID,
@@ -170,6 +200,54 @@ struct V2AssistantView: View {
             }
             .id(session.id)
         }
+    }
+
+    private func presentFullscreenBrowser(_ presentation: V2AssistantBrowserPresentation) {
+        guard fullscreenBrowser == nil || fullscreenBrowser?.id == presentation.id,
+              browserRegistry.claimFullscreen(presentation.key) else {
+            return
+        }
+
+        guard store.updateBrowserPresentation(
+            browserID: presentation.browserID,
+            sessionID: presentation.sessionID,
+            isExpanded: true,
+            isFullscreen: true
+        ) else {
+            browserRegistry.releaseFullscreen(presentation.key)
+            return
+        }
+        fullscreenBrowser = presentation
+    }
+
+    private func finishFullscreenBrowserPresentation(_ presentation: V2AssistantBrowserPresentation) {
+        _ = store.updateBrowserPresentation(
+            browserID: presentation.browserID,
+            sessionID: presentation.sessionID,
+            isFullscreen: false
+        )
+        browserRegistry.releaseFullscreen(presentation.key)
+    }
+
+    private var persistedBrowserKeys: Set<V2AssistantBrowserKey> {
+        Set(store.workspace.sessions.flatMap { session in
+            session.browserSessions.map {
+                V2AssistantBrowserKey(sessionID: session.id, browserID: $0.id)
+            }
+        })
+    }
+
+    private var activeBrowserKeys: Set<V2AssistantBrowserKey> {
+        Set(store.workspace.sessions.flatMap { session in
+            session.browserSessions.compactMap { browser in
+                guard browser.isExpanded || browser.isFullscreen else { return nil }
+                return V2AssistantBrowserKey(sessionID: session.id, browserID: browser.id)
+            }
+        })
+    }
+
+    private var persistedBrowserKeyIDs: [String] {
+        persistedBrowserKeys.map(\.id).sorted()
     }
 
     private func sendStarter(_ prompt: String) {

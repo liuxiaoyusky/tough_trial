@@ -20,6 +20,7 @@
 		416FBCC9EFFBD59CB37DC201 /* V2AssistantSessionViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2847FC02C58EF0166B0DC437 /* V2AssistantSessionViews.swift */; };
 		423B9B67B5E785576CF2B5E6 /* V2AIProviderSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88C469D85051DB6E544030F2 /* V2AIProviderSettingsView.swift */; };
 		45C2E85D52E84C47102BA576 /* V2RecallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0017D24F92D72A81C33D4620 /* V2RecallView.swift */; };
+		45E73D3EBE9D8116A3C89B78 /* V2AssistantBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EBF03EDB53CDE3196AE007B /* V2AssistantBrowserView.swift */; };
 		49D0F8AC73D24FB3D86FAF69 /* FirstLaunchUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89B8FD2451C30CF5BE3F1F7B /* FirstLaunchUITests.swift */; };
 		653B167A9A5FD4BFECF96609 /* V2RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95F8A39501533A9884AFF851 /* V2RootView.swift */; };
 		76071D1D2DFDBA93680A4611 /* V2AssistantDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B2ED56D80693CB44E23196F /* V2AssistantDependencies.swift */; };
@@ -94,6 +95,7 @@
 		460EB40177B74935571B7B80 /* V2AssistantStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2AssistantStoreTests.swift; sourceTree = "<group>"; };
 		5937E2365044428AFC0C7211 /* tough_trial */ = {isa = PBXFileReference; lastKnownFileType = folder; name = tough_trial; path = .; sourceTree = SOURCE_ROOT; };
 		6B2ED56D80693CB44E23196F /* V2AssistantDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2AssistantDependencies.swift; sourceTree = "<group>"; };
+		6EBF03EDB53CDE3196AE007B /* V2AssistantBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2AssistantBrowserView.swift; sourceTree = "<group>"; };
 		7B1EC2C1FAD5EB37F6421F24 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		84B7BB23F4C969A5DB7F9BA1 /* V2AssistantView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2AssistantView.swift; sourceTree = "<group>"; };
 		88C469D85051DB6E544030F2 /* V2AIProviderSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2AIProviderSettingsView.swift; sourceTree = "<group>"; };
@@ -153,6 +155,7 @@
 				3CB9AF9642D83F94E0A4A986 /* V2AIProviderSettings.swift */,
 				88C469D85051DB6E544030F2 /* V2AIProviderSettingsView.swift */,
 				89126F3A1AF89FAE9F43D45C /* V2AppStore.swift */,
+				6EBF03EDB53CDE3196AE007B /* V2AssistantBrowserView.swift */,
 				6B2ED56D80693CB44E23196F /* V2AssistantDependencies.swift */,
 				2847FC02C58EF0166B0DC437 /* V2AssistantSessionViews.swift */,
 				30B1A43C490465B04CF4DBAE /* V2AssistantStore.swift */,
@@ -383,6 +386,7 @@
 				198F981B5A5256A0871E6DFA /* V2AIProviderSettings.swift in Sources */,
 				423B9B67B5E785576CF2B5E6 /* V2AIProviderSettingsView.swift in Sources */,
 				A73A1FCC3E5FAACF61EB1731 /* V2AppStore.swift in Sources */,
+				45E73D3EBE9D8116A3C89B78 /* V2AssistantBrowserView.swift in Sources */,
 				76071D1D2DFDBA93680A4611 /* V2AssistantDependencies.swift in Sources */,
 				416FBCC9EFFBD59CB37DC201 /* V2AssistantSessionViews.swift in Sources */,
 				9ECF92158DCBCB3A3FB403B4 /* V2AssistantStore.swift in Sources */,

@@ -136,10 +136,7 @@ final class ToughTrialUITests: XCTestCase {
         app.buttons["assistant.configureAI"].tap()
         XCTAssertTrue(app.navigationBars["AI 服务"].waitForExistence(timeout: 3))
 
-        let provider = app.buttons["ai.settings.provider"]
-        XCTAssertTrue(provider.waitForExistence(timeout: 3))
-        provider.tap()
-        app.buttons["Kimi Coding Plan"].tap()
+        selectAIProvider("Kimi Coding Plan", in: app)
 
         let presetModel = app.buttons["ai.settings.presetModel"]
         XCTAssertTrue(presetModel.waitForExistence(timeout: 3))
@@ -155,16 +152,10 @@ final class ToughTrialUITests: XCTestCase {
         app.buttons["assistant.settings"].tap()
         XCTAssertTrue(app.navigationBars["AI 服务"].waitForExistence(timeout: 3))
 
-        app.buttons["ai.settings.provider"].tap()
-        app.buttons["GLM Coding Plan"].tap()
-        let glmPresetModel = app.buttons.matching(
-            NSPredicate(
-                format: "identifier == %@ AND label CONTAINS %@",
-                "ai.settings.presetModel",
-                "glm-5.2"
-            )
-        ).firstMatch
+        selectAIProvider("GLM Coding Plan", in: app)
+        let glmPresetModel = app.buttons["ai.settings.presetModel"]
         XCTAssertTrue(glmPresetModel.waitForExistence(timeout: 3))
+        XCTAssertTrue(glmPresetModel.label.contains("glm-5.2"))
 
         let glmKey = app.secureTextFields["ai.settings.apiKey"]
         XCTAssertEqual(glmKey.value as? String, "粘贴 API Key")
@@ -175,8 +166,7 @@ final class ToughTrialUITests: XCTestCase {
 
         app.buttons["assistant.more"].tap()
         app.buttons["assistant.settings"].tap()
-        app.buttons["ai.settings.provider"].tap()
-        app.buttons["Kimi Coding Plan"].tap()
+        selectAIProvider("Kimi Coding Plan", in: app)
         let restoredKimiKey = app.secureTextFields["ai.settings.apiKey"]
         XCTAssertTrue(restoredKimiKey.waitForExistence(timeout: 3))
         XCTAssertNotEqual(restoredKimiKey.value as? String, "粘贴 API Key")
@@ -315,6 +305,59 @@ final class ToughTrialUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["会话详情"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts["UI 测试 Agent"].exists)
         XCTAssertTrue(app.staticTexts["deterministic-ui-test"].exists)
+    }
+
+    @MainActor
+    func testAssistantSupportsMultipleInlineBrowsers() {
+        let app = XCUIApplication()
+        app.launchEnvironment["TOUGH_TRIAL_AI_API_KEY"] = ""
+        app.launchEnvironment["TOUGH_TRIAL_UI_TESTING"] = "1"
+        app.launchEnvironment["TOUGH_TRIAL_UI_TEST_BROWSER_FIXTURE"] = "1"
+        app.launch()
+
+        app.tabBars.firstMatch.buttons["助手"].tap()
+        let composer = app.textFields["assistant.composer"]
+        XCTAssertTrue(composer.waitForExistence(timeout: 3))
+        composer.tap()
+        composer.typeText("搜索网页")
+        app.buttons["assistant.send"].tap()
+
+        XCTAssertTrue(app.staticTexts["测试回复已根据工具结果生成。"].waitForExistence(timeout: 5))
+        let sources = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "assistant.source.")
+        )
+        let firstSource = sources.element(boundBy: 0)
+        let secondSource = sources.element(boundBy: 1)
+        XCTAssertTrue(firstSource.waitForExistence(timeout: 3))
+        XCTAssertTrue(secondSource.waitForExistence(timeout: 3))
+
+        firstSource.tap()
+        let inlineBrowsers = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "assistant.browser.inline.")
+        )
+        let firstInlineBrowser = inlineBrowsers.element(boundBy: 0)
+        XCTAssertTrue(firstInlineBrowser.waitForExistence(timeout: 3))
+
+        secondSource.tap()
+        let secondInlineBrowser = inlineBrowsers.element(boundBy: 1)
+        XCTAssertTrue(secondInlineBrowser.waitForExistence(timeout: 3))
+        XCTAssertTrue(composer.exists)
+        keepScreenshot(of: app, name: "assistant-two-inline-browsers")
+
+        let fullscreenButton = app.buttons["assistant.browser.fullscreen"].firstMatch
+        XCTAssertTrue(fullscreenButton.waitForExistence(timeout: 3))
+        fullscreenButton.tap()
+
+        let fullscreenBrowser = app.descendants(matching: .any)["assistant.browser.fullscreen"]
+        XCTAssertTrue(fullscreenBrowser.waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["assistant.browser.minimize"].exists)
+        XCTAssertTrue(app.buttons["assistant.browser.back"].exists)
+        XCTAssertTrue(app.buttons["assistant.browser.openExternal"].exists)
+        keepScreenshot(of: app, name: "assistant-fullscreen-browser")
+
+        app.buttons["assistant.browser.minimize"].tap()
+        XCTAssertTrue(firstInlineBrowser.waitForExistence(timeout: 3))
+        XCTAssertTrue(secondInlineBrowser.waitForExistence(timeout: 3))
     }
 
     @MainActor
@@ -739,6 +782,53 @@ final class ToughTrialUITests: XCTestCase {
         )
         app.buttons["today.zenTaskPicker.cancel"].tap()
         XCTAssertTrue(search.waitForNonExistence(timeout: 3), file: file, line: line)
+    }
+
+    @MainActor
+    private func selectAIProvider(
+        _ name: String,
+        in app: XCUIApplication,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let provider = app.buttons["ai.settings.provider"]
+        XCTAssertTrue(provider.waitForExistence(timeout: 3), file: file, line: line)
+        guard !provider.label.contains(name) else { return }
+
+        let option = app.buttons[name]
+        for attempt in 0..<2 {
+            if attempt > 0 {
+                app.coordinate(withNormalizedOffset: .zero)
+                    .withOffset(CGVector(dx: 16, dy: 90))
+                    .tap()
+                Thread.sleep(forTimeInterval: 0.3)
+            }
+
+            provider.tap()
+            var frame = option.frame
+            let frameDeadline = Date().addingTimeInterval(3)
+            while Date() < frameDeadline,
+                  frame.isNull || frame.isInfinite || frame.width < 1 || frame.height < 1 {
+                Thread.sleep(forTimeInterval: 0.1)
+                frame = option.frame
+            }
+            guard !frame.isNull, !frame.isInfinite, frame.width >= 1, frame.height >= 1 else {
+                continue
+            }
+
+            Thread.sleep(forTimeInterval: 0.4)
+            app.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: frame.midX, dy: frame.midY))
+                .tap()
+
+            let deadline = Date().addingTimeInterval(2)
+            while Date() < deadline, !provider.label.contains(name) {
+                Thread.sleep(forTimeInterval: 0.1)
+            }
+            if provider.label.contains(name) { return }
+        }
+
+        XCTFail("未能选择 AI 服务：\(name)", file: file, line: line)
     }
 
     @MainActor
