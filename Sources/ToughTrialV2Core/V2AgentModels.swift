@@ -191,6 +191,7 @@ private enum V2AgentTraceSanitizer {
             (#"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]+"#, "Bearer [REDACTED]"),
             (#"(?i)\b(?:x-)?api[-_ ]?key\s*[:=]\s*[^\s,;]+"#, "api-key=[REDACTED]"),
             (#"(?i)\b(?:cookie|set-cookie)\s*[:=]\s*[^\r\n]+"#, "Cookie: [REDACTED]"),
+            (#"(?i)\b(?:session[-_ ]?key)\s*[:=]\s*[^\s,;]+"#, "sessionKey=[REDACTED]"),
             (#"(?i)\b(?:access[-_ ]?token|refresh[-_ ]?token|id[-_ ]?token|auth[-_ ]?token|session[-_ ]?token|client[-_ ]?secret|token|secret|password)\s*[:=]\s*[^\s,;]+"#, "token=[REDACTED]"),
             (#"\beyJ[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+){2}\b"#, "[REDACTED]"),
             (#"(?i)\b(?:sk|pk|rk|key)[-_][A-Za-z0-9]{16,}\b"#, "[REDACTED]")
@@ -213,28 +214,230 @@ private enum V2AgentTraceSanitizer {
     }
 }
 
-public enum V2AgentTraceSubject: Codable, Equatable, Sendable {
-    case searchQuery(String)
-    case sourceURL(URL)
-    case sourceTitle(String)
-    case localScope(String)
-    case planTitle(String)
+private enum V2AgentTraceValueValidation {
+    static let appGeneratedIDCharacters = CharacterSet(
+        charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+    )
 
-    fileprivate func sanitized() -> Self {
+    static let searchQueryDelimiters = CharacterSet(charactersIn: "{}[]\"\\:;,=")
+
+    static func appGeneratedID(_ value: String) -> String? {
+        guard (1...128).contains(value.count),
+              value.unicodeScalars.allSatisfy(appGeneratedIDCharacters.contains) else {
+            return nil
+        }
+        return value
+    }
+
+    static func containsLongTokenLikeRun(_ value: String) -> Bool {
+        let tokenCharacters = CharacterSet(
+            charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/_-="
+        )
+        var runLength = 0
+
+        for scalar in value.unicodeScalars {
+            if tokenCharacters.contains(scalar) {
+                runLength += 1
+            } else {
+                if runLength >= 32 { return true }
+                runLength = 0
+            }
+        }
+
+        return runLength >= 32
+    }
+
+    static func containsJWTLikeRun(_ value: String) -> Bool {
+        let segments = value.split(separator: ".", omittingEmptySubsequences: false)
+        guard segments.count == 3 else { return false }
+        return segments.allSatisfy { segment in
+            segment.count >= 8
+                && segment.unicodeScalars.allSatisfy {
+                    CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_=")
+                        .contains($0)
+                }
+        }
+    }
+}
+
+public struct V2AgentSafeSearchQuery: Codable, Equatable, Sendable {
+    public let value: String
+
+    public init?(_ rawValue: String) {
+        guard rawValue.count <= 160,
+              !rawValue.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }),
+              !rawValue.unicodeScalars.contains(where: V2AgentTraceValueValidation.searchQueryDelimiters.contains) else {
+            return nil
+        }
+
+        let value = rawValue.trimmingCharacters(in: .whitespaces)
+        let lowercased = value.lowercased()
+        let credentialMarkers = [
+            "authorization",
+            "bearer",
+            "cookie",
+            "api key",
+            "api_key",
+            "api-key",
+            "apikey",
+            "token",
+            "secret",
+            "password",
+            "sessionkey",
+            "session key",
+            "session_key",
+            "session-key"
+        ]
+        guard !value.isEmpty,
+              value.count <= 160,
+              !credentialMarkers.contains(where: lowercased.contains),
+              !V2AgentTraceValueValidation.containsLongTokenLikeRun(value),
+              !V2AgentTraceValueValidation.containsJWTLikeRun(value) else {
+            return nil
+        }
+
+        self.value = V2AgentTraceSanitizer.redact(value)
+    }
+
+    public var displayText: String { value }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+        guard let value = Self(rawValue) else {
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Invalid safe agent search query"
+            )
+        }
+        self = value
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(value)
+    }
+}
+
+public struct V2AgentTraceWebURL: Codable, Equatable, Sendable {
+    public let url: URL
+
+    public init?(_ rawURL: URL) {
+        guard let scheme = rawURL.scheme?.lowercased(),
+              ["http", "https"].contains(scheme),
+              rawURL.host != nil else {
+            return nil
+        }
+
+        var components = URLComponents(url: rawURL, resolvingAgainstBaseURL: false)
+        components?.user = nil
+        components?.password = nil
+        self.url = components?.url ?? rawURL
+    }
+
+    public init?(string: String) {
+        guard let url = URL(string: string) else { return nil }
+        self.init(url)
+    }
+
+    public var displayText: String { url.absoluteString }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawURL = try container.decode(URL.self)
+        guard let url = Self(rawURL) else {
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Trace web URL must be HTTP(S) with a host"
+            )
+        }
+        self = url
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(url)
+    }
+}
+
+public struct V2AgentTraceSourceID: Codable, Equatable, Sendable {
+    public let value: String
+
+    public init?(_ rawValue: String) {
+        guard let value = V2AgentTraceValueValidation.appGeneratedID(rawValue) else { return nil }
+        self.value = value
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+        guard let value = Self(rawValue) else {
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Invalid trace source ID"
+            )
+        }
+        self = value
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(value)
+    }
+}
+
+public enum V2AgentTraceLocalScope: String, Codable, Equatable, Sendable {
+    case tasks
+    case plans
+    case memory
+    case mixed
+}
+
+public struct V2AgentTraceArtifactID: Codable, Equatable, Sendable {
+    public let value: String
+
+    public init?(_ rawValue: String) {
+        guard let value = V2AgentTraceValueValidation.appGeneratedID(rawValue) else { return nil }
+        self.value = value
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+        guard let value = Self(rawValue) else {
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Invalid trace artifact ID"
+            )
+        }
+        self = value
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(value)
+    }
+}
+
+public enum V2AgentTraceSubject: Codable, Equatable, Sendable {
+    case searchQuery(V2AgentSafeSearchQuery)
+    case sourceURL(V2AgentTraceWebURL)
+    case sourceID(V2AgentTraceSourceID)
+    case localScope(V2AgentTraceLocalScope)
+    case planArtifact(V2AgentTraceArtifactID)
+
+    public var displayText: String {
         switch self {
         case let .searchQuery(query):
-            return .searchQuery(V2AgentTraceSanitizer.redact(query))
+            return query.displayText
         case let .sourceURL(url):
-            var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-            components?.user = nil
-            components?.password = nil
-            return .sourceURL(components?.url ?? url)
-        case let .sourceTitle(title):
-            return .sourceTitle(V2AgentTraceSanitizer.redact(title))
+            return url.displayText
+        case let .sourceID(sourceID):
+            return sourceID.value
         case let .localScope(scope):
-            return .localScope(V2AgentTraceSanitizer.redact(scope))
-        case let .planTitle(title):
-            return .planTitle(V2AgentTraceSanitizer.redact(title))
+            return scope.rawValue
+        case let .planArtifact(artifactID):
+            return artifactID.value
         }
     }
 
@@ -246,9 +449,9 @@ public enum V2AgentTraceSubject: Codable, Equatable, Sendable {
     private enum Tag: String, Codable {
         case searchQuery
         case sourceURL
-        case sourceTitle
+        case sourceID
         case localScope
-        case planTitle
+        case planArtifact
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -256,19 +459,19 @@ public enum V2AgentTraceSubject: Codable, Equatable, Sendable {
         switch self {
         case let .searchQuery(query):
             try container.encode(Tag.searchQuery, forKey: .type)
-            try container.encode(V2AgentTraceSanitizer.redact(query), forKey: .value)
+            try container.encode(query, forKey: .value)
         case let .sourceURL(url):
             try container.encode(Tag.sourceURL, forKey: .type)
             try container.encode(url, forKey: .value)
-        case let .sourceTitle(title):
-            try container.encode(Tag.sourceTitle, forKey: .type)
-            try container.encode(V2AgentTraceSanitizer.redact(title), forKey: .value)
+        case let .sourceID(sourceID):
+            try container.encode(Tag.sourceID, forKey: .type)
+            try container.encode(sourceID, forKey: .value)
         case let .localScope(scope):
             try container.encode(Tag.localScope, forKey: .type)
-            try container.encode(V2AgentTraceSanitizer.redact(scope), forKey: .value)
-        case let .planTitle(title):
-            try container.encode(Tag.planTitle, forKey: .type)
-            try container.encode(V2AgentTraceSanitizer.redact(title), forKey: .value)
+            try container.encode(scope, forKey: .value)
+        case let .planArtifact(artifactID):
+            try container.encode(Tag.planArtifact, forKey: .type)
+            try container.encode(artifactID, forKey: .value)
         }
     }
 
@@ -276,15 +479,15 @@ public enum V2AgentTraceSubject: Codable, Equatable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         switch try container.decode(Tag.self, forKey: .type) {
         case .searchQuery:
-            self = .searchQuery(V2AgentTraceSanitizer.redact(try container.decode(String.self, forKey: .value)))
+            self = .searchQuery(try container.decode(V2AgentSafeSearchQuery.self, forKey: .value))
         case .sourceURL:
-            self = .sourceURL(try container.decode(URL.self, forKey: .value)).sanitized()
-        case .sourceTitle:
-            self = .sourceTitle(V2AgentTraceSanitizer.redact(try container.decode(String.self, forKey: .value)))
+            self = .sourceURL(try container.decode(V2AgentTraceWebURL.self, forKey: .value))
+        case .sourceID:
+            self = .sourceID(try container.decode(V2AgentTraceSourceID.self, forKey: .value))
         case .localScope:
-            self = .localScope(V2AgentTraceSanitizer.redact(try container.decode(String.self, forKey: .value)))
-        case .planTitle:
-            self = .planTitle(V2AgentTraceSanitizer.redact(try container.decode(String.self, forKey: .value)))
+            self = .localScope(try container.decode(V2AgentTraceLocalScope.self, forKey: .value))
+        case .planArtifact:
+            self = .planArtifact(try container.decode(V2AgentTraceArtifactID.self, forKey: .value))
         }
     }
 }
@@ -311,7 +514,7 @@ public struct V2AgentTraceStep: Identifiable, Codable, Equatable, Sendable {
         self.tool = tool
         self.status = status
         self.duration = max(0, duration)
-        self.subject = subject?.sanitized()
+        self.subject = subject
         self.error = error
     }
 
@@ -757,7 +960,7 @@ public struct V2AgentSession: Identifiable, Codable, Equatable, Sendable {
 }
 
 public struct V2AgentWorkspace: Codable, Equatable, Sendable {
-    public static let currentSchemaVersion = 2
+    public static let currentSchemaVersion = 3
     public static let empty = V2AgentWorkspace()
 
     public var schemaVersion: Int

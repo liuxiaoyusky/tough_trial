@@ -93,8 +93,69 @@ func checkAgentProviderStateStaysIsolatedAndPersists() throws {
     require(restored.session(id: first.id)?.traces.isEmpty == true, "Provider state round-trip must not invent a trace")
 }
 
+func checkAgentTraceSubjectValueBoundaries() throws {
+    let normalQueryValue = "如何安排今晚的学习时间"
+    let normalQuery = V2AgentSafeSearchQuery(normalQueryValue)
+    require(normalQuery?.value == normalQueryValue, "Normal Chinese search queries must remain readable")
+
+    for invalidQuery in [
+        "sessionKey=top-secret",
+        "Authorization: Bearer top-secret",
+        "Cookie: session=top-secret",
+        "今晚\n学习",
+        "{\"query\":\"天气\"}",
+        String(repeating: "Aa1_", count: 10)
+    ] {
+        require(V2AgentSafeSearchQuery(invalidQuery) == nil, "Unsafe search query must not construct a Trace subject")
+    }
+
+    let unsafeEncodedSubject = Data(#"{"type":"searchQuery","value":"sessionKey=top-secret"}"#.utf8)
+    do {
+        _ = try JSONDecoder().decode(V2AgentTraceSubject.self, from: unsafeEncodedSubject)
+        fatalError("Unsafe encoded search query must not construct a Trace subject")
+    } catch {
+        // Expected: Codable must preserve the same value boundary as the public initializer.
+    }
+
+    let searchSubject = V2AgentTraceSubject.searchQuery(normalQuery!)
+    let encodedSearchSubject = try JSONEncoder().encode(searchSubject)
+    let decodedSearchSubject = try JSONDecoder().decode(V2AgentTraceSubject.self, from: encodedSearchSubject)
+    require(decodedSearchSubject == searchSubject, "Safe search query subject must round-trip")
+    require(decodedSearchSubject.displayText == normalQueryValue, "Safe search query subject must display its readable value")
+
+    let webURL = V2AgentTraceWebURL(string: "https://example.com/source")
+    require(webURL != nil, "HTTP(S) source URL must construct a Trace subject value")
+    require(V2AgentTraceWebURL(string: "file:///private/data") == nil, "Non-HTTP(S) URL must not construct a Trace subject")
+    let sourceID = V2AgentTraceSourceID("source-1")
+    require(sourceID != nil, "App-generated source ID must construct a Trace subject value")
+    require(V2AgentTraceSourceID("source title") == nil, "Free-form source text must not construct a Trace subject")
+
+    let artifactID = V2AgentTraceArtifactID("artifact-1")
+    require(artifactID != nil, "App-generated artifact ID must construct a Trace subject value")
+    for invalidID in ["sessionKey=top-secret", "计划标题", "id/with/slashes"] {
+        require(V2AgentTraceArtifactID(invalidID) == nil, "Invalid artifact ID must not construct a Trace subject")
+    }
+
+    let subjects: [V2AgentTraceSubject] = [
+        searchSubject,
+        .sourceURL(webURL!),
+        .sourceID(sourceID!),
+        .localScope(.mixed),
+        .planArtifact(artifactID!)
+    ]
+    for subject in subjects {
+        let encoded = try JSONEncoder().encode(subject)
+        let decoded = try JSONDecoder().decode(V2AgentTraceSubject.self, from: encoded)
+        require(decoded == subject, "Typed Trace subject must round-trip without widening its value type")
+    }
+}
+
 func checkAgentTraceAPIShapeAndRoundTrips() throws {
     let date = Date(timeIntervalSince1970: 1_800_000_000)
+    let searchQuery = V2AgentSafeSearchQuery("如何安排今晚的学习时间")!
+    let sourceURL = V2AgentTraceWebURL(string: "https://example.com/source")!
+    let sourceID = V2AgentTraceSourceID("source-1")!
+    let artifactID = V2AgentTraceArtifactID("artifact-1")!
     let trace = V2AgentTrace(
         id: "trace-1",
         status: .succeeded,
@@ -104,29 +165,36 @@ func checkAgentTraceAPIShapeAndRoundTrips() throws {
                 tool: .webSearch,
                 status: .succeeded,
                 duration: 0.4,
-                subject: .searchQuery("Authorization: Bearer auth-secret token=token-secret")
+                subject: .searchQuery(searchQuery)
             ),
             V2AgentTraceStep(
                 id: "step-source",
                 tool: .webRead,
                 status: .succeeded,
                 duration: 1.1,
-                subject: .sourceTitle("Cookie: cookie-secret")
+                subject: .sourceURL(sourceURL)
+            ),
+            V2AgentTraceStep(
+                id: "step-source-id",
+                tool: .webRead,
+                status: .succeeded,
+                duration: 0.1,
+                subject: .sourceID(sourceID)
             ),
             V2AgentTraceStep(
                 id: "step-local",
                 tool: .localSearch,
-                status: .failed,
+                status: .succeeded,
                 duration: 0.2,
-                subject: .localScope("api-key=api-secret"),
-                error: V2AgentTraceError(category: .network, code: .invalidResponse)
+                subject: .localScope(.mixed)
             ),
             V2AgentTraceStep(
                 id: "step-plan",
                 tool: .plan,
                 status: .succeeded,
                 duration: 0.3,
-                subject: .planTitle("Bearer plan-secret")
+                subject: .planArtifact(artifactID),
+                error: V2AgentTraceError(category: .planning, code: .unknown)
             )
         ],
         startedAt: date,
@@ -144,10 +212,10 @@ func checkAgentTraceAPIShapeAndRoundTrips() throws {
     let typedTool: V2AgentTool = .webSearch
     require(typedTool == trace.steps[0].tool, "Trace steps must use the typed tool enum")
     require(summary.status == .succeeded, "User trace summary must use a typed status")
-    require(summary.toolCount == 4, "User trace summary must derive its tool count")
+    require(summary.toolCount == 5, "User trace summary must derive its tool count")
     require(summary.duration == 2, "User trace summary must derive its duration")
-    require(summary.displayText.contains("4 个步骤"), "User trace summary must expose computed display text")
-    require(trace.steps[2].error == V2AgentTraceError(category: .network, code: .invalidResponse), "Trace errors must use typed category and code")
+    require(summary.displayText.contains("5 个步骤"), "User trace summary must expose computed display text")
+    require(trace.steps[4].error == V2AgentTraceError(category: .planning, code: .unknown), "Trace errors must use typed category and code")
 
     let forbiddenFields = [
         "summary",
@@ -197,6 +265,8 @@ func checkAgentTraceAPIShapeAndRoundTrips() throws {
     for field in forbiddenFields {
         require(!encodedTraceText.contains("\"\(field)\""), "Full trace JSON must not expose a \(field) field")
     }
+    require(!encodedTraceText.contains("sourceTitle"), "Full trace JSON must not expose a source title subject")
+    require(!encodedTraceText.contains("planTitle"), "Full trace JSON must not expose a plan title subject")
     let decodedTrace = try JSONDecoder().decode(V2AgentTrace.self, from: encodedTrace)
     require(decodedTrace == trace, "Typed full trace must round-trip through JSON")
 
@@ -210,10 +280,16 @@ func checkAgentTraceAPIShapeAndRoundTrips() throws {
     ]
     for step in trace.steps {
         switch step.subject {
-        case let .searchQuery(query), let .sourceTitle(query), let .localScope(query), let .planTitle(query):
-            traceStrings.append(query)
+        case let .searchQuery(query):
+            traceStrings.append(query.value)
         case let .sourceURL(url):
-            traceStrings.append(url.absoluteString)
+            traceStrings.append(url.url.absoluteString)
+        case let .sourceID(sourceID):
+            traceStrings.append(sourceID.value)
+        case let .localScope(scope):
+            traceStrings.append(scope.rawValue)
+        case let .planArtifact(artifactID):
+            traceStrings.append(artifactID.value)
         case nil:
             break
         }
@@ -227,7 +303,26 @@ func checkAgentTraceAPIShapeAndRoundTrips() throws {
     ] {
         require(!traceStrings.contains { $0.contains(secret) }, "Typed Trace subjects must redact \(secret)")
     }
-    require(traceStrings.contains { $0.contains("[REDACTED]") }, "Credential-pattern tests must remain defense in depth")
+
+    let credentialPatternTrace = V2AgentTrace(
+        startedAt: date,
+        providerLabel: "Authorization: Bearer auth-secret",
+        model: "Cookie: cookie-secret",
+        providerSessionID: "sessionKey=provider-secret",
+        requestID: "api-key=api-secret",
+        responseID: "token=token-secret"
+    )
+    let credentialPatternStrings = [
+        credentialPatternTrace.providerLabel ?? "",
+        credentialPatternTrace.model ?? "",
+        credentialPatternTrace.providerSessionID ?? "",
+        credentialPatternTrace.requestID ?? "",
+        credentialPatternTrace.responseID ?? ""
+    ]
+    for secret in ["auth-secret", "cookie-secret", "provider-secret", "api-secret", "token-secret"] {
+        require(!credentialPatternStrings.contains { $0.contains(secret) }, "Credential-pattern defense must redact \(secret)")
+    }
+    require(credentialPatternStrings.contains { $0.contains("[REDACTED]") }, "Credential-pattern tests must remain defense in depth")
 
     let directory = FileManager.default.temporaryDirectory
         .appendingPathComponent("ToughTrialAgentTrace-\(UUID().uuidString)", isDirectory: true)
