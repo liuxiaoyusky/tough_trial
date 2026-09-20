@@ -44,5 +44,9 @@ docs/mvp.md
 docs/overview.md
 docs/talks/
 ownership/
-tasks/
+/tasks/
 tasks.md
+
+# Python tooling caches
+__pycache__/
+*.py[cod]

@@ -1,4 +1,9 @@
 import SwiftUI
+#if os(iOS)
+import UIKit
+#else
+import AppKit
+#endif
 import ToughTrialV2Core
 
 struct V2AssistantSessionListView: View {
@@ -15,7 +20,7 @@ struct V2AssistantSessionListView: View {
                         .foregroundStyle(V2Theme.tertiary)
                     TextField("搜索会话", text: $searchText)
                         .font(.system(size: 14))
-                        .textInputAutocapitalization(.never)
+                        .v2Autocapitalization(.never)
                         .autocorrectionDisabled()
                         .accessibilityIdentifier("assistant.sessions.search")
                     if !searchText.isEmpty {
@@ -32,9 +37,9 @@ struct V2AssistantSessionListView: View {
                 .padding(.horizontal, 12)
                 .frame(height: 42)
                 .background(V2Theme.ColorRole.surfaceRaised)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .overlay {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .stroke(V2Theme.line, lineWidth: 1)
                 }
                 .padding(.horizontal, 16)
@@ -75,14 +80,14 @@ struct V2AssistantSessionListView: View {
                             }
                         }
                     }
-                    .listStyle(.plain)
+                    .v2GroupedList()
                     .scrollContentBackground(.hidden)
                     .background(V2Theme.page)
                 }
             }
             .background(V2Theme.page)
             .navigationTitle("会话")
-            .navigationBarTitleDisplayMode(.inline)
+            .v2InlineNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("关闭") { dismiss() }
@@ -177,36 +182,112 @@ struct V2AssistantMessageView: View {
     @ObservedObject var browserRegistry: V2AssistantBrowserRegistry
     let availableHeight: CGFloat
     let onPresentFullscreen: (V2AssistantBrowserPresentation) -> Void
+    var onQuote: (V2AgentMessage, String) -> Void = { _, _ in }
+    var onJumpToReference: (V2AssistantMessageReference) -> Void = { _ in }
+    var onOpenAttachment: (V2AssistantAttachment) -> Void = { _ in }
     let onEditPlanItem: (String, V2PlanDraftScheduleItem) -> Void
+    var onEditTask: (V2AgentScheduleCard, V2AssistantTaskPreview) -> Void = { _, _ in }
+    @State private var showSelection = false
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(message.references ?? []) { reference in
+                Button { onJumpToReference(reference) } label: {
+                    Label(reference.excerpt, systemImage: "quote.opening").font(.caption).lineLimit(3)
+                        .padding(10).frame(maxWidth: .infinity, alignment: .leading)
+                        .background(V2Theme.panel, in: RoundedRectangle(cornerRadius: 10))
+                }.buttonStyle(.plain).accessibilityIdentifier("assistant.message.reference")
+            }
+            ForEach(message.attachments ?? []) { attachment in
+                Button { onOpenAttachment(attachment) } label: { Label(attachment.fileName, systemImage: "paperclip").font(.caption) }
+            }
+            messageContent
+            if !message.plainText.isEmpty && message.status != .pending && message.status != .streaming {
+                HStack(spacing: 20) {
+                    Button { V2Platform.copy(message.plainText) } label: { Label("复制", systemImage: "doc.on.doc") }
+                        .accessibilityIdentifier("assistant.message.copy")
+                    Button { onQuote(message, message.plainText) } label: { Label("引用", systemImage: "quote.opening") }
+                        .accessibilityIdentifier("assistant.message.quote")
+                    Button("选择文字") { showSelection = true }
+                        .accessibilityIdentifier("assistant.message.select")
+                }.font(.caption).foregroundStyle(V2Theme.secondary)
+            }
+        }
+        .contextMenu {
+            Button("复制") { V2Platform.copy(message.plainText) }
+            Button("引用") { onQuote(message, message.plainText) }
+            Button("选择文字") { showSelection = true }
+        }
+        .v2Sheet(isPresented: $showSelection) {
+            V2AssistantMessageSelection(text: message.plainText) { excerpt in
+                onQuote(message, excerpt); showSelection = false
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var messageContent: some View {
         if message.role == .user {
             HStack {
                 Spacer(minLength: 42)
                 Text(message.plainText)
+                    .textSelection(.enabled)
                     .font(V2Theme.TypeRole.bodyMedium)
+                    .lineSpacing(4)
                     .foregroundStyle(V2Theme.ink)
-                    .padding(.horizontal, 13)
-                    .padding(.vertical, 10)
-                    .background(V2Theme.ColorRole.surfaceMuted)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(V2Theme.ColorRole.primaryContainer.opacity(0.65))
+                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             }
         } else {
             VStack(alignment: .leading, spacing: 12) {
+                Label("助手", systemImage: "sparkles")
+                    .font(V2Theme.TypeRole.labelMedium)
+                    .foregroundStyle(V2Theme.blue)
+                    .padding(.top, 4)
+
                 ForEach(Array(message.parts.enumerated()), id: \.offset) { _, part in
                     partView(part)
                 }
 
-                if message.status == .pending && message.parts.isEmpty {
-                    HStack(spacing: 8) {
-                        ProgressView().controlSize(.small)
-                        Text("正在处理...")
-                            .font(V2Theme.TypeRole.bodySmall)
-                            .foregroundStyle(V2Theme.tertiary)
+                if message.status == .pending || message.status == .streaming {
+                    HStack(spacing: 12) {
+                        ProgressView()
+                            .tint(V2Theme.blue)
+                            .frame(width: 40, height: 40)
+                            .background(V2Theme.ColorRole.primaryContainer, in: RoundedRectangle(cornerRadius: 14))
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text(progressText)
+                                .font(V2Theme.TypeRole.labelLarge)
+                                .foregroundStyle(V2Theme.ink)
+                            Text("可以继续补充想法，或停止本轮")
+                                .font(V2Theme.TypeRole.bodySmall)
+                                .foregroundStyle(V2Theme.secondary)
+                        }
+                        Spacer(minLength: 0)
                     }
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(V2Theme.ColorRole.surfaceRaised, in: RoundedRectangle(cornerRadius: 22))
+                    .overlay(RoundedRectangle(cornerRadius: 22).stroke(V2Theme.line.opacity(0.65)))
+                    .accessibilityIdentifier("assistant.progress")
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var progressText: String {
+        guard let activity = store.activity, activity.messageID == message.id else { return "正在处理…" }
+        switch activity.tool {
+        case .model: return "正在理解你的意思…"
+        case .schedule: return "正在整理日程…"
+        case .plan: return "正在整理计划…"
+        case .webSearch: return "正在搜索网页…"
+        case .webRead: return "正在阅读网页…"
+        case .localSearch: return "正在查找你的资料…"
+        case .other: return "正在处理…"
         }
     }
 
@@ -215,15 +296,19 @@ struct V2AssistantMessageView: View {
         switch part {
         case let .text(text):
             Text(text)
+                .textSelection(.enabled)
                 .font(V2Theme.TypeRole.bodyMedium)
+                .lineSpacing(5)
                 .foregroundStyle(V2Theme.ink)
                 .fixedSize(horizontal: false, vertical: true)
         case let .trace(summary):
-            V2AssistantTraceDisclosure(
-                summary: summary,
-                trace: matchingTrace,
-                identifier: message.id
-            )
+            if summary.toolCount > 0, matchingTrace?.steps.contains(where: { $0.tool != .model }) == true {
+                V2AssistantTraceDisclosure(
+                    summary: summary,
+                    trace: matchingTrace,
+                    identifier: message.id
+                )
+            }
         case let .sources(sources):
             V2AssistantSourcesView(
                 sources: sources,
@@ -233,6 +318,10 @@ struct V2AssistantMessageView: View {
                 availableHeight: availableHeight,
                 onPresentFullscreen: onPresentFullscreen
             )
+        case let .schedule(card):
+            V2AssistantScheduleCardView(card: card, store: store) { onEditTask(card, $0) }
+        case let .tool(result):
+            V2AssistantToolResultCard(result: result, store: store)
         case let .plan(draft):
             V2PlanInlineDraft(
                 draft: draft,
@@ -243,7 +332,8 @@ struct V2AssistantMessageView: View {
         case let .error(error):
             V2AssistantErrorView(
                 error: error,
-                canRetry: message.status == .failed || message.status == .cancelled,
+                canRetry: (message.status == .failed || message.status == .cancelled) && !store.isRunningTurn,
+                isCancelled: message.status == .cancelled,
                 onRetry: { store.retry(messageID: message.id) }
             )
         }
@@ -273,14 +363,14 @@ private struct V2AssistantTraceDisclosure: View {
                         .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(statusColor)
                     Text(summary.displayText)
-                        .font(V2Theme.TypeRole.labelSmall)
+                        .font(V2Theme.TypeRole.labelMedium)
                         .foregroundStyle(V2Theme.secondary)
                     Spacer()
                     Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                         .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(V2Theme.tertiary)
                 }
-                .frame(minHeight: 34)
+                .frame(minHeight: 44)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -295,9 +385,9 @@ private struct V2AssistantTraceDisclosure: View {
                 .padding(.leading, 4)
             }
         }
-        .overlay(alignment: .top) {
-            Divider().overlay(V2Theme.line.opacity(0.75))
-        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 4)
+        .background(V2Theme.ColorRole.surfaceMuted, in: RoundedRectangle(cornerRadius: 18))
     }
 
     private var statusIcon: String {
@@ -324,7 +414,7 @@ private struct V2AssistantTraceStepRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Circle()
-                .fill(step.status == .succeeded ? V2Theme.mint : V2Theme.orange)
+                .fill(step.status == .succeeded ? V2Theme.mint : step.status == .running ? V2Theme.blue : V2Theme.orange)
                 .frame(width: 7, height: 7)
                 .padding(.top, 6)
 
@@ -345,12 +435,6 @@ private struct V2AssistantTraceStepRow: View {
                 .foregroundStyle(V2Theme.tertiary)
         }
         .padding(.vertical, 7)
-        .overlay(alignment: .leading) {
-            Rectangle()
-                .fill(V2Theme.line)
-                .frame(width: 1)
-                .offset(x: 3, y: 14)
-        }
     }
 }
 
@@ -363,7 +447,11 @@ private struct V2AssistantSourcesView: View {
     let onPresentFullscreen: (V2AssistantBrowserPresentation) -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("参考来源", systemImage: "link")
+                .font(V2Theme.TypeRole.labelMedium)
+                .foregroundStyle(V2Theme.secondary)
+                .padding(.bottom, 2)
             ForEach(sources) { source in
                 Button {
                     _ = store.toggleBrowser(source: source, sessionID: session.id)
@@ -371,10 +459,10 @@ private struct V2AssistantSourcesView: View {
                     HStack(spacing: 11) {
                         Image(systemName: "chart.bar.doc.horizontal.fill")
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .frame(width: 30, height: 30)
-                            .background(V2Theme.mint)
-                            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                            .foregroundStyle(V2Theme.blue)
+                            .frame(width: 36, height: 36)
+                            .background(V2Theme.ColorRole.primaryContainer)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text(source.title)
@@ -414,12 +502,11 @@ private struct V2AssistantSourcesView: View {
                     )
                 }
 
-                Divider().overlay(V2Theme.line.opacity(0.75))
             }
         }
-        .overlay(alignment: .top) {
-            Divider().overlay(V2Theme.line.opacity(0.75))
-        }
+        .padding(14)
+        .background(V2Theme.ColorRole.surfaceRaised, in: RoundedRectangle(cornerRadius: 22))
+        .overlay(RoundedRectangle(cornerRadius: 22).stroke(V2Theme.line.opacity(0.65)))
     }
 
     private func browserState(for source: V2WebSource) -> V2BrowserSessionState? {
@@ -431,14 +518,115 @@ private struct V2AssistantSourcesView: View {
     }
 }
 
+private struct V2AssistantToolResultCard: View {
+    let result: V2ToolExecutionResult
+    @ObservedObject var store: V2AssistantStore
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 11) {
+            HStack(spacing: 9) {
+                Image(systemName: iconName)
+                    .foregroundStyle(accent)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(V2Theme.TypeRole.labelLarge)
+                        .foregroundStyle(V2Theme.ink)
+                    Text(statusText)
+                        .font(V2Theme.TypeRole.labelSmall)
+                        .foregroundStyle(V2Theme.secondary)
+                }
+                Spacer(minLength: 8)
+            }
+            Text(result.summary)
+                .font(V2Theme.TypeRole.bodySmall)
+                .foregroundStyle(V2Theme.ink)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if result.state == .pendingConfirmation {
+                Button("确认执行") { store.confirmTool(result) }
+                    .buttonStyle(.borderedProminent)
+                    .tint(V2Theme.blue)
+                    .accessibilityIdentifier("assistant.tool.confirm.\(result.operationID)")
+            } else if [.failed, .conflict, .blocked].contains(result.state), result.argumentsJSON != nil {
+                Button("重试") { store.retryTool(result) }
+                    .buttonStyle(.bordered)
+                    .tint(V2Theme.blue)
+                    .accessibilityIdentifier("assistant.tool.retry.\(result.operationID)")
+            } else if result.canUndo {
+                Button("撤销这次修改") { store.undoTool(result) }
+                    .buttonStyle(.bordered)
+                    .tint(V2Theme.orange)
+                    .accessibilityIdentifier("assistant.tool.undo.\(result.operationID)")
+            }
+        }
+        .padding(15)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(V2Theme.ColorRole.surfaceRaised, in: RoundedRectangle(cornerRadius: 20))
+        .overlay(RoundedRectangle(cornerRadius: 20).stroke(accent.opacity(0.35)))
+    }
+
+    private var title: String {
+        switch result.toolID {
+        case "core.tasks.create": return "任务"
+        case "core.tasks.schedule": return "日程修改"
+        case "core.tasks.query": return "任务查询"
+        case "core.ledger.createPending": return "账单记录"
+        case "core.ledger.proposeCategory": return "账单分类建议"
+        case "core.finance.createPlan": return "财务计划"
+        case "core.finance.markPaid": return "付款确认"
+        case "core.budget.set": return "预算设置"
+        case "core.budget.queryProgress": return "预算进度"
+        case "core.recall.append": return "当天回响"
+        case "core.capture.create": return "随手记"
+        case "core.notes.create": return "灵感记录"
+        default: return "AI 工具结果"
+        }
+    }
+
+    private var statusText: String {
+        switch result.state {
+        case .applied: return "已执行"
+        case .pendingConfirmation: return "等待你的确认"
+        case .needsInformation: return "还需要补充信息"
+        case .blocked: return "当前功能不可用"
+        case .conflict: return "数据发生变化，需要重新确认"
+        case .failed: return "执行失败，可重试"
+        case .cancelled: return "已取消"
+        case .undone: return "已撤销"
+        }
+    }
+
+    private var iconName: String {
+        switch result.state {
+        case .applied: return "checkmark.circle.fill"
+        case .pendingConfirmation: return "hand.raised.fill"
+        case .needsInformation: return "questionmark.circle.fill"
+        case .blocked, .conflict, .failed: return "exclamationmark.circle.fill"
+        case .cancelled: return "stop.circle.fill"
+        case .undone: return "arrow.uturn.backward.circle.fill"
+        }
+    }
+
+    private var accent: Color {
+        switch result.state {
+        case .applied: return V2Theme.mint
+        case .pendingConfirmation, .needsInformation: return V2Theme.blue
+        case .blocked, .conflict, .failed: return V2Theme.orange
+        case .cancelled, .undone: return V2Theme.secondary
+        }
+    }
+}
+
 private struct V2AssistantErrorView: View {
     let error: V2AgentMessageError
     let canRetry: Bool
+    let isCancelled: Bool
     let onRetry: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("没有收到可用回复")
+        VStack(alignment: .leading, spacing: 10) {
+            Label(isCancelled ? "已停止处理" : "没有收到可用回复",
+                  systemImage: isCancelled ? "stop.circle" : "exclamationmark.circle")
                 .font(V2Theme.TypeRole.labelLarge)
                 .foregroundStyle(V2Theme.ink)
             Text(error.message)
@@ -447,14 +635,16 @@ private struct V2AssistantErrorView: View {
             if canRetry {
                 Button("重试", action: onRetry)
                     .font(V2Theme.TypeRole.labelMedium)
-                    .foregroundStyle(V2Theme.blue)
+                    .buttonStyle(.bordered)
+                    .tint(V2Theme.blue)
+                    .controlSize(.regular)
                     .accessibilityIdentifier("assistant.retry")
             }
         }
-        .padding(.leading, 12)
-        .overlay(alignment: .leading) {
-            Rectangle().fill(V2Theme.orange).frame(width: 3)
-        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(isCancelled ? V2Theme.ColorRole.surfaceMuted : V2Theme.ColorRole.taskPausedContainer,
+                    in: RoundedRectangle(cornerRadius: 22))
     }
 }
 
@@ -541,7 +731,7 @@ struct V2AssistantSessionDetailView: View {
                 }
             }
             .navigationTitle("会话详情")
-            .navigationBarTitleDisplayMode(.inline)
+            .v2InlineNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("完成") { dismiss() }
@@ -577,6 +767,7 @@ private extension V2AgentTool {
         case .webRead: "读取网页"
         case .localSearch: "查找资料"
         case .plan: "整理计划"
+        case .schedule: "修改日程"
         case .other: "执行工具"
         }
     }

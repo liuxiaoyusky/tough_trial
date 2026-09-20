@@ -69,7 +69,7 @@ struct V2PlanAgentView: View {
                 )
             }
         }
-        .sheet(isPresented: $showHistory) {
+        .v2Sheet(isPresented: $showHistory) {
             V2PlanHistorySheet(
                 drafts: store.pendingPlanDrafts,
                 onResume: { draft in
@@ -96,13 +96,13 @@ struct V2PlanAgentView: View {
                 }
             )
         }
-        .sheet(isPresented: $showMemory) {
+        .v2Sheet(isPresented: $showMemory) {
             V2MemorySheet(store: store)
         }
-        .sheet(isPresented: $showAISettings) {
+        .v2Sheet(isPresented: $showAISettings) {
             V2AIProviderSettingsView(store: store)
         }
-        .sheet(item: $editingScheduleItem) { item in
+        .v2Sheet(item: $editingScheduleItem) { item in
             V2PlanScheduleItemEditor(item: item) { updatedItem in
                 store.updateCurrentPlanScheduleItem(updatedItem)
             }
@@ -562,16 +562,12 @@ struct V2PlanInlineDraft: View {
     @State private var showsReasons = false
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            RoundedRectangle(cornerRadius: 2, style: .continuous)
-                .fill(V2Theme.violet)
-                .frame(width: 3)
-
+        Group {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 5) {
                     Text("计划草稿 · 自动保存")
                         .font(V2Theme.TypeRole.labelSmall)
-                        .foregroundStyle(V2Theme.violet)
+                        .foregroundStyle(V2Theme.blue)
 
                     Text(draft.title)
                         .font(V2Theme.TypeRole.titleLarge)
@@ -631,7 +627,7 @@ struct V2PlanInlineDraft: View {
                             .padding(.horizontal, 18)
                             .frame(height: 44)
                             .background(V2Theme.blue)
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                             .accessibilityIdentifier("assistant.plan.accept")
                     }
                 }
@@ -639,7 +635,10 @@ struct V2PlanInlineDraft: View {
                 .buttonStyle(.plain)
             }
         }
+        .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .background(V2Theme.ColorRole.surfaceRaised, in: RoundedRectangle(cornerRadius: 22))
+        .overlay(RoundedRectangle(cornerRadius: 22).stroke(V2Theme.line.opacity(0.65)))
     }
 }
 
@@ -862,7 +861,7 @@ struct V2PlanScheduleItemEditor: View {
                 }
             }
             .navigationTitle("修改安排")
-            .navigationBarTitleDisplayMode(.inline)
+            .v2InlineNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }
@@ -916,7 +915,7 @@ struct V2PlanScheduleItemEditor: View {
     }
 }
 
-private struct V2MemorySheet: View {
+struct V2MemorySheet: View {
     @ObservedObject var store: V2AppStore
     @Environment(\.dismiss) private var dismiss
     @State private var editingRecord: V2UserMemoryRecord?
@@ -957,7 +956,7 @@ private struct V2MemorySheet: View {
                 }
             }
             .navigationTitle("记忆")
-            .navigationBarTitleDisplayMode(.inline)
+            .v2InlineNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("完成") { dismiss() }
@@ -973,10 +972,10 @@ private struct V2MemorySheet: View {
                 }
             }
         }
-        .sheet(isPresented: $isAdding) {
+        .v2Sheet(isPresented: $isAdding) {
             V2MemoryEditorSheet(store: store, record: nil)
         }
-        .sheet(item: $editingRecord) { record in
+        .v2Sheet(item: $editingRecord) { record in
             V2MemoryEditorSheet(store: store, record: record)
         }
         .presentationDetents([.medium, .large])
@@ -1125,7 +1124,7 @@ private struct V2MemoryEditorSheet: View {
                 }
             }
             .navigationTitle(record == nil ? "新增记忆" : "纠正记忆")
-            .navigationBarTitleDisplayMode(.inline)
+            .v2InlineNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }
@@ -1223,9 +1222,9 @@ private struct V2PlanHistorySheet: View {
                 }
             }
             .navigationTitle("草稿历史")
-            .navigationBarTitleDisplayMode(.inline)
+            .v2InlineNavigationTitle()
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .v2Leading) {
                     Menu {
                         Button(action: onOpenAISettings) {
                             Label("AI 服务", systemImage: "server.rack")

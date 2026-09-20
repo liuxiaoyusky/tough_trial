@@ -1,0 +1,50 @@
+# Install in the chosen schedule repository as .github/workflows/schedule-ai.yml.
+# The repository must contain the runner source (Package.swift and Sources).
+name: Schedule AI
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'schedule.md'
+permissions:
+  contents: write
+concurrency:
+  group: schedule-ai-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  process:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Validate and build
+        run: |
+          swift build --product ToughTrialScheduleRunner
+          .build/debug/ToughTrialScheduleRunner --validate schedule.md
+      - name: Check AI configuration
+        id: configuration
+        env:
+          SCHEDULE_AI_ENDPOINT: ${{ vars.SCHEDULE_AI_ENDPOINT }}
+          SCHEDULE_AI_MODEL: ${{ vars.SCHEDULE_AI_MODEL }}
+          SCHEDULE_AI_API_KEY: ${{ secrets.SCHEDULE_AI_API_KEY }}
+        run: |
+          if [[ -n "$SCHEDULE_AI_ENDPOINT" && -n "$SCHEDULE_AI_MODEL" && -n "$SCHEDULE_AI_API_KEY" ]]; then
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+            echo 'AI processing awaits configuration. The schedule was validated and remains unchanged.' >> "$GITHUB_STEP_SUMMARY"
+            echo '::notice::Configure SCHEDULE_AI_ENDPOINT, SCHEDULE_AI_MODEL, and the SCHEDULE_AI_API_KEY secret to enable AI processing.'
+          fi
+      - name: Process pending schedule requests
+        if: steps.configuration.outputs.ready == 'true'
+        env:
+          SCHEDULE_REPOSITORY: ${{ github.repository }}
+          SCHEDULE_BRANCH: ${{ github.ref_name }}
+          SCHEDULE_PATH: schedule.md
+          SCHEDULE_GITHUB_TOKEN: ${{ github.token }}
+          SCHEDULE_AI_ENDPOINT: ${{ vars.SCHEDULE_AI_ENDPOINT }}
+          SCHEDULE_AI_MODEL: ${{ vars.SCHEDULE_AI_MODEL }}
+          SCHEDULE_AI_API_KEY: ${{ secrets.SCHEDULE_AI_API_KEY }}
+        run: .build/debug/ToughTrialScheduleRunner --github

@@ -1,13 +1,14 @@
 import SwiftUI
 import ToughTrialV2Core
+#if os(iOS)
 import UIKit
+#else
+import AppKit
+#endif
 
 struct V2TodayView: View {
     @ObservedObject var store: V2AppStore
-    @StateObject private var speech = V2SpeechTranscriber()
     @State private var isQuickAddPresented = false
-    @State private var quickAddTitle = ""
-    @State private var speechPrefix = ""
     @State private var isFocusExpanded = true
     @State private var isZenTaskPickerPresented = false
     @State private var zenTaskSearchText = ""
@@ -33,12 +34,13 @@ struct V2TodayView: View {
                     }
 
                     V2TodayFocusCanvas(
-                        sessions: store.state.activeSessions,
+                        sessions: Array(store.todayRunningSessions.prefix(1)),
+                        lifetimeSeconds: store.todayRunningSessions.first.map { store.lifetimeSeconds(for: $0) } ?? 0,
                         isExpanded: isFocusExpanded,
                         onFocus: focusSession,
                         onExpand: expandFocus,
-                        onToggle: { store.toggleSession($0.id) },
-                        onEnd: endSession,
+                        onToggle: { store.pauseTodaySession($0.id) },
+                        onEnd: { store.completeTodaySession($0) },
                         onStartUnlinkedZen: startUnlinkedZen,
                         onChooseZenTask: presentZenTaskPicker,
                         onZen: {
@@ -50,58 +52,47 @@ struct V2TodayView: View {
                         }
                     )
 
-                    V2TodayFlowStrip(
-                        items: store.state.timelineItems,
-                        selectedItemID: store.state.selectedTimelineItemID,
-                        focusedTaskID: store.state.activeSessions.first?.taskID,
-                        onSelect: selectTimelineItem,
-                        onStart: startTimelineItem,
-                        onComplete: completeTimelineItem,
-                        onRestore: restoreTimelineItem,
-                        onZen: {
-                            store.startZen(
-                                planItemID: $0.planItemID,
-                                taskID: $0.taskID,
-                                title: $0.title
-                            )
-                        }
-                    )
+                    V2TodayExecutionBoard(store: store, onFocus: focusSession)
                     .frame(maxHeight: .infinity)
+                    .environment(\.scheduleHighlightedIDs, store.highlightedScheduleIDs)
                 }
                 .padding(.horizontal, 22)
                 .padding(.top, 18)
 
-                V2TodayCaptureButton(
-                    onTap: {
-                        isQuickAddPresented = true
-                    },
-                    onVoiceStart: beginVoiceQuickAdd,
-                    onVoiceLock: {
-                        isQuickAddPresented = true
-                    },
-                    onVoiceEnd: {
-                        speech.stop()
-                        isQuickAddPresented = true
-                    }
-                )
+                Button { isQuickAddPresented = true } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 28, weight: .medium))
+                        .foregroundStyle(V2Theme.ColorRole.onPrimary)
+                        .frame(width: 60, height: 60)
+                        .background(V2Theme.ColorRole.primary, in: Circle())
+                }
+                .accessibilityLabel("快速添加今日任务")
+                .accessibilityIdentifier("today.quickAdd")
                 .frame(width: 60, height: 60)
                 .shadow(color: V2Theme.ColorRole.primary.opacity(0.24), radius: 18, y: 10)
                 .padding(.trailing, 24)
                 .padding(.bottom, 78)
             }
+            #if os(iOS)
             .navigationBarHidden(true)
-            .sheet(isPresented: $isQuickAddPresented) {
-                V2TodayQuickAddSheet(
-                    title: $quickAddTitle,
-                    isListening: speech.isListening,
-                    onMic: toggleQuickAddSpeech,
-                    onCancel: dismissQuickAdd,
-                    onSubmit: submitQuickAdd
-                )
-                .presentationDetents([.height(184)])
+            #endif
+            .onChange(of: store.todayRunningSessions.first?.id) { _, _ in
+                isFocusExpanded = true
+            }
+            .v2Sheet(isPresented: $isQuickAddPresented) {
+                NavigationStack {
+                    V2TaskEditor(mode: .create(location: "今天 · 加入当天安排", identifier: "today.quickAdd"), onSave: { title, note in
+                        if store.quickAddTodayTask(title: title, note: note) {
+                            isQuickAddPresented = false
+                            return nil
+                        }
+                        return store.errorMessage ?? "保存失败，请重试。"
+                    }, onCancel: { isQuickAddPresented = false })
+                }
+                .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
             }
-            .sheet(
+            .v2Sheet(
                 isPresented: $isZenTaskPickerPresented,
                 onDismiss: startPendingZen
             ) {
@@ -129,27 +120,8 @@ struct V2TodayView: View {
             } message: {
                 Text(store.noticeMessage ?? "")
             }
-            .alert("语音输入", isPresented: speechErrorBinding) {
-                Button("知道了") {
-                    speech.dismissError()
-                }
-            } message: {
-                Text(speech.errorMessage ?? "语音输入暂不可用。")
-            }
-            .onChange(of: speech.transcript) { _, transcript in
-                guard !transcript.isEmpty else { return }
-                quickAddTitle = speechPrefix.isEmpty
-                    ? transcript
-                    : "\(speechPrefix) \(transcript)"
-            }
-            .onDisappear {
-                speech.stop()
-            }
-        }
-    }
 
-    private func selectTimelineItem(_ item: V2TimelineItem) {
-        store.selectTodayItem(item)
+        }
     }
 
     private func focusSession(_ session: V2ActiveSession) {
@@ -170,22 +142,6 @@ struct V2TodayView: View {
             isFocusExpanded = false
             store.clearTodaySelection()
         }
-    }
-
-    private func startTimelineItem(_ item: V2TimelineItem) {
-        store.startTodayItem(item)
-    }
-
-    private func completeTimelineItem(_ item: V2TimelineItem) {
-        store.completeTodayItem(item)
-    }
-
-    private func restoreTimelineItem(_ item: V2TimelineItem) {
-        store.restoreTodayItem(item)
-    }
-
-    private func endSession(_ session: V2ActiveSession) {
-        store.endSession(session.id)
     }
 
     private var zenSelectableTasks: [V2TaskNode] {
@@ -235,34 +191,6 @@ struct V2TodayView: View {
         }
     }
 
-    private func submitQuickAdd() {
-        let title = quickAddTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !title.isEmpty else { return }
-        speech.stop()
-        if store.quickAddTodayTask(title: title) {
-            dismissQuickAdd()
-        }
-    }
-
-    private func dismissQuickAdd() {
-        speech.stop()
-        speechPrefix = ""
-        quickAddTitle = ""
-        isQuickAddPresented = false
-    }
-
-    private func beginVoiceQuickAdd() {
-        speechPrefix = quickAddTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        speech.toggle()
-    }
-
-    private func toggleQuickAddSpeech() {
-        if !speech.isListening {
-            speechPrefix = quickAddTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        speech.toggle()
-    }
-
     private var errorBinding: Binding<Bool> {
         Binding(
             get: { store.errorMessage != nil },
@@ -285,16 +213,7 @@ struct V2TodayView: View {
         )
     }
 
-    private var speechErrorBinding: Binding<Bool> {
-        Binding(
-            get: { speech.errorMessage != nil },
-            set: { isPresented in
-                if !isPresented {
-                    speech.dismissError()
-                }
-            }
-        )
-    }
+
 }
 
 private struct V2TodayBackground: View {
@@ -359,6 +278,7 @@ private struct V2TodayHeader: View {
 
 private struct V2TodayFocusCanvas: View {
     let sessions: [V2ActiveSession]
+    let lifetimeSeconds: Int
     let isExpanded: Bool
     let onFocus: (V2ActiveSession) -> Void
     let onExpand: () -> Void
@@ -386,6 +306,7 @@ private struct V2TodayFocusCanvas: View {
             } else if isExpanded, let primarySession {
                 V2TodayPrimaryFocus(
                     session: primarySession,
+                    lifetimeSeconds: lifetimeSeconds,
                     onToggle: { onToggle(primarySession) },
                     onEnd: { onEnd(primarySession) },
                     onZen: { onZen(primarySession) }
@@ -416,6 +337,7 @@ private struct V2TodayFocusCanvas: View {
 
 private struct V2TodayPrimaryFocus: View {
     let session: V2ActiveSession
+    let lifetimeSeconds: Int
     let onToggle: () -> Void
     let onEnd: () -> Void
     let onZen: () -> Void
@@ -437,10 +359,7 @@ private struct V2TodayPrimaryFocus: View {
 
                 Spacer()
 
-                Text("从 \(session.startedAtLabel)")
-                    .font(V2Theme.TypeRole.labelMedium)
-                    .monospacedDigit()
-                    .foregroundStyle(V2Theme.ColorRole.textSecondary.opacity(0.86))
+
             }
 
             HStack(alignment: .bottom, spacing: 14) {
@@ -460,7 +379,7 @@ private struct V2TodayPrimaryFocus: View {
                 Spacer(minLength: 8)
 
                 VStack(alignment: .trailing, spacing: 4) {
-                    Text("当前")
+                    Text("累计 \(V2TodayFormat.duration(lifetimeSeconds))")
                         .font(V2Theme.TypeRole.labelSmall)
                         .foregroundStyle(V2Theme.ColorRole.textTertiary)
                     Text("今日 \(V2TodayFormat.duration(session.totalElapsedSeconds))")
@@ -471,14 +390,15 @@ private struct V2TodayPrimaryFocus: View {
 
             HStack(spacing: 10) {
                 Button(action: onToggle) {
-                    Image(systemName: session.status == .running ? "pause.fill" : "play.fill")
-                        .font(.system(size: 18, weight: .bold))
+                    Label("暂停", systemImage: "pause.fill")
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(V2Theme.ColorRole.textInverse)
-                        .frame(width: 50, height: 42)
+                        .frame(width: 86, height: 44)
                         .background(V2Theme.ColorRole.textPrimary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(session.status == .running ? "暂停" : "继续")
+                .accessibilityLabel("暂停")
+                .accessibilityIdentifier("today.focus.pause")
 
                 Button(action: onZen) {
                     Label("Zen", systemImage: "leaf.fill")
@@ -492,14 +412,15 @@ private struct V2TodayPrimaryFocus: View {
                 .accessibilityIdentifier("today.focus.zen")
 
                 Button(action: onEnd) {
-                    Image(systemName: "stop.fill")
-                        .font(.system(size: 15, weight: .bold))
+                    Label(session.taskID == nil ? "结束" : "完成", systemImage: session.taskID == nil ? "stop.fill" : "checkmark")
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(V2Theme.ColorRole.textSecondary)
-                        .frame(width: 44, height: 42)
+                        .frame(width: 86, height: 44)
                         .background(V2Theme.ColorRole.surfaceMuted.opacity(0.56), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("结束时间段")
+                .accessibilityLabel(session.taskID == nil ? "结束时间段" : "完成任务")
+                .accessibilityIdentifier("today.focus.complete")
             }
         }
         .padding(18)
@@ -687,7 +608,7 @@ private struct V2TodayZenTaskPicker: View {
             }
             .background(V2Theme.ColorRole.canvas)
             .navigationTitle("选择任务")
-            .navigationBarTitleDisplayMode(.inline)
+            .v2InlineNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消", action: onCancel)
@@ -790,450 +711,6 @@ private struct V2TodaySessionPill: View {
             )
         }
         .buttonStyle(.plain)
-    }
-}
-
-private struct V2TodayFlowStrip: View {
-    let items: [V2TimelineItem]
-    let selectedItemID: String?
-    let focusedTaskID: String?
-    let onSelect: (V2TimelineItem) -> Void
-    let onStart: (V2TimelineItem) -> Void
-    let onComplete: (V2TimelineItem) -> Void
-    let onRestore: (V2TimelineItem) -> Void
-    let onZen: (V2TimelineItem) -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 13) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("今天的流")
-                    .font(V2Theme.TypeRole.titleLarge)
-                    .foregroundStyle(V2Theme.ColorRole.textPrimary.opacity(0.92))
-
-                Spacer()
-
-                Text(Self.currentTime)
-                    .font(V2Theme.TypeRole.labelMedium)
-                    .monospacedDigit()
-                    .foregroundStyle(V2Theme.ColorRole.primary)
-            }
-
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 0) {
-                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                        V2TodayFlowRow(
-                            item: item,
-                            isSelected: isSelected(item),
-                            isFocused: item.taskID == focusedTaskID,
-                            isLast: index == items.count - 1,
-                            onSelect: { onSelect(item) },
-                            onStart: { onStart(item) },
-                            onComplete: { onComplete(item) },
-                            onRestore: { onRestore(item) },
-                            onZen: { onZen(item) }
-                        )
-                    }
-                }
-                .padding(.bottom, 118)
-            }
-        }
-    }
-
-    private static var currentTime: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        return formatter.string(from: Date())
-    }
-
-    private func isSelected(_ item: V2TimelineItem) -> Bool {
-        item.kind == .task && item.id == selectedItemID
-    }
-}
-
-private struct V2TodayFlowRow: View {
-    let item: V2TimelineItem
-    let isSelected: Bool
-    let isFocused: Bool
-    let isLast: Bool
-    let onSelect: () -> Void
-    let onStart: () -> Void
-    let onComplete: () -> Void
-    let onRestore: () -> Void
-    let onZen: () -> Void
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 13) {
-            VStack(spacing: 0) {
-                Text(item.timeLabel)
-                    .font(V2Theme.TypeRole.labelMedium)
-                    .monospacedDigit()
-                    .foregroundStyle(timeColor)
-                    .frame(width: 50, alignment: .trailing)
-                    .padding(.top, 16)
-                    .accessibilityIdentifier("today.timeline.time.\(item.title)")
-
-                if !isLast {
-                    Rectangle()
-                        .fill(V2Theme.ColorRole.outline.opacity(0.58))
-                        .frame(width: 1.2, height: isSelected ? 76 : 42)
-                        .padding(.top, 5)
-                }
-            }
-
-            VStack(alignment: .leading, spacing: isSelected ? 10 : 5) {
-                HStack(alignment: .firstTextBaseline, spacing: 9) {
-                    V2TodayFlowDot(
-                        isDone: isCompletedTask,
-                        isFocused: isFocused,
-                        color: dotColor,
-                        onRestore: onRestore
-                    )
-
-                    Text(item.title)
-                        .font(isSelected ? V2Theme.TypeRole.titleLarge : V2Theme.TypeRole.titleMedium)
-                        .foregroundStyle(isCompletedTask ? V2Theme.ColorRole.textTertiary : V2Theme.ColorRole.textPrimary)
-                        .strikethrough(isCompletedTask, color: V2Theme.ColorRole.textTertiary)
-                        .lineLimit(2)
-
-                    if isFocused {
-                        Text("现在")
-                            .font(V2Theme.TypeRole.labelSmall)
-                            .foregroundStyle(V2Theme.ColorRole.textInverse)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(V2Theme.ColorRole.taskActive, in: Capsule())
-                    } else if isCompletedTask {
-                        Button(action: onRestore) {
-                            Label("恢复", systemImage: "arrow.uturn.backward")
-                                .font(V2Theme.TypeRole.labelSmall)
-                                .foregroundStyle(V2Theme.ColorRole.textSecondary)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(V2Theme.ColorRole.surfaceMuted.opacity(0.66), in: Capsule())
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-
-                if isSelected || isFocused || item.kind == .executionRecord {
-                    Text(item.detail)
-                        .font(V2Theme.TypeRole.bodySmall)
-                        .foregroundStyle(V2Theme.ColorRole.textSecondary)
-                        .lineLimit(2)
-                        .padding(.leading, 21)
-                }
-
-                if isSelected && item.kind == .task && !item.isDone {
-                    HStack(spacing: 8) {
-                        if !isFocused {
-                            V2TodayFlowAction(title: "开始", systemName: "play.fill", isPrimary: true, action: onStart)
-                        }
-                        V2TodayFlowAction(title: "Zen", systemName: "leaf.fill", isPrimary: false, action: onZen)
-                        V2TodayFlowAction(title: "完成", systemName: "checkmark", isPrimary: false, action: onComplete)
-                    }
-                    .padding(.leading, 21)
-                }
-            }
-            .padding(.vertical, isSelected ? 15 : 13)
-            .padding(.horizontal, isSelected ? 15 : 12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(rowBackground)
-            .overlay(
-                RoundedRectangle(cornerRadius: isSelected ? 24 : 20, style: .continuous)
-                    .stroke(rowBorder, lineWidth: 1)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: isSelected ? 24 : 20, style: .continuous))
-            .opacity(isCompletedTask ? 0.58 : 1)
-            .contentShape(RoundedRectangle(cornerRadius: isSelected ? 24 : 20, style: .continuous))
-            .onTapGesture(perform: onSelect)
-        }
-        .padding(.bottom, isLast ? 0 : 6)
-    }
-
-    private var timeColor: Color {
-        if isCompletedTask { return V2Theme.ColorRole.textTertiary.opacity(0.72) }
-        if isFocused { return V2Theme.ColorRole.primary }
-        return V2Theme.ColorRole.textSecondary
-    }
-
-    private var dotColor: Color {
-        // Completed work recedes on Today; unfinished work remains easy to spot.
-        if item.kind == .executionRecord { return V2Theme.ColorRole.textTertiary.opacity(0.58) }
-        if isCompletedTask { return V2Theme.ColorRole.textTertiary.opacity(0.42) }
-        if isFocused { return V2Theme.ColorRole.taskActive }
-        return V2Theme.ColorRole.taskIncomplete.opacity(item.taskID == nil ? 1 : 0.78)
-    }
-
-    private var rowBackground: Color {
-        if isSelected { return V2Theme.ColorRole.surfaceRaised.opacity(0.98) }
-        if isFocused { return V2Theme.ColorRole.surfaceRaised.opacity(0.94) }
-        return V2Theme.ColorRole.surface.opacity(0.66)
-    }
-
-    private var rowBorder: Color {
-        if isSelected { return V2Theme.ColorRole.primary.opacity(0.16) }
-        return V2Theme.ColorRole.outline.opacity(0.40)
-    }
-
-    private var isCompletedTask: Bool {
-        item.kind == .task && item.isDone
-    }
-}
-
-private struct V2TodayFlowAction: View {
-    let title: String
-    let systemName: String
-    let isPrimary: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Label(title, systemImage: systemName)
-                .font(V2Theme.TypeRole.labelMedium)
-                .foregroundStyle(isPrimary ? V2Theme.ColorRole.textInverse : V2Theme.ColorRole.onPrimaryContainer)
-                .padding(.horizontal, 11)
-                .padding(.vertical, 8)
-                .background(isPrimary ? V2Theme.ColorRole.textPrimary : V2Theme.ColorRole.primaryContainer, in: Capsule())
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-private struct V2TodayFlowDot: View {
-    let isDone: Bool
-    let isFocused: Bool
-    let color: Color
-    let onRestore: () -> Void
-
-    var body: some View {
-        if isDone {
-            Button(action: onRestore) {
-                Circle()
-                    .fill(color)
-                    .frame(width: 10, height: 10)
-                    .overlay(
-                        Circle()
-                            .stroke(V2Theme.ColorRole.surfaceRaised, lineWidth: 2)
-                            .frame(width: 18, height: 18)
-                    )
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("恢复为未完成")
-        } else {
-            Circle()
-                .fill(color)
-                .frame(width: isFocused ? 12 : 8, height: isFocused ? 12 : 8)
-        }
-    }
-}
-
-private struct V2TodayQuickAddSheet: View {
-    @Binding var title: String
-    let isListening: Bool
-    let onMic: () -> Void
-    let onCancel: () -> Void
-    let onSubmit: () -> Void
-    @FocusState private var isFocused: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack {
-                Text("快速插入")
-                    .font(V2Theme.TypeRole.titleLarge)
-                    .foregroundStyle(V2Theme.ColorRole.textPrimary)
-
-                Spacer()
-
-                Button(action: onCancel) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(V2Theme.ColorRole.textSecondary)
-                        .frame(width: 34, height: 34)
-                        .background(V2Theme.ColorRole.surfaceMuted, in: Circle())
-                }
-                .buttonStyle(.plain)
-            }
-
-            HStack(spacing: 10) {
-                TextField("记一件要处理的事", text: $title)
-                    .textFieldStyle(.plain)
-                    .font(V2Theme.TypeRole.titleMedium)
-                    .foregroundStyle(V2Theme.ColorRole.textPrimary)
-                    .submitLabel(.done)
-                    .focused($isFocused)
-                    .onSubmit(onSubmit)
-                    .accessibilityIdentifier("today.quickAdd.title")
-
-                Button(action: onMic) {
-                    Image(systemName: isListening ? "waveform" : "mic")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(
-                            isListening
-                                ? V2Theme.ColorRole.textInverse
-                                : V2Theme.ColorRole.textSecondary
-                        )
-                        .frame(width: 38, height: 38)
-                        .background(
-                            isListening
-                                ? V2Theme.ColorRole.destructive
-                                : V2Theme.ColorRole.surfaceRaised,
-                            in: Circle()
-                        )
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(isListening ? "停止语音输入" : "开始语音输入")
-
-                Button(action: onSubmit) {
-                    Image(systemName: "arrow.up")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(V2Theme.ColorRole.onPrimary)
-                        .frame(width: 38, height: 38)
-                        .background(
-                            title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                ? V2Theme.ColorRole.textTertiary
-                                : V2Theme.ColorRole.primary
-                        )
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .accessibilityLabel("添加任务")
-            }
-            .padding(.horizontal, 14)
-            .frame(height: 54)
-            .background(V2Theme.ColorRole.surfaceMuted, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-
-            Spacer(minLength: 0)
-        }
-        .padding(20)
-        .presentationBackground(V2Theme.ColorRole.canvas)
-        .onAppear {
-            isFocused = !isListening
-        }
-        .onChange(of: isListening) { _, listening in
-            isFocused = !listening
-        }
-    }
-}
-
-private struct V2TodayCaptureButton: UIViewRepresentable {
-    let onTap: () -> Void
-    let onVoiceStart: () -> Void
-    let onVoiceLock: () -> Void
-    let onVoiceEnd: () -> Void
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(parent: self)
-    }
-
-    func makeUIView(context: Context) -> V2CaptureControl {
-        let control = V2CaptureControl()
-        control.backgroundColor = UIColor(V2Theme.ColorRole.primary)
-        control.layer.cornerRadius = 30
-        control.layer.masksToBounds = true
-        control.isAccessibilityElement = true
-        control.accessibilityTraits = .button
-        control.accessibilityLabel = "快速添加今日任务"
-        control.accessibilityHint = "点按输入文字；长按语音输入，上拖锁定"
-        control.accessibilityIdentifier = "today.quickAdd"
-
-        let configuration = UIImage.SymbolConfiguration(pointSize: 28, weight: .medium)
-        let icon = UIImageView(
-            image: UIImage(systemName: "plus", withConfiguration: configuration)
-        )
-        icon.translatesAutoresizingMaskIntoConstraints = false
-        icon.tintColor = UIColor(V2Theme.ColorRole.onPrimary)
-        icon.isUserInteractionEnabled = false
-        control.addSubview(icon)
-        NSLayoutConstraint.activate([
-            icon.centerXAnchor.constraint(equalTo: control.centerXAnchor),
-            icon.centerYAnchor.constraint(equalTo: control.centerYAnchor)
-        ])
-
-        connect(control, coordinator: context.coordinator)
-        return control
-    }
-
-    func updateUIView(_ control: V2CaptureControl, context: Context) {
-        context.coordinator.parent = self
-        connect(control, coordinator: context.coordinator)
-    }
-
-    private func connect(_ control: V2CaptureControl, coordinator: Coordinator) {
-        control.onTap = { coordinator.parent.onTap() }
-        control.onVoiceStart = { coordinator.parent.onVoiceStart() }
-        control.onVoiceLock = { coordinator.parent.onVoiceLock() }
-        control.onVoiceEnd = { coordinator.parent.onVoiceEnd() }
-    }
-
-    final class Coordinator {
-        var parent: V2TodayCaptureButton
-
-        init(parent: V2TodayCaptureButton) {
-            self.parent = parent
-        }
-    }
-}
-
-private final class V2CaptureControl: UIControl {
-    var onTap: (() -> Void)?
-    var onVoiceStart: (() -> Void)?
-    var onVoiceLock: (() -> Void)?
-    var onVoiceEnd: (() -> Void)?
-
-    private var startPoint = CGPoint.zero
-    private var isVoiceActive = false
-    private var isVoiceLocked = false
-
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        addTarget(self, action: #selector(handleTap), for: .touchUpInside)
-
-        let longPress = UILongPressGestureRecognizer(
-            target: self,
-            action: #selector(handleLongPress)
-        )
-        longPress.minimumPressDuration = 0.45
-        longPress.allowableMovement = 1_000
-        addGestureRecognizer(longPress)
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    override func accessibilityActivate() -> Bool {
-        onTap?()
-        return true
-    }
-
-    @objc private func handleTap() {
-        onTap?()
-    }
-
-    @objc private func handleLongPress(_ recognizer: UILongPressGestureRecognizer) {
-        let point = recognizer.location(in: self)
-        switch recognizer.state {
-        case .began:
-            startPoint = point
-            isVoiceActive = true
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            onVoiceStart?()
-        case .changed where
-            isVoiceActive && !isVoiceLocked && point.y - startPoint.y < -56:
-            isVoiceLocked = true
-            UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
-            onVoiceLock?()
-        case .ended, .cancelled, .failed:
-            if isVoiceActive && !isVoiceLocked {
-                onVoiceEnd?()
-            }
-            isVoiceActive = false
-            isVoiceLocked = false
-        default:
-            break
-        }
     }
 }
 

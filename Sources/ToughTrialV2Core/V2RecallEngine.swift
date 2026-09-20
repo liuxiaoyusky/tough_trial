@@ -129,7 +129,7 @@ public extension V2Engine {
         at timestamp: Date = Date(),
         calendar: Calendar = .current
     ) throws -> V2RecallEntry {
-        try commit { snapshot in
+        try commit(modules: ["core.recall"], commandID: "core.recall.append") { snapshot in
             let validatedText = try Self.validatedRecallText(
                 text,
                 hasHandwriting: hasHandwriting
@@ -171,7 +171,7 @@ public extension V2Engine {
         hasHandwriting: Bool? = nil,
         at timestamp: Date = Date()
     ) throws -> V2RecallEntry {
-        try commit { snapshot in
+        try commit(modules: ["core.recall"], commandID: "core.recall.update") { snapshot in
             guard let index = snapshot.recallEntries.firstIndex(where: { $0.id == id }) else {
                 throw V2EngineError.recallEntryNotFound(id)
             }

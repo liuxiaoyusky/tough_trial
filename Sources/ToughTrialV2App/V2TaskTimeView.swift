@@ -7,6 +7,7 @@ struct V2TimeLensView: View {
     @Binding var anchor: Date
     let scheduledTasks: [V2ScheduledTask]
     let activeTaskIDs: Set<String>
+    let onOpenTask: (String) -> Void
 
     @State private var selectedScheduleID: String?
 
@@ -23,7 +24,15 @@ struct V2TimeLensView: View {
         }
         .overlay(alignment: .bottomLeading) {
             if let selectedTask {
-                V2ScheduleSelectionBar(item: selectedTask)
+                VStack(spacing: 0) {
+                    V2ScheduleSelectionBar(item: selectedTask)
+                    if let taskID = selectedTask.taskID {
+                        Button("查看与编辑") { onOpenTask(taskID) }
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .background(.regularMaterial)
+                            .accessibilityIdentifier("tasks.time.details")
+                    }
+                }
                     .padding(.leading, 14)
                     .padding(.trailing, 82)
                     .padding(.bottom, 72)
@@ -487,11 +496,17 @@ private struct V2ScheduleGridView: View {
                     }
 
                     if items.count > 1 {
-                        Text("+\(items.count - 1)")
+                        Menu {
+                            ForEach(items) { item in
+                                Button(item.title) { onSelect(item) }
+                            }
+                        } label: {
+                            Text("+\(items.count - 1)").frame(minWidth: 44, minHeight: 38)
+                        }
+                            .accessibilityLabel("查看当天全部任务")
                             .font(.system(size: 8, weight: .bold))
                             .foregroundStyle(V2Theme.ColorRole.primary)
                             .padding(.horizontal, 4)
-                            .frame(height: 16)
                             .background(V2Theme.ColorRole.surfaceRaised, in: Capsule())
                             .frame(maxWidth: .infinity, alignment: .trailing)
                             .padding(.trailing, 3)

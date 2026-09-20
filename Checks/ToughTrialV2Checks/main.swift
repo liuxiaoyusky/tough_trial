@@ -490,4 +490,61 @@ try await checkWebReaderRejectsNonHTMLResponsesAndUnsafeRedirects()
 try checkWebPayloadBoundsStopCollection()
 try await checkDuckDuckGoSearchClientUsesEncodedGETAndCapsResults()
 
+try checkUsageTracePersistenceAndBounds()
+
+try checkScheduleCommandAtomicRollback()
+try checkScheduleCommandAppliesAndPersistsReceipt()
+try checkScheduleCommandUndoPreservesUnrelatedAndRejectsConflict()
+try checkScheduleCommandArchiveUndoRestoresDescendantsAndKeepsExecution()
+try checkScheduleCommandReschedulePreservesPlanIdentityAndExecutionEvidence()
+try checkScheduleCommandRejectsStaleExpectedSnapshotButAllowsUnrelatedChanges()
+try checkScheduleCommandLoadsLegacySnapshotWithoutReceipts()
+
+try checkScheduleCommandContextBaselineAndDSTRules()
+try checkScheduleCommandPreservesOvernightDelayAndRejectsAliasCollisions()
+try checkScheduleCommandUndoRejectsLaterContextChild()
+
+try await checkGitHubScheduleVersionedWrites()
+
+try await checkScheduleClientRequestShapeAndProposal()
+try checkScheduleClientDecodesEveryOperation()
+try checkScheduleClientDecodesClarification()
+try checkScheduleClientParsesWallClockTime()
+try checkScheduleGLMCodingCompatibility()
+try await checkScheduleClientRejectsInvalidOutputAndHTTPFailures()
+try await checkScheduleClientRejectsInvalidConfigurationAndBounds()
+try checkScheduleClientProviderMetadataAndCoreValidation()
+
+try checkScheduleMarkdownRoundTripPreservesDocumentIdentity()
+try checkScheduleMarkdownRoundTripPreservesAllOwnedFields()
+try checkScheduleMarkdownPreservesLiteralProtocolText()
+try checkScheduleMarkdownTextEncodingCompatibility()
+try checkScheduleMarkdownHumanFieldsAreEditable()
+try checkScheduleMarkdownAssignsStableIDsToNewRows()
+try checkScheduleMarkdownRejectsBrokenDocumentsWithoutPartialResults()
+try checkScheduleMergeCombinesIndependentEdits()
+try checkScheduleMergeRetainsConcurrentFieldCandidates()
+try checkScheduleMergeRetainsMissingRowsAndAppendsExecutionFacts()
+try checkScheduleMergeConflictsWhenExecutionFactChanges()
+try checkScheduleMergeValidatesDocumentIdentityAndHierarchy()
+try checkScheduleMergePreservesConcurrentUnknown正文()
+try checkScheduleMarkdownOvernightAndExecutionIntegrity()
+
+try await checkRemoteRequestsRoundTripMergeAndProcessing()
+
+try await checkRemoteRunnerRereadsConcurrentCompletion()
+
+try checkDocumentImportAtomicityAndRecovery()
+
+try checkDocumentPreservesSubmillisecondExecutionTimes()
+
+try await checkScheduleSyncOfflineRetryAndLateLocalEdits()
+try await checkScheduleSyncConcurrentFieldsAndStaleConfiguration()
+
+try await checkScheduleConflictAIContractApplyUndoAndStaleProtection()
+
+try checkScheduleConflictCannotRewriteExecutionFacts()
+
 print("ToughTrialV2Checks passed")
+
+checkDirectCreationRoutingIsConservative()

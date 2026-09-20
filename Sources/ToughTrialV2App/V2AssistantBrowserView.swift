@@ -1,6 +1,11 @@
 import SwiftUI
+import Combine
 import ToughTrialV2Core
+#if os(iOS)
 import UIKit
+#else
+import AppKit
+#endif
 import WebKit
 
 struct V2AssistantBrowserKey: Hashable, Identifiable {
@@ -40,9 +45,10 @@ final class V2AssistantBrowserRegistry: ObservableObject {
         state: V2BrowserSessionState,
         onNavigationChange: @escaping @MainActor (V2AssistantBrowserNavigationUpdate) -> Void
     ) -> V2AssistantBrowserController {
-        if let controller = controllers[key] {
+        if let controller = controllers[key], controller.isModuleActive {
             return controller
         }
+        controllers.removeValue(forKey: key)?.invalidate()
 
         let controller = V2AssistantBrowserController(
             state: state,
@@ -77,7 +83,7 @@ final class V2AssistantBrowserRegistry: ObservableObject {
 
 @MainActor
 final class V2AssistantBrowserController: NSObject, ObservableObject, WKNavigationDelegate,
-    WKUIDelegate, UIScrollViewDelegate {
+    WKUIDelegate {
     let webView: WKWebView
 
     @Published private(set) var navigationError: String?
@@ -89,6 +95,26 @@ final class V2AssistantBrowserController: NSObject, ObservableObject, WKNavigati
     private var hasRestoredScrollOffset = false
     private var scrollRestoreAttempt = 0
     private let maximumScrollRestoreAttempts = 8
+    private let moduleTicket: V2ModuleTicket?
+    private var moduleObservation: AnyCancellable?
+#if os(macOS)
+    private static let scrollMessageName = "v2AssistantBrowserScroll"
+    private static let scrollObservationScript = """
+    (() => {
+        const handler = window.webkit && window.webkit.messageHandlers &&
+            window.webkit.messageHandlers.v2AssistantBrowserScroll;
+        if (!handler) { return; }
+        const report = () => handler.postMessage(window.scrollY || 0);
+        window.addEventListener('scroll', report, { passive: true });
+        report();
+    })();
+    """
+    private var pendingScrollPersistence: DispatchWorkItem?
+#endif
+    var isModuleActive: Bool {
+        guard let moduleTicket else { return false }
+        return (try? V2PluginStore.shared.validate(moduleTicket)) != nil
+    }
 
     init(
         state: V2BrowserSessionState,
@@ -96,6 +122,7 @@ final class V2AssistantBrowserController: NSObject, ObservableObject, WKNavigati
     ) {
         self.state = state
         self.onNavigationChange = onNavigationChange
+        self.moduleTicket = try? V2PluginStore.shared.ticket(["web"])
 
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .default()
@@ -104,10 +131,32 @@ final class V2AssistantBrowserController: NSObject, ObservableObject, WKNavigati
 
         webView.navigationDelegate = self
         webView.uiDelegate = self
+#if os(iOS)
         webView.scrollView.delegate = self
+#elseif os(macOS)
+        configuration.userContentController.add(self, name: Self.scrollMessageName)
+        configuration.userContentController.addUserScript(
+            WKUserScript(
+                source: Self.scrollObservationScript,
+                injectionTime: .atDocumentEnd,
+                forMainFrameOnly: true
+            )
+        )
+#endif
         webView.allowsBackForwardNavigationGestures = true
+#if os(iOS)
         webView.backgroundColor = UIColor(V2Theme.ColorRole.surface)
         webView.isOpaque = false
+#elseif os(macOS)
+        webView.wantsLayer = true
+        webView.layer?.backgroundColor = NSColor.clear.cgColor
+#endif
+        moduleObservation = NotificationCenter.default.publisher(for: .v2ModulesChanged).sink { [weak self] _ in
+            guard let self, !self.isModuleActive else { return }
+            self.webView.stopLoading()
+            self.isLoading = false
+            self.navigationError = "网页功能已停用，历史链接仍保留。"
+        }
         loadInitialPageIfNeeded()
     }
 
@@ -124,11 +173,12 @@ final class V2AssistantBrowserController: NSObject, ObservableObject, WKNavigati
     }
 
     func goBack() {
-        guard webView.canGoBack else { return }
+        guard isModuleActive, webView.canGoBack else { return }
         webView.goBack()
     }
 
     func retry() {
+        guard isModuleActive else { navigationError = "网页功能已停用，请重新开启后打开链接。"; return }
         navigationError = nil
         guard Self.isSupportedWebURL(state.lastURL) else {
             recordBlockedNavigation()
@@ -143,15 +193,28 @@ final class V2AssistantBrowserController: NSObject, ObservableObject, WKNavigati
     }
 
     func openExternal() {
-        guard Self.isSupportedWebURL(currentURL) else { return }
+        guard isModuleActive, Self.isSupportedWebURL(currentURL) else { return }
+#if os(iOS)
         UIApplication.shared.open(currentURL)
+#elseif os(macOS)
+        NSWorkspace.shared.open(currentURL)
+#endif
     }
 
     func invalidate() {
         webView.stopLoading()
         webView.navigationDelegate = nil
         webView.uiDelegate = nil
+#if os(iOS)
         webView.scrollView.delegate = nil
+#elseif os(macOS)
+        pendingScrollPersistence?.cancel()
+        pendingScrollPersistence = nil
+        persistState()
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: Self.scrollMessageName)
+#endif
+        moduleObservation?.cancel()
+        moduleObservation = nil
     }
 
     func webView(
@@ -167,6 +230,7 @@ final class V2AssistantBrowserController: NSObject, ObservableObject, WKNavigati
         _ webView: WKWebView,
         didFinish navigation: WKNavigation?
     ) {
+        guard isModuleActive else { webView.stopLoading(); isLoading = false; return }
         isLoading = false
         navigationError = nil
 
@@ -184,8 +248,9 @@ final class V2AssistantBrowserController: NSObject, ObservableObject, WKNavigati
     func webView(
         _ webView: WKWebView,
         decidePolicyFor navigationAction: WKNavigationAction,
-        decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+        decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void
     ) {
+        guard isModuleActive else { decisionHandler(.cancel); return }
         let isTopLevel = navigationAction.targetFrame == nil
             || navigationAction.targetFrame?.isMainFrame == true
         guard isTopLevel else {
@@ -206,7 +271,7 @@ final class V2AssistantBrowserController: NSObject, ObservableObject, WKNavigati
         for navigationAction: WKNavigationAction,
         windowFeatures: WKWindowFeatures
     ) -> WKWebView? {
-        guard navigationAction.targetFrame == nil,
+        guard isModuleActive, navigationAction.targetFrame == nil,
               let url = navigationAction.request.url,
               Self.isSupportedWebURL(url) else {
             return nil
@@ -231,6 +296,22 @@ final class V2AssistantBrowserController: NSObject, ObservableObject, WKNavigati
         recordFailure(error)
     }
 
+#if os(macOS)
+    func userContentController(
+        _ userContentController: WKUserContentController,
+        didReceive message: WKScriptMessage
+    ) {
+        guard message.name == Self.scrollMessageName,
+              let offset = message.body as? NSNumber
+        else {
+            return
+        }
+        state.scrollOffsetY = max(0, offset.doubleValue)
+        scheduleScrollPersistence()
+    }
+#endif
+
+#if os(iOS)
     func scrollViewDidEndDragging(
         _ scrollView: UIScrollView,
         willDecelerate decelerate: Bool
@@ -245,8 +326,10 @@ final class V2AssistantBrowserController: NSObject, ObservableObject, WKNavigati
     func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
         persistScrollOffset()
     }
+#endif
 
     private func loadInitialPageIfNeeded() {
+        guard isModuleActive else { navigationError = "网页功能已停用，历史链接仍保留。"; return }
         guard webView.url == nil, !isLoading else { return }
         guard Self.isSupportedWebURL(state.lastURL) else {
             recordBlockedNavigation()
@@ -264,6 +347,7 @@ final class V2AssistantBrowserController: NSObject, ObservableObject, WKNavigati
             return
         }
 
+#if os(iOS)
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(180)) { [weak self] in
             guard let self else { return }
             let scrollView = self.webView.scrollView
@@ -281,14 +365,56 @@ final class V2AssistantBrowserController: NSObject, ObservableObject, WKNavigati
             )
             self.hasRestoredScrollOffset = true
         }
+#elseif os(macOS)
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(180)) { [weak self] in
+            guard let self else { return }
+            let escapedOffset = String(format: "%.3f", offset)
+            self.webView.evaluateJavaScript(
+                "window.scrollTo(0, Math.max(0, \(escapedOffset))); window.scrollY || 0;"
+            ) { [weak self] result, _ in
+                guard let self else { return }
+                let actualOffset = (result as? NSNumber)?.doubleValue ?? 0
+                let reachedTarget = actualOffset + 1 >= offset
+                let reachedAttemptLimit = self.scrollRestoreAttempt >= self.maximumScrollRestoreAttempts
+                guard reachedTarget || reachedAttemptLimit else {
+                    self.scrollRestoreAttempt += 1
+                    self.restoreScrollOffsetIfNeeded()
+                    return
+                }
+                self.hasRestoredScrollOffset = true
+            }
+        }
+#endif
     }
 
     private func persistScrollOffset() {
+#if os(iOS)
         state.scrollOffsetY = max(0, webView.scrollView.contentOffset.y)
         persistState()
+#elseif os(macOS)
+        webView.evaluateJavaScript("window.scrollY || 0") { [weak self] result, _ in
+            guard let self, let offset = result as? NSNumber else { return }
+            self.state.scrollOffsetY = max(0, offset.doubleValue)
+            self.persistState()
+        }
+#endif
     }
 
+#if os(macOS)
+    private func scheduleScrollPersistence() {
+        pendingScrollPersistence?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.pendingScrollPersistence = nil
+            self.persistState()
+        }
+        pendingScrollPersistence = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(250), execute: workItem)
+    }
+#endif
+
     private func persistState() {
+        guard isModuleActive else { return }
         state.updatedAt = Date()
         onNavigationChange(
             V2AssistantBrowserNavigationUpdate(
@@ -325,6 +451,13 @@ final class V2AssistantBrowserController: NSObject, ObservableObject, WKNavigati
     }
 }
 
+#if os(iOS)
+extension V2AssistantBrowserController: UIScrollViewDelegate {}
+#elseif os(macOS)
+extension V2AssistantBrowserController: WKScriptMessageHandler {}
+#endif
+
+#if os(iOS)
 struct V2AssistantWebViewRepresentable: UIViewRepresentable {
     @ObservedObject var controller: V2AssistantBrowserController
 
@@ -383,6 +516,67 @@ final class V2AssistantWebViewHostView: UIView {
         self.attachedWebView = nil
     }
 }
+#elseif os(macOS)
+struct V2AssistantWebViewRepresentable: NSViewRepresentable {
+    @ObservedObject var controller: V2AssistantBrowserController
+
+    func makeNSView(context: Context) -> V2AssistantWebViewHostView {
+        let host = V2AssistantWebViewHostView()
+        host.attach(controller.webView)
+        return host
+    }
+
+    func updateNSView(_ host: V2AssistantWebViewHostView, context: Context) {
+        host.attach(controller.webView)
+    }
+
+    static func dismantleNSView(
+        _ host: V2AssistantWebViewHostView,
+        coordinator: ()
+    ) {
+        host.detachIfAttached()
+    }
+}
+
+final class V2AssistantWebViewHostView: NSView {
+    private weak var attachedWebView: WKWebView?
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer?.backgroundColor = NSColor.clear.cgColor
+        layer?.masksToBounds = true
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func attach(_ webView: WKWebView) {
+        guard webView.superview !== self else {
+            attachedWebView = webView
+            return
+        }
+
+        webView.removeFromSuperview()
+        webView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(webView)
+        NSLayoutConstraint.activate([
+            webView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            webView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            webView.topAnchor.constraint(equalTo: topAnchor),
+            webView.bottomAnchor.constraint(equalTo: bottomAnchor)
+        ])
+        attachedWebView = webView
+    }
+
+    func detachIfAttached() {
+        guard let attachedWebView, attachedWebView.superview === self else { return }
+        attachedWebView.removeFromSuperview()
+        self.attachedWebView = nil
+    }
+}
+#endif
 
 struct V2AssistantBrowserToolbar: View {
     @ObservedObject var controller: V2AssistantBrowserController
@@ -559,8 +753,9 @@ struct V2AssistantInlineBrowser: View {
         .frame(maxWidth: .infinity)
         .frame(height: max(180, availableHeight * 0.25))
         .background(V2Theme.ColorRole.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
         .overlay {
-            Rectangle()
+            RoundedRectangle(cornerRadius: 16)
                 .stroke(V2Theme.line, lineWidth: 1)
         }
     }

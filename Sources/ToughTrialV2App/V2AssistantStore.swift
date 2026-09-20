@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import Combine
 import ToughTrialV2Core
 
 @MainActor
@@ -8,15 +9,30 @@ final class V2AssistantStore: ObservableObject {
     @Published private(set) var storageState: V2AssistantStorageState
     @Published private(set) var storageIssueMessage: String?
     @Published var operationErrorMessage: String?
+    @Published var contextIssueMessage: String?
+    let contextArchive: V2AssistantArchive
+    @Published var activity: Activity?
+
+    struct Activity {
+        let messageID: String
+        let tool: V2AgentTool
+    }
 
     var selectedSession: V2AgentSession? { workspace.selectedSession }
     var isRunningTurn: Bool { currentTurn != nil }
-    var providerStatus: V2AssistantProviderStatus { dependencies.providerStatus() }
+    var providerStatus: V2AssistantProviderStatus {
+        if let choice = selectedSession?.modelSelection, let status = dependencies.selectedProviderStatus { return status(choice) }
+        return dependencies.providerStatus()
+    }
 
     let dependencies: V2AssistantDependencies
     let persistence: V2AssistantWorkspacePersistence
     let now: @MainActor @Sendable () -> Date
     var currentTurn: Task<Void, Never>?
+    private var moduleObservation: AnyCancellable?
+    var selectionRevision = 0
+    /// The visible native composer supplies a synchronous flush before desktop navigation/quit.
+    var flushVisibleDraft: (@MainActor () -> Bool)?
 
     convenience init(appStore: V2AppStore) {
         let environment = ProcessInfo.processInfo.environment
@@ -38,20 +54,29 @@ final class V2AssistantStore: ObservableObject {
         } else {
             persistence = .unavailable
         }
-        self.init(dependencies: appStore.makeAssistantDependencies(), persistence: persistence)
+        let archiveURL = isUITestMode ? nil : try? V2AgentWorkspaceJSONStore.defaultFileURL()
+            .deletingLastPathComponent().appendingPathComponent("assistant-context", isDirectory: true)
+        self.init(dependencies: appStore.makeAssistantDependencies(), persistence: persistence,
+                  archive: V2AssistantArchive(rootURL: archiveURL))
     }
 
     init(
         dependencies: V2AssistantDependencies,
         persistence: V2AssistantWorkspacePersistence,
         initialWorkspace: V2AgentWorkspace? = nil,
+        archive: V2AssistantArchive? = nil,
         now: @escaping @MainActor @Sendable () -> Date = Date.init
     ) {
         self.dependencies = dependencies
+        self.contextArchive = archive ?? V2AssistantArchive()
         self.persistence = persistence
         self.now = now
         workspace = initialWorkspace ?? .empty
         storageState = persistence.isAvailable ? .healthy : .unavailable
+
+        moduleObservation = NotificationCenter.default.publisher(for: .v2ModulesChanged).sink { [weak self] _ in
+            if !V2PluginStore.shared.enabled("assistant") { self?.cancelCurrentTurn() }
+        }
 
         guard persistence.isAvailable else {
             storageIssueMessage = "助手存储位置不可用；修复前不会写入会话。"
@@ -79,7 +104,8 @@ final class V2AssistantStore: ObservableObject {
             at: recoveryDate
         )
         let reconciledPlans = reconcileAcceptedArtifacts(in: &normalized)
-        var changed = recoveredInterruptedTurns || recoveredBrowserPresentation || reconciledPlans
+        let recoveredTools = reconcileToolOperations(in: &normalized)
+        var changed = recoveredInterruptedTurns || recoveredBrowserPresentation || reconciledPlans || recoveredTools
         if normalized.selectedSession == nil {
             _ = normalized.createSession(at: now())
             changed = true
@@ -88,10 +114,12 @@ final class V2AssistantStore: ObservableObject {
         if changed {
             _ = saveCurrentWorkspace()
         }
+        syncContextArchive()
     }
 
     func createSession() {
         guard mayMutate else { return }
+        selectionRevision += 1
         _ = commitWorkspace { _ = $0.createSession(at: now()) }
     }
 
@@ -103,6 +131,7 @@ final class V2AssistantStore: ObservableObject {
             .max(by: { $0.updatedAt < $1.updatedAt }) {
             return selectSession(id: existing.id)
         }
+        selectionRevision += 1
         return commitWorkspace {
             _ = $0.createSession(at: now(), sourceTask: sourceTask)
         }
@@ -111,6 +140,7 @@ final class V2AssistantStore: ObservableObject {
     @discardableResult
     func selectSession(id: String) -> Bool {
         guard mayMutate, workspace.session(id: id) != nil else { return false }
+        if workspace.selectedSessionID != id { selectionRevision += 1 }
         return commitWorkspace { _ = $0.selectSession(id: id) }
     }
 
@@ -121,19 +151,23 @@ final class V2AssistantStore: ObservableObject {
         return commitWorkspace { _ = $0.deleteSession(id: id) }
     }
 
-    func send(_ text: String) {
+    @discardableResult
+    func send(_ text: String, inputSource: V2UsageEvent.Source = .keyboard, references: [V2AssistantMessageReference] = [], attachments: [V2AssistantAttachment] = [], sessionID targetSessionID: String? = nil) -> Bool {
+        guard V2PluginStore.shared.enabled("assistant") else { operationErrorMessage = "助手已停用，可在功能与插件中开启。"; return false }
         let userText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !userText.isEmpty, currentTurn == nil, mayMutate,
-              let sessionID = workspace.selectedSessionID else { return }
+              let sessionID = targetSessionID ?? workspace.selectedSessionID else { return false }
 
         operationErrorMessage = nil
         let date = now()
-        let userMessage = V2AgentMessage.userText(userText, at: date)
+        var userMessage = V2AgentMessage.userText(userText, at: date)
+        userMessage.references = references.isEmpty ? nil : references
+        userMessage.attachments = attachments.isEmpty ? nil : attachments
         let agentMessage = V2AgentMessage(role: .agent, parts: [], createdAt: date, status: .pending)
 
         do {
-            let snapshot = try dependencies.modelSnapshot()
-            var turn = makeTurn(
+            let snapshot = try modelSnapshot(for: sessionID)
+            var turn = try makeTurn(
                 sessionID: sessionID,
                 userMessage: userMessage,
                 agentMessage: agentMessage,
@@ -148,9 +182,12 @@ final class V2AssistantStore: ObservableObject {
                                 traceStatus: .running, at: date)
             }) else {
                 markTurnFailedInMemory(turn, error: V2AssistantTurnError.persistenceUnavailable, at: date)
-                return
+                return false
             }
+            V2UsageTrace.shared.record(.init(kind: .inputSubmitted, source: inputSource,
+                sessionID: sessionID, operationID: userMessage.id, characterCount: userText.count, at: date))
             launch(turn)
+            return true
         } catch {
             appendFailedTurnPair(
                 userMessage: userMessage,
@@ -159,17 +196,19 @@ final class V2AssistantStore: ObservableObject {
                 error: error,
                 at: date
             )
+            return false
         }
     }
 
     func retry(messageID: String) {
+        guard V2PluginStore.shared.enabled("assistant") else { operationErrorMessage = "助手已停用，可在功能与插件中开启。"; return }
         guard currentTurn == nil, mayMutate else { return }
         reconcileAndPersistIfNeeded()
         guard mayMutate, let pair = retryPair(for: messageID) else { return }
 
         do {
-            let snapshot = try dependencies.modelSnapshot()
-            var turn = makeTurn(
+            let snapshot = try modelSnapshot(for: pair.sessionID)
+            var turn = try makeTurn(
                 sessionID: pair.sessionID,
                 userMessage: pair.user,
                 agentMessage: pair.agent,
@@ -218,6 +257,7 @@ final class V2AssistantStore: ObservableObject {
             _ = Self.recoverInterruptedTurns(in: &loaded, at: recoveryDate)
             _ = Self.recoverBrowserPresentationState(in: &loaded, at: recoveryDate)
             _ = reconcileAcceptedArtifacts(in: &loaded)
+            _ = reconcileToolOperations(in: &loaded)
             if loaded.selectedSession == nil { _ = loaded.createSession(at: now()) }
             workspace = loaded
             storageState = .healthy
@@ -321,7 +361,7 @@ final class V2AssistantStore: ObservableObject {
     }
 
     func acceptPlan(_ draft: V2PlanDraft) {
-        guard currentTurn == nil else { return }
+        guard currentTurn == nil, V2PluginStore.shared.enabled("assistant") else { return }
         reconcileAndPersistIfNeeded()
         guard mayMutate,
               let sessionID = owningSessionID(forPlanID: draft.id),
@@ -392,10 +432,17 @@ extension V2AssistantStore {
     var mayMutate: Bool { storageState == .healthy }
 
     func launch(_ turn: TurnState) {
+        if V2PluginStore.shared.enabled("trace"), V2UsageTrace.shared.isEnabled { do {
+            try contextArchive.record(sessionID: turn.sessionID, kind: "model_selected", requestID: turn.userMessageID,
+                metadata: ["provider": turn.modelSnapshot.identity.label, "model": turn.modelSnapshot.identity.model,
+                           "thinking": turn.modelSnapshot.thinking?.rawValue ?? "provider_default"], at: now())
+        } catch { contextIssueMessage = "模型设置已生效，但诊断记录暂时无法保存。" } }
         currentTurn = Task { [weak self] in
             guard let self else { return }
             await self.runTurn(turn)
             currentTurn = nil
+            activity = nil
+            if !Task.isCancelled { self.sendNextQueuedDraft(in: turn.sessionID) }
         }
     }
 
@@ -447,8 +494,13 @@ extension V2AssistantStore {
         _ = commitWorkspace { _ = $0.replaceMessage(agent, in: pair.sessionID) }
     }
 
-    func markTurnFailedInMemory(_ turn: TurnState, error: Error, at date: Date) {
-        operationErrorMessage = Self.userFacingMessage(for: error)
+    func markTurnFailedInMemory(
+        _ turn: TurnState,
+        error: Error,
+        at date: Date,
+        userFacingMessage: String? = nil
+    ) {
+        operationErrorMessage = userFacingMessage ?? Self.userFacingMessage(for: error, tool: turn.activeTool)
         Self.updateTurn(
             in: &workspace,
             turn: turn,
@@ -611,21 +663,22 @@ extension V2AssistantStore {
     }
 
     @discardableResult
-    func commitWorkspace(_ mutation: (inout V2AgentWorkspace) -> Void) -> Bool {
+    func commitWorkspace(syncArchive: Bool = true, _ mutation: (inout V2AgentWorkspace) -> Void) -> Bool {
         guard mayMutate else { return false }
         var next = workspace
         mutation(&next)
         workspace = next
-        return saveCurrentWorkspace()
+        return saveCurrentWorkspace(syncArchive: syncArchive)
     }
 
     @discardableResult
-    func saveCurrentWorkspace() -> Bool {
+    func saveCurrentWorkspace(syncArchive: Bool = true) -> Bool {
         guard persistence.isAvailable, storageState != .corruptRead else { return false }
         do {
             try persistence.save(workspace)
             storageState = .healthy
             storageIssueMessage = nil
+            if syncArchive { syncContextArchive() }
             return true
         } catch {
             storageState = .transientWriteFailure
@@ -635,9 +688,71 @@ extension V2AssistantStore {
         }
     }
 
-    static func userFacingMessage(for error: Error) -> String {
+    static func userFacingMessage(for error: Error, tool: V2AgentTool? = nil) -> String {
+        if let tool,
+           let webMessage = webUserFacingMessage(for: error, tool: tool) {
+            return webMessage
+        }
         let raw = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         return String(redactCredentials(in: raw).prefix(1_000))
+    }
+
+    static func webUserFacingMessage(for error: Error, tool: V2AgentTool) -> String? {
+        guard tool == .webSearch || tool == .webRead else { return nil }
+
+        if let runtimeError = error as? V2ModuleRuntimeError {
+            switch runtimeError {
+            case let .unavailable(id, _) where id == "core.web":
+                return "网页搜索已停用，请到功能与插件→网页搜索开启后重试。"
+            case let .stale(id, _, _) where id == "core.web":
+                return "网页搜索状态已变化，请稍后重试。"
+            default:
+                break
+            }
+        }
+
+        if let webError = error as? V2WebToolError {
+            switch webError {
+            case .invalidQuery, .invalidLimit:
+                return "网页搜索请求无效，请调整关键词后重试。"
+            case .unsupportedURL:
+                return "网页地址不受支持，请打开来源或稍后重试。"
+            case let .requestFailed(statusCode):
+                switch statusCode {
+                case 403:
+                    return "网页访问被拒绝（403），请打开来源或稍后重试。"
+                case 429:
+                    return "网页服务请求过多（429），请稍后重试。"
+                case 408:
+                    return "网页请求超时（408），请稍后重试。"
+                case 500..<600:
+                    return "网页服务暂时不可用（\(statusCode)），请稍后重试。"
+                default:
+                    return "网页请求失败（\(statusCode)），请稍后重试。"
+                }
+            case .invalidResponse, .unsupportedContentType, .payloadTooLarge,
+                 .invalidPayload, .unsupportedMarkup, .tooManyRedirects:
+                if tool == .webSearch {
+                    return "网页搜索结果结构不兼容，请调整关键词或稍后重试。"
+                }
+                return "网页返回内容结构不兼容，请打开来源或稍后重试。"
+            }
+        }
+
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .timedOut:
+                return "网页请求超时，请稍后重试。"
+            case .notConnectedToInternet, .networkConnectionLost, .cannotConnectToHost,
+                 .cannotFindHost, .dnsLookupFailed, .dataNotAllowed, .internationalRoamingOff,
+                 .secureConnectionFailed, .cannotLoadFromNetwork, .resourceUnavailable:
+                return "网络连接中断，请检查网络后重试。"
+            default:
+                return "网页请求失败，请稍后重试。"
+            }
+        }
+
+        return "网页请求失败，请稍后重试。"
     }
 
     static func redactCredentials(in value: String) -> String {

@@ -127,6 +127,7 @@ public enum V2AgentTool: String, Codable, Equatable, Sendable {
     case webRead
     case localSearch
     case plan
+    case schedule
     case other
 
     public init(label: String) {
@@ -139,6 +140,8 @@ public enum V2AgentTool: String, Codable, Equatable, Sendable {
             self = .webRead
         case "local_search", "local search":
             self = .localSearch
+        case "schedule":
+            self = .schedule
         case "plan", "planning":
             self = .plan
         default:
@@ -798,6 +801,8 @@ public enum V2AgentMessagePart: Codable, Equatable, Sendable {
     case trace(V2AgentTraceSummary)
     case sources([V2WebSource])
     case plan(V2PlanDraft)
+    case schedule(V2AgentScheduleCard)
+    case tool(V2ToolExecutionResult)
     case error(V2AgentMessageError)
 
     private enum CodingKeys: String, CodingKey {
@@ -806,6 +811,8 @@ public enum V2AgentMessagePart: Codable, Equatable, Sendable {
         case trace
         case sources
         case plan
+        case schedule
+        case tool
         case error
     }
 
@@ -814,6 +821,8 @@ public enum V2AgentMessagePart: Codable, Equatable, Sendable {
         case trace
         case sources
         case plan
+        case schedule
+        case tool
         case error
     }
 
@@ -832,6 +841,12 @@ public enum V2AgentMessagePart: Codable, Equatable, Sendable {
         case let .plan(plan):
             try container.encode(Tag.plan, forKey: .type)
             try container.encode(plan, forKey: .plan)
+        case let .schedule(card):
+            try container.encode(Tag.schedule, forKey: .type)
+            try container.encode(card, forKey: .schedule)
+        case let .tool(result):
+            try container.encode(Tag.tool, forKey: .type)
+            try container.encode(result, forKey: .tool)
         case let .error(error):
             try container.encode(Tag.error, forKey: .type)
             try container.encode(error, forKey: .error)
@@ -849,6 +864,10 @@ public enum V2AgentMessagePart: Codable, Equatable, Sendable {
             self = .sources(try container.decode([V2WebSource].self, forKey: .sources))
         case .plan:
             self = .plan(try container.decode(V2PlanDraft.self, forKey: .plan))
+        case .schedule:
+            self = .schedule(try container.decode(V2AgentScheduleCard.self, forKey: .schedule))
+        case .tool:
+            self = .tool(try container.decode(V2ToolExecutionResult.self, forKey: .tool))
         case .error:
             self = .error(try container.decode(V2AgentMessageError.self, forKey: .error))
         }
@@ -879,6 +898,8 @@ public struct V2AgentMessage: Identifiable, Codable, Equatable, Sendable {
     public var createdAt: Date
     public var updatedAt: Date
     public var status: Status
+    public var references: [V2AssistantMessageReference]?
+    public var attachments: [V2AssistantAttachment]?
 
     public init(
         id: String = UUID().uuidString,
@@ -931,6 +952,9 @@ public struct V2AgentSession: Identifiable, Codable, Equatable, Sendable {
     public var pendingPlanPrompt: String?
     public var pendingPlan: V2PlanDraft?
     public var traces: [V2AgentTrace]
+    public var modelSelection: V2AIProviderSelection?
+    public var composerDraft: V2AssistantDraft?
+    public var queuedDrafts: [V2AssistantDraft]?
 
     public init(
         id: String = UUID().uuidString,

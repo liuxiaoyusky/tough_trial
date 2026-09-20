@@ -3,12 +3,25 @@ import SwiftUI
 import ToughTrialV2Core
 
 @MainActor
+private final class V2WebUITestFailureState {
+    var hasFailed = false
+}
+
+@MainActor
 final class V2AppStore: ObservableObject {
     @Published var state: V2PrototypeState
     @Published var isPlanPresented = false
     @Published var zenSession: V2ActiveSession?
     @Published private(set) var planningSourceTask: V2TaskNode?
     @Published var errorMessage: String?
+    @Published var highlightedScheduleIDs = Set<String>() {
+        didSet { scheduleHighlightExpiresAt = highlightedScheduleIDs.isEmpty ? nil : Date().addingTimeInterval(8) }
+    }
+    private var scheduleHighlightExpiresAt: Date?
+    @Published var isScheduleSyncing = false
+    @Published var scheduleSyncMessage: String?
+    @Published var scheduleSyncError: String?
+    @Published var pendingScheduleConflict: V2PendingScheduleConflict?
     @Published private(set) var pendingPlanDrafts: [V2PlanDraftRecord] = []
     @Published private(set) var recallDate = Date()
     @Published private(set) var recallText = ""
@@ -28,14 +41,19 @@ final class V2AppStore: ObservableObject {
     @Published private(set) var dreamingCandidates: [V2DreamingCandidate] = []
     @Published private(set) var noticeMessage: String?
 
-    private let engine: V2Engine
+    let engine: V2Engine
     private var planningClient: any V2PlanningClient
     private let aiModelCatalogClient: any V2AIModelCatalogClient
-    private let memoryEngine: V2MemoryEngine
-    private let notificationService = V2NotificationService()
+    let memoryEngine: V2MemoryEngine
+    var scheduleReminderTask: Task<Void, Never>?
+    var foregroundScheduleSyncTask: Task<Void, Never>?
+    var isStoppingServices = false
+    var isDrainingModuleOutbox = false
+    var moduleSceneActive = true
+    let notificationService = V2NotificationService()
     private let liveActivityService = V2LiveActivityService()
-    private let calendar: Calendar
-    private let canWrite: Bool
+    let calendar: Calendar
+    let canWrite: Bool
     private let canWriteMemory: Bool
     private let allowsPlanningWithoutSavedAIService: Bool
     private let startupErrorMessage: String?
@@ -46,12 +64,15 @@ final class V2AppStore: ObservableObject {
     private var recallWorkingDrafts: [Date: V2RecallWorkingDraft] = [:]
     private var activePlanningPrompt: String?
     private var activePlanningConversationID = UUID().uuidString
+    private var recallStopGuardID: UUID?
 
     init(
         engine injectedEngine: V2Engine? = nil,
         planningClient injectedPlanningClient: (any V2PlanningClient)? = nil,
         aiModelCatalogClient injectedAIModelCatalogClient: (any V2AIModelCatalogClient)? = nil,
         memoryEngine injectedMemoryEngine: V2MemoryEngine? = nil,
+        aiProviderSettings injectedAIProviderSettings: V2AIProviderSettings? = nil,
+        memoryStoreURL: URL? = nil,
         initialState: V2PrototypeState = .empty(),
         calendar: Calendar = .current
     ) {
@@ -76,9 +97,9 @@ final class V2AppStore: ObservableObject {
             injectedPlanningClient != nil
             || (isUITestMode && !requiresAIConfigurationUITest)
             || hasDebugAIConfiguration
-        let loadedAISettings = isUITestMode
+        let loadedAISettings = injectedAIProviderSettings ?? (isUITestMode
             ? V2AIProviderSettings.defaults
-            : V2AIProviderSettingsStore.load()
+            : V2AIProviderSettingsStore.load())
         self.aiProviderProfiles = Dictionary(
             uniqueKeysWithValues: V2AIProviderPreset.allCases.map { provider in
                 let settings = isUITestMode
@@ -133,6 +154,8 @@ final class V2AppStore: ObservableObject {
             }
         }
 
+        self.engine.moduleRuntime = V2PluginStore.shared.runtime
+
         if let injectedMemoryEngine {
             self.memoryEngine = injectedMemoryEngine
             self.canWriteMemory = true
@@ -143,7 +166,7 @@ final class V2AppStore: ObservableObject {
             self.memoryIssueMessage = nil
         } else {
             do {
-                let url = try V2MemoryJSONStore.defaultFileURL()
+                let url = try memoryStoreURL ?? V2MemoryJSONStore.defaultFileURL()
                 self.memoryEngine = try V2MemoryEngine.load(from: V2MemoryJSONStore(fileURL: url))
                 self.canWriteMemory = true
                 self.memoryIssueMessage = nil
@@ -153,14 +176,33 @@ final class V2AppStore: ObservableObject {
                 self.memoryIssueMessage = "记忆数据无法读取，原文件已保留。修复前不会覆盖。"
             }
         }
+        self.memoryEngine.moduleRuntime = self.engine.moduleRuntime
         self.memoryRecords = self.memoryEngine.activeRecords()
+
+        self.engine.onCommandCommitted = { descriptor in
+            Task { @MainActor in
+                V2UsageTrace.shared.record(.init(kind: .commandApplied, moduleID: descriptor.moduleID, commandID: descriptor.id))
+            }
+        }
+        recallStopGuardID = V2PluginStore.shared.registerStopGuard(moduleID: "core.recall") { [weak self] in
+            guard let self, self.isRecallDirty else { return }
+            guard self.saveRecall() else { throw V2CaptureError.persistenceFailure }
+        }
 
         refreshProjection(at: Date())
         loadRecallDay(Date(), now: Date())
         syncLiveActivityForFocusedSession()
     }
 
+    deinit {
+        let token = recallStopGuardID
+        Task { @MainActor in if let token { V2PluginStore.shared.removeStopGuard(token) } }
+    }
+
+    @Published var assistantReturnTaskID: String?
+
     func openPlanAgent() {
+        guard V2PluginStore.shared.enabled("assistant") else { errorMessage = "助手已停用，可在功能与插件中开启。"; return }
         if planningSourceTask != nil || state.planConversationPhase == .complete {
             resetPlanConversation()
         }
@@ -169,6 +211,7 @@ final class V2AppStore: ObservableObject {
     }
 
     func openPlanAgent(for task: V2TaskNode) {
+        guard V2PluginStore.shared.enabled("assistant") else { errorMessage = "助手已停用，可在功能与插件中开启。"; return }
         if planningSourceTask?.id != task.id || state.planConversationPhase == .complete {
             resetPlanConversation()
         }
@@ -281,6 +324,15 @@ final class V2AppStore: ObservableObject {
         planningProviderLabel = resolvedPlanningClient.providerLabel
         planningFailureMessage = nil
         errorMessage = nil
+    }
+
+    func fetchConfigurationModels(apiKey: String) async throws -> [V2AIModel] {
+        try await aiModelCatalogClient.fetchModels(apiKey: apiKey)
+    }
+
+    func saveConfigurationCatalog(_ catalog: V2AIModelCatalogState) throws {
+        try V2AIModelCatalogStore.save(catalog)
+        aiModelCatalog = catalog
     }
 
     func connectSiliconFlow(apiKey: String, at date: Date = Date()) async throws {
@@ -471,13 +523,14 @@ final class V2AppStore: ObservableObject {
         }
     }
 
-    func makeAssistantDependencies() -> V2AssistantDependencies {
+    func makeBaseAssistantDependencies() -> V2AssistantDependencies {
         let environment = ProcessInfo.processInfo.environment
         let isUITestMode = environment["TOUGH_TRIAL_UI_TEST_EMPTY"] == "1"
             || environment["TOUGH_TRIAL_UI_TESTING"] == "1"
         let usesBrowserFixture = environment["TOUGH_TRIAL_UI_TEST_BROWSER_FIXTURE"] == "1"
 
         if isUITestMode {
+            let webFailure = V2WebUITestFailureState()
             return V2AssistantDependencies(
                 modelSnapshot: { [weak self] in
                     guard let self else { throw V2AssistantAppStoreError.storeUnavailable }
@@ -521,6 +574,10 @@ final class V2AppStore: ObservableObject {
                     )
                 },
                 webSearch: { _, limit in
+                    if environment["TOUGH_TRIAL_UI_WEB_FAIL_ONCE"] == "1", !webFailure.hasFailed {
+                        webFailure.hasFailed = true
+                        throw URLError(.timedOut)
+                    }
                     var results = [
                         V2WebSearchResult(
                             title: "Tough Trial 测试来源",
@@ -575,7 +632,7 @@ final class V2AppStore: ObservableObject {
                 let baseURL = settings.baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
                 return V2AssistantModelSnapshot(
                     identity: V2AssistantProviderIdentity(
-                        key: "\(settings.provider.rawValue)|\(baseURL)|\(model)|\(planningClient.providerLabel)",
+                        key: "\(settings.provider.rawValue)|\(baseURL)|\(model)|\(settings.thinking.rawValue)|\(planningClient.providerLabel)",
                         label: client.providerLabel,
                         model: model
                     ),
@@ -820,7 +877,7 @@ final class V2AppStore: ObservableObject {
             return categoryTerms.contains(where: normalizedQuery.contains)
         }
 
-        let taskLines = engine.snapshot.tasks
+        let taskLines = (V2PluginStore.shared.enabled("tasks") ? engine.snapshot.tasks : [])
             .filter {
                 $0.status != .archived
                     && matches(
@@ -832,7 +889,7 @@ final class V2AppStore: ObservableObject {
             .prefix(5)
             .map { "- \(String($0.title.prefix(180))) [\(Self.assistantStatusLabel($0.status))]" }
 
-        let planLines = engine.snapshot.planItems
+        let planLines = (V2PluginStore.shared.enabled("tasks") ? engine.snapshot.planItems : [])
             .filter {
                 $0.status != .canceled
                     && matches(
@@ -934,6 +991,19 @@ final class V2AppStore: ObservableObject {
         isRecallDirty = true
     }
 
+    func validateCaptureRecallDate(_ date: Date) throws {
+        let day = calendar.startOfDay(for: date)
+        if (calendar.isDate(recallDate, inSameDayAs: day) && isRecallDirty)
+            || recallWorkingDrafts[day]?.isDirty == true { throw V2CaptureError.staleTarget }
+    }
+
+    func refreshAfterCapture() {
+        // A clean UI cache must not mask newly appended domain data or later overwrite it.
+        recallWorkingDrafts = recallWorkingDrafts.filter { $0.value.isDirty }
+        if !isRecallDirty { loadRecallDay(recallDate, now: Date()) }
+        refreshProjection(at: Date())
+    }
+
     func refreshRecallEvidence(now: Date = Date()) {
         cacheCurrentRecallWork()
         loadRecallDay(recallDate, now: now)
@@ -982,13 +1052,15 @@ final class V2AppStore: ObservableObject {
     }
 
     func runClock() async {
-        while !Task.isCancelled {
+        while !Task.isCancelled && !isStoppingServices {
             do {
                 try await Task.sleep(for: .seconds(1))
             } catch {
                 return
             }
+            guard !Task.isCancelled, !isStoppingServices else { return }
             refreshProjection(at: Date())
+            await drainModuleOutbox()
         }
     }
 
@@ -1012,6 +1084,46 @@ final class V2AppStore: ObservableObject {
                 : "已为 \(count) 个带具体时间的计划开启提醒。"
         } catch {
             errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    /// Running sessions retain projection order; the focused session is the head.
+    var todayRunningSessions: [V2ActiveSession] {
+        state.activeSessions.filter { $0.status == .running }
+    }
+
+    var todayPlannedItems: [V2TimelineItem] {
+        let running = todayRunningSessions
+        return state.timelineItems.filter { item in
+            !running.contains { session in
+                if let taskID = item.taskID { return session.taskID == taskID }
+                if let planID = item.planItemID { return session.planItemID == planID }
+                return item.id.hasPrefix("execution-session-\(session.id)-")
+            }
+        }
+    }
+
+    func lifetimeSeconds(for session: V2ActiveSession, at date: Date = Date()) -> Int {
+        let segments = engine.snapshot.executionSegments.filter {
+            if let taskID = session.taskID { return $0.taskID == taskID }
+            return $0.logicalSessionID == session.id
+        }
+        return Int(segments.reduce(0) { $0 + $1.duration(through: date) })
+    }
+
+    /// Today pause closes the time segment; continuing creates a fresh one.
+    func pauseTodaySession(_ id: String, at date: Date = Date()) {
+        _ = endSession(id, at: date)
+    }
+
+    func completeTodaySession(_ session: V2ActiveSession, at date: Date = Date()) {
+        if let item = state.timelineItems.first(where: {
+            if let taskID = session.taskID { return $0.taskID == taskID }
+            return session.planItemID != nil && $0.planItemID == session.planItemID
+        }), item.kind == .task {
+            completeTodayItem(item, at: date)
+        } else {
+            _ = endSession(session.id, at: date)
         }
     }
 
@@ -1041,9 +1153,9 @@ final class V2AppStore: ObservableObject {
     }
 
     @discardableResult
-    func quickAddTodayTask(title: String, at date: Date = Date()) -> Bool {
+    func quickAddTodayTask(title: String, note: String = "", at date: Date = Date()) -> Bool {
         guard let created = mutate(at: date, {
-            try engine.quickInsertTodayTask(title: title, at: date, calendar: calendar)
+            try engine.quickInsertTodayTask(title: title, note: note, at: date, calendar: calendar)
         }) else {
             return false
         }
@@ -1053,9 +1165,9 @@ final class V2AppStore: ObservableObject {
     }
 
     @discardableResult
-    func quickAddScheduledTask(title: String, on date: Date) -> Bool {
+    func quickAddScheduledTask(title: String, note: String = "", on date: Date) -> Bool {
         guard let created = mutate(at: Date(), {
-            try engine.quickInsertScheduledTask(title: title, on: date, calendar: calendar)
+            try engine.quickInsertScheduledTask(title: title, note: note, on: date, calendar: calendar)
         }) else {
             return false
         }
@@ -1066,6 +1178,7 @@ final class V2AppStore: ObservableObject {
     @discardableResult
     func createTaskFromTasks(
         title: String,
+        note: String = "",
         parentTaskID: String?,
         at date: Date = Date()
     ) -> Bool {
@@ -1073,6 +1186,7 @@ final class V2AppStore: ObservableObject {
             try engine.createTask(
                 title: title,
                 parentID: parentTaskID,
+                note: note,
                 at: date
             )
         }) else {
@@ -1088,6 +1202,13 @@ final class V2AppStore: ObservableObject {
         at date: Date = Date()
     ) {
         guard item.kind == .task else { return }
+        if let paused = state.activeSessions.first(where: { session in
+            session.status == .paused && (item.taskID != nil ? session.taskID == item.taskID : session.planItemID == item.planItemID && item.planItemID != nil)
+        }) {
+            focusedSessionID = paused.id
+            toggleSession(paused.id, at: date)
+            return
+        }
         guard let segment = mutate(at: date, {
             try engine.startExecution(
                 taskID: item.taskID,
@@ -1140,12 +1261,22 @@ final class V2AppStore: ObservableObject {
 
     func completeTodayItem(_ item: V2TimelineItem, at date: Date = Date()) {
         guard item.kind == .task else { return }
-        _ = mutate(at: date) {
+        let ending = todayRunningSessions.filter { session in
+            item.taskID.map { session.taskID == $0 } ?? (item.planItemID != nil && session.planItemID == item.planItemID)
+        }
+        let result: Void? = mutate(at: date) {
             try engine.completeTodayItem(
                 planItemID: item.planItemID,
                 taskID: item.taskID,
-                at: date
+                at: date,
+                finishExecution: true
             )
+        }
+        if result != nil {
+            Task {
+                for session in ending { await liveActivityService.end(session: session) }
+                if let next = todayRunningSessions.first { try? await liveActivityService.sync(session: next) }
+            }
         }
     }
 
@@ -1221,6 +1352,7 @@ final class V2AppStore: ObservableObject {
     }
 
     private func syncLiveActivityForFocusedSession() {
+        guard engine.moduleRuntime.availability("core.tasks").isActive else { return }
         guard let session = state.activeSessions.first else { return }
         Task {
             do {
@@ -1232,21 +1364,36 @@ final class V2AppStore: ObservableObject {
         }
     }
 
-    private func refreshProjection(at now: Date) {
+    func stopAllLiveActivities() async {
+        await liveActivityService.endAll()
+    }
+
+    func refreshProjection(at now: Date) {
+        if let expiry = scheduleHighlightExpiresAt, now >= expiry {
+            withAnimation(.easeOut(duration: 0.4)) { highlightedScheduleIDs = [] }
+        }
         let today = engine.todaySnapshot(date: now, now: now, calendar: calendar)
         pendingPlanDrafts = engine.snapshot.planDrafts
             .filter { $0.status == .draft }
             .sorted { $0.updatedAt > $1.updatedAt }
         var next = state
         next.tasks = projectedTasks(through: now)
+        let taskTitles = Dictionary(uniqueKeysWithValues: engine.snapshot.tasks.map { ($0.id, $0.title) })
         next.timelineItems = today.items.map { item in
             V2TimelineItem(
                 id: item.id,
                 kind: item.kind == .task ? .task : .executionRecord,
                 planItemID: item.planItemID,
                 timeLabel: item.plannedAt.map(Self.shortTime) ?? "今天",
-                title: item.title,
-                detail: Self.todayDetail(for: item),
+                title: item.kind == .task ? (item.taskID.flatMap { taskTitles[$0] } ?? item.title) : item.title,
+                detail: item.taskID.map { taskID in
+                    let todaySeconds = engine.executionSegments(on: now, calendar: calendar)
+                        .filter { $0.taskID == taskID }
+                        .reduce(0.0) { total, segment in
+                            total + max(0, min(segment.endAt ?? now, now).timeIntervalSince(max(segment.startAt, calendar.startOfDay(for: now))))
+                        }
+                    return "累计 \(Self.durationText(engine.spentDuration(taskID: taskID, through: now))) · 今日 \(Self.durationText(todaySeconds))"
+                } ?? Self.todayDetail(for: item),
                 taskID: item.taskID,
                 isDone: item.isDone
             )
@@ -1269,8 +1416,9 @@ final class V2AppStore: ObservableObject {
                 status: session.status == .running ? .running : .paused
             )
         }
+        sessions = sessions.filter { $0.status == .running } + sessions.filter { $0.status == .paused }
         if let focusedSessionID,
-           let focusedIndex = sessions.firstIndex(where: { $0.id == focusedSessionID }) {
+           let focusedIndex = sessions.firstIndex(where: { $0.id == focusedSessionID && $0.status == .running }) {
             let focused = sessions.remove(at: focusedIndex)
             sessions.insert(focused, at: 0)
         } else {
@@ -1424,7 +1572,7 @@ final class V2AppStore: ObservableObject {
             }
             return V2ScheduledTask(
                 id: item.id,
-                title: item.title,
+                title: task?.title ?? item.title,
                 detail: item.startAt == nil ? "仅确定日期，时间可以之后再安排。" : "已放在时间轴。",
                 taskID: item.taskID,
                 date: item.date,
@@ -1442,6 +1590,7 @@ final class V2AppStore: ObservableObject {
         do {
             let result = try operation()
             errorMessage = nil
+            V2UsageTrace.shared.record(.init(kind: .manualEdit, source: .manual, at: date))
             refreshProjection(at: date)
             return result
         } catch {
@@ -1457,6 +1606,9 @@ final class V2AppStore: ObservableObject {
         currentDraft: V2PlanDraft?,
         at date: Date
     ) async {
+        let ticket: V2ModuleTicket
+        do { ticket = try V2PluginStore.shared.ticket(["assistant", "tasks"]) }
+        catch { planningFailureMessage = error.localizedDescription; return }
         let previousPhase = state.planConversationPhase
         state.planMessages.append(
             V2PlanMessage(
@@ -1502,6 +1654,7 @@ final class V2AppStore: ObservableObject {
 
         do {
             let outcome = try await planningClient.generate(request)
+            try V2PluginStore.shared.validate(ticket)
             switch outcome {
             case .clarification(let clarification):
                 state.currentPlanDraft = nil

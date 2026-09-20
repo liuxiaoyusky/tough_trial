@@ -324,6 +324,188 @@ public struct V2PlanItem: Identifiable, Codable, Equatable, Sendable {
     }
 }
 
+public struct V2ScheduleProposal: Codable, Equatable, Sendable {
+    public var summary: String
+    public var operations: [V2ScheduleOperation]
+
+    public init(summary: String, operations: [V2ScheduleOperation]) {
+        self.summary = summary
+        self.operations = operations
+    }
+}
+
+public struct V2ScheduleOperation: Codable, Equatable, Sendable {
+    public enum Kind: String, Codable, Equatable, Sendable {
+        case createTask
+        case updateTask
+        case scheduleTask
+        case reschedulePlanItem
+        case cancelPlanItem
+        case completeTask
+        case restoreTask
+        case archiveTask
+    }
+
+    public var kind: Kind
+    public var targetID: String?
+    public var localID: String?
+    public var title: String?
+    public var note: String?
+    public var parentID: String?
+    public var contextID: String?
+    public var day: String?
+    public var startMinute: Int?
+    public var durationMinutes: Int?
+    public var clearParent: Bool
+    public var clearContext: Bool
+    public var clearTime: Bool
+
+    public init(
+        kind: Kind,
+        targetID: String? = nil,
+        localID: String? = nil,
+        title: String? = nil,
+        note: String? = nil,
+        parentID: String? = nil,
+        contextID: String? = nil,
+        day: String? = nil,
+        startMinute: Int? = nil,
+        durationMinutes: Int? = nil,
+        clearParent: Bool = false,
+        clearContext: Bool = false,
+        clearTime: Bool = false
+    ) {
+        self.kind = kind
+        self.targetID = targetID
+        self.localID = localID
+        self.title = title
+        self.note = note
+        self.parentID = parentID
+        self.contextID = contextID
+        self.day = day
+        self.startMinute = startMinute
+        self.durationMinutes = durationMinutes
+        self.clearParent = clearParent
+        self.clearContext = clearContext
+        self.clearTime = clearTime
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case kind
+        case targetID
+        case localID
+        case title
+        case note
+        case parentID
+        case contextID
+        case day
+        case startMinute
+        case durationMinutes
+        case clearParent
+        case clearContext
+        case clearTime
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        kind = try container.decode(Kind.self, forKey: .kind)
+        targetID = try container.decodeIfPresent(String.self, forKey: .targetID)
+        localID = try container.decodeIfPresent(String.self, forKey: .localID)
+        title = try container.decodeIfPresent(String.self, forKey: .title)
+        note = try container.decodeIfPresent(String.self, forKey: .note)
+        parentID = try container.decodeIfPresent(String.self, forKey: .parentID)
+        contextID = try container.decodeIfPresent(String.self, forKey: .contextID)
+        day = try container.decodeIfPresent(String.self, forKey: .day)
+        startMinute = try container.decodeIfPresent(Int.self, forKey: .startMinute)
+        durationMinutes = try container.decodeIfPresent(Int.self, forKey: .durationMinutes)
+        clearParent = try container.decodeIfPresent(Bool.self, forKey: .clearParent) ?? false
+        clearContext = try container.decodeIfPresent(Bool.self, forKey: .clearContext) ?? false
+        clearTime = try container.decodeIfPresent(Bool.self, forKey: .clearTime) ?? false
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(kind, forKey: .kind)
+        try container.encodeIfPresent(targetID, forKey: .targetID)
+        try container.encodeIfPresent(localID, forKey: .localID)
+        try container.encodeIfPresent(title, forKey: .title)
+        try container.encodeIfPresent(note, forKey: .note)
+        try container.encodeIfPresent(parentID, forKey: .parentID)
+        try container.encodeIfPresent(contextID, forKey: .contextID)
+        try container.encodeIfPresent(day, forKey: .day)
+        try container.encodeIfPresent(startMinute, forKey: .startMinute)
+        try container.encodeIfPresent(durationMinutes, forKey: .durationMinutes)
+        if clearParent { try container.encode(true, forKey: .clearParent) }
+        if clearContext { try container.encode(true, forKey: .clearContext) }
+        if clearTime { try container.encode(true, forKey: .clearTime) }
+    }
+}
+
+public struct V2ScheduleChange: Codable, Equatable, Sendable {
+    public enum EntityKind: String, Codable, Equatable, Sendable {
+        case task
+        case planItem
+    }
+
+    public var entityKind: EntityKind
+    public var entityID: String
+    public var beforeTask: V2Task?
+    public var afterTask: V2Task?
+    public var beforePlanItem: V2PlanItem?
+    public var afterPlanItem: V2PlanItem?
+
+    public init(
+        taskID: String,
+        before: V2Task?,
+        after: V2Task?
+    ) {
+        entityKind = .task
+        entityID = taskID
+        beforeTask = before
+        afterTask = after
+        beforePlanItem = nil
+        afterPlanItem = nil
+    }
+
+    public init(
+        planItemID: String,
+        before: V2PlanItem?,
+        after: V2PlanItem?
+    ) {
+        entityKind = .planItem
+        entityID = planItemID
+        beforeTask = nil
+        afterTask = nil
+        beforePlanItem = before
+        afterPlanItem = after
+    }
+}
+
+public struct V2ScheduleReceipt: Identifiable, Codable, Equatable, Sendable {
+    public var id: String
+    public var requestID: String
+    public var summary: String
+    public var changes: [V2ScheduleChange]
+    public var createdAt: Date
+    public var undoneAt: Date?
+
+    public init(
+        id: String,
+        requestID: String,
+        summary: String,
+        changes: [V2ScheduleChange],
+        createdAt: Date,
+        undoneAt: Date? = nil
+    ) {
+        self.id = id
+        self.requestID = requestID
+        self.summary = summary
+        self.changes = changes
+        self.createdAt = createdAt
+        self.undoneAt = undoneAt
+    }
+}
+
 public struct V2RecallEntry: Identifiable, Codable, Equatable, Sendable {
     public var id: String
     public var date: Date
@@ -439,7 +621,7 @@ public struct V2DreamingSuggestion: Identifiable, Codable, Equatable, Sendable {
 }
 
 public struct V2AppSnapshot: Codable, Equatable, Sendable {
-    public static let currentSchemaVersion = 1
+    public static let currentSchemaVersion = 2
 
     public var schemaVersion: Int
     public var taskContexts: [V2TaskContext]
@@ -449,6 +631,12 @@ public struct V2AppSnapshot: Codable, Equatable, Sendable {
     public var executionSegments: [V2ExecutionSegment]
     public var recallEntries: [V2RecallEntry]
     public var dreamingSuggestions: [V2DreamingSuggestion]
+    public var scheduleReceipts: [V2ScheduleReceipt]
+    public var scheduleDocumentState: V2ScheduleDocumentState?
+    public var capture: V2CaptureState
+    public var outbox: [V2OutboxJob]
+    public var toolOperations: [V2StoredToolOperation]
+    public var extensionFields: V2ExtensionFieldState
 
     public init(
         schemaVersion: Int = V2AppSnapshot.currentSchemaVersion,
@@ -458,7 +646,13 @@ public struct V2AppSnapshot: Codable, Equatable, Sendable {
         planItems: [V2PlanItem] = [],
         executionSegments: [V2ExecutionSegment] = [],
         recallEntries: [V2RecallEntry] = [],
-        dreamingSuggestions: [V2DreamingSuggestion] = []
+        dreamingSuggestions: [V2DreamingSuggestion] = [],
+        scheduleReceipts: [V2ScheduleReceipt] = [],
+        scheduleDocumentState: V2ScheduleDocumentState? = nil,
+        capture: V2CaptureState = V2CaptureState(),
+        outbox: [V2OutboxJob] = [],
+        extensionFields: V2ExtensionFieldState = .init(),
+        toolOperations: [V2StoredToolOperation] = []
     ) {
         self.schemaVersion = schemaVersion
         self.taskContexts = taskContexts
@@ -468,6 +662,72 @@ public struct V2AppSnapshot: Codable, Equatable, Sendable {
         self.executionSegments = executionSegments
         self.recallEntries = recallEntries
         self.dreamingSuggestions = dreamingSuggestions
+        self.scheduleReceipts = scheduleReceipts
+        self.scheduleDocumentState = scheduleDocumentState
+        self.capture = capture
+        self.outbox = outbox
+        self.extensionFields = extensionFields
+        self.toolOperations = toolOperations
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion
+        case taskContexts
+        case tasks
+        case planDrafts
+        case planItems
+        case executionSegments
+        case recallEntries
+        case dreamingSuggestions
+        case scheduleReceipts
+        case scheduleDocumentState
+        case capture
+        case outbox
+        case extensionFields
+        case toolOperations
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
+        guard (1...Self.currentSchemaVersion).contains(schemaVersion) else {
+            throw V2SnapshotStoreError.unsupportedSchema(schemaVersion)
+        }
+        taskContexts = try container.decode([V2TaskContext].self, forKey: .taskContexts)
+        tasks = try container.decode([V2Task].self, forKey: .tasks)
+        planDrafts = try container.decode([V2PlanDraftRecord].self, forKey: .planDrafts)
+        planItems = try container.decode([V2PlanItem].self, forKey: .planItems)
+        executionSegments = try container.decode([V2ExecutionSegment].self, forKey: .executionSegments)
+        recallEntries = try container.decode([V2RecallEntry].self, forKey: .recallEntries)
+        dreamingSuggestions = try container.decode([V2DreamingSuggestion].self, forKey: .dreamingSuggestions)
+        capture = try container.decodeIfPresent(V2CaptureState.self, forKey: .capture) ?? V2CaptureState()
+        outbox = try container.decodeIfPresent([V2OutboxJob].self, forKey: .outbox) ?? []
+        toolOperations = try container.decodeIfPresent([V2StoredToolOperation].self, forKey: .toolOperations) ?? []
+        extensionFields = try container.decodeIfPresent(V2ExtensionFieldState.self, forKey: .extensionFields) ?? .init()
+        guard capture.schemaVersion == 1, capture.finance?.schemaVersion == nil || capture.finance?.schemaVersion == 1 else { throw V2CaptureError.invalidSchema }
+        scheduleDocumentState = try container.decodeIfPresent(V2ScheduleDocumentState.self, forKey: .scheduleDocumentState)
+        scheduleReceipts = try container.decodeIfPresent(
+            [V2ScheduleReceipt].self,
+            forKey: .scheduleReceipts
+        ) ?? []
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(schemaVersion, forKey: .schemaVersion)
+        try container.encode(taskContexts, forKey: .taskContexts)
+        try container.encode(tasks, forKey: .tasks)
+        try container.encode(planDrafts, forKey: .planDrafts)
+        try container.encode(planItems, forKey: .planItems)
+        try container.encode(executionSegments, forKey: .executionSegments)
+        try container.encode(recallEntries, forKey: .recallEntries)
+        try container.encode(dreamingSuggestions, forKey: .dreamingSuggestions)
+        try container.encode(scheduleReceipts, forKey: .scheduleReceipts)
+        try container.encode(capture, forKey: .capture)
+        try container.encode(outbox, forKey: .outbox)
+        try container.encode(extensionFields, forKey: .extensionFields)
+        try container.encode(toolOperations, forKey: .toolOperations)
+        try container.encodeIfPresent(scheduleDocumentState, forKey: .scheduleDocumentState)
     }
 
     public static var empty: V2AppSnapshot {

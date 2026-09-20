@@ -5,18 +5,15 @@ import ToughTrialV2Core
 struct V2TasksView: View {
     @ObservedObject var store: V2AppStore
 
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @State private var lens = V2TaskLens.structure
+    @State private var lens = V2TaskLens.list
     @State private var timeScale = V2TaskTimeScale.week
     @State private var timeAnchor = Calendar.current.startOfDay(for: Date())
     @State private var visibleGoalIDs: Set<String> = []
-    @State private var structureRootID: String?
-    @State private var showsCaptureAffordance = false
     @State private var isTaskCapturePresented = false
-    @State private var quickAddTitle = ""
     @State private var presentedTask: V2TaskDetailContext?
+    @State private var lastTaskReceiptID: String?
+    @State private var taskActionMessage: String?
     @State private var planTaskAfterDetail: V2TaskNode?
-    @FocusState private var isQuickAddFocused: Bool
 
     private var rootTasks: [V2TaskNode] {
         store.state.tasks
@@ -37,8 +34,8 @@ struct V2TasksView: View {
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
-            if lens == .structure {
-                structureContent
+            if lens == .list || lens == .structure {
+                taskContent
             } else if lens == .time {
                 timeContent
             } else {
@@ -48,31 +45,60 @@ struct V2TasksView: View {
             captureControl
         }
         .v2ScreenBackground()
+        .environment(\.scheduleHighlightedIDs, store.highlightedScheduleIDs)
         .onAppear {
             if visibleGoalIDs.isEmpty {
                 visibleGoalIDs = Set(goals.map(\.id))
             }
+            openAssistantSource()
         }
-        .sheet(isPresented: $isTaskCapturePresented, onDismiss: clearTaskCapture) {
-            V2TaskCaptureSheet(
-                title: $quickAddTitle,
-                locationTitle: taskCaptureLocationTitle,
-                onCancel: dismissTaskCapture,
-                onSubmit: submitTaskCapture
-            )
-            .presentationDetents([taskCaptureDetent])
+        .safeAreaInset(edge: .bottom) {
+            if let message = taskActionMessage {
+                HStack {
+                    Text(message).font(.subheadline)
+                    Spacer()
+                    if let receiptID = lastTaskReceiptID {
+                        Button("撤销") {
+                            if store.undoTaskChange(receiptID: receiptID) {
+                                lastTaskReceiptID = nil
+                                taskActionMessage = "已撤销"
+                            } else { taskActionMessage = store.errorMessage }
+                        }.accessibilityIdentifier("tasks.action.undo")
+                    }
+                    Button { taskActionMessage = nil; lastTaskReceiptID = nil } label: {
+                        Image(systemName: "xmark").frame(width: 44, height: 44)
+                    }.accessibilityLabel("关闭操作提示")
+                }.padding(.horizontal).background(.regularMaterial)
+            }
+        }
+        .onChange(of: store.assistantReturnTaskID) { _, _ in openAssistantSource() }
+        .v2Sheet(isPresented: $isTaskCapturePresented) {
+            NavigationStack {
+                V2TaskEditor(mode: .create(location: taskCaptureLocationTitle, identifier: lens == .time ? "tasks.timeCapture" : "tasks.capture"), onSave: { title, note in
+                    let saved = lens == .time
+                        ? store.quickAddScheduledTask(title: title, note: note, on: timeAnchor)
+                        : store.createTaskFromTasks(title: title, note: note, parentTaskID: nil)
+                    if saved {
+                        isTaskCapturePresented = false
+                        return nil
+                    }
+                    return store.errorMessage ?? "保存失败，请重试。"
+                }, onCancel: dismissTaskCapture)
+            }
+            .presentationDetents([.large])
             .presentationDragIndicator(.visible)
         }
-        .sheet(item: $presentedTask, onDismiss: openPendingPlanTask) { context in
+        .v2Sheet(item: $presentedTask, onDismiss: openPendingPlanTask) { context in
             V2TaskDetailSheet(
                 context: context,
+                store: store,
                 onClose: { presentedTask = nil },
                 onPlan: {
-                    planTaskAfterDetail = context.task
+                    planTaskAfterDetail = allTasks.first { $0.id == context.id }
                     presentedTask = nil
                 }
             )
-            .presentationDetents([.medium])
+            .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
         }
     }
@@ -86,7 +112,8 @@ struct V2TasksView: View {
                 scale: $timeScale,
                 anchor: $timeAnchor,
                 scheduledTasks: store.state.scheduledTasks,
-                activeTaskIDs: activeTaskIDs
+                activeTaskIDs: activeTaskIDs,
+                onOpenTask: presentTaskDetailsByID
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -95,18 +122,21 @@ struct V2TasksView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
-    private var structureContent: some View {
+    private var taskContent: some View {
         VStack(spacing: 8) {
             header
                 .padding(.horizontal, 18)
 
-            V2StructureLensView(
-                tasks: rootTasks,
-                selectedTaskID: store.state.selectedTaskID,
-                selectedRootID: $structureRootID,
-                onOpenDetails: presentTaskDetails
-            )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            Group {
+                if lens == .list {
+                    V2TaskListView(tasks: allTasks, onOpenDetails: presentTaskDetails,
+                                   onToggleCompletion: toggleTaskCompletion)
+                } else {
+                    V2StructureLensView(tasks: rootTasks, selectedTaskID: store.state.selectedTaskID,
+                                        onOpenDetails: presentTaskDetails)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .padding(.top, 12)
         .padding(.bottom, 6)
@@ -119,7 +149,7 @@ struct V2TasksView: View {
                 header
 
                 switch lens {
-                case .structure:
+                case .list, .structure:
                     EmptyView()
                 case .time:
                     EmptyView()
@@ -129,7 +159,8 @@ struct V2TasksView: View {
                         visibleGoalIDs: activeGoalIDs,
                         timelineItems: store.state.timelineItems,
                         tasks: allTasks,
-                        onToggleGoal: toggleGoal
+                        onToggleGoal: toggleGoal,
+                        onOpenTask: presentTaskDetailsByID
                     )
                 }
             }
@@ -141,96 +172,19 @@ struct V2TasksView: View {
     }
 
     private var captureControl: some View {
-        VStack(alignment: .trailing, spacing: 10) {
-            if showsCaptureAffordance, lens == .time {
-                timeQuickAddPanel
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-
-            if lens != .time || !showsCaptureAffordance {
-                Button {
-                    if lens == .time {
-                        withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-                            showsCaptureAffordance.toggle()
-                        }
-                        Task { @MainActor in
-                            try? await Task.sleep(for: .milliseconds(180))
-                            isQuickAddFocused = true
-                        }
-                    } else {
-                        quickAddTitle = ""
-                        isTaskCapturePresented = true
-                    }
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 22, weight: .semibold))
-                        .foregroundStyle(V2Theme.ColorRole.onPrimary)
-                        .frame(width: 52, height: 52)
-                        .background(V2Theme.ColorRole.primary)
-                        .clipShape(Circle())
-                        .shadow(color: V2Theme.ColorRole.primary.opacity(0.24), radius: 16, y: 7)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("新增任务记录")
-                .accessibilityIdentifier("tasks.capture.open")
-            }
+        Button { isTaskCapturePresented = true } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundStyle(V2Theme.ColorRole.onPrimary)
+                .frame(width: 52, height: 52)
+                .background(V2Theme.ColorRole.primary, in: Circle())
+                .shadow(color: V2Theme.ColorRole.primary.opacity(0.24), radius: 16, y: 7)
         }
-        .frame(maxWidth: 360, alignment: .trailing)
+        .buttonStyle(.plain)
+        .accessibilityLabel("新增任务记录")
+        .accessibilityIdentifier("tasks.capture.open")
         .padding(.trailing, 20)
         .padding(.bottom, 20)
-    }
-
-    private var timeQuickAddPanel: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                TextField("添加任务", text: $quickAddTitle)
-                    .font(V2Theme.TypeRole.bodyMedium.weight(.semibold))
-                    .foregroundStyle(V2Theme.ColorRole.textPrimary)
-                    .focused($isQuickAddFocused)
-                    .submitLabel(.done)
-                    .onSubmit(submitScheduledTask)
-                    .accessibilityIdentifier("tasks.timeCapture.title")
-
-                Button {
-                    closeQuickAdd()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(V2Theme.ColorRole.textTertiary)
-                        .frame(width: 28, height: 28)
-                        .background(V2Theme.ColorRole.surfaceMuted, in: Circle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("关闭新增任务")
-                .accessibilityIdentifier("tasks.timeCapture.cancel")
-            }
-
-            HStack(spacing: 10) {
-                Label(timeAnchor.formatted(.dateTime.month(.defaultDigits).day()), systemImage: "calendar")
-                    .font(V2Theme.TypeRole.labelSmall)
-                    .foregroundStyle(V2Theme.ColorRole.textTertiary)
-
-                Spacer(minLength: 8)
-
-                Button("添加", action: submitScheduledTask)
-                    .font(V2Theme.TypeRole.labelMedium)
-                    .foregroundStyle(V2Theme.ColorRole.onPrimary)
-                    .padding(.horizontal, 14)
-                    .frame(height: 30)
-                    .background(V2Theme.ColorRole.primary, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-                    .disabled(quickAddTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    .opacity(quickAddTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.45 : 1)
-                    .accessibilityIdentifier("tasks.timeCapture.submit")
-            }
-        }
-        .padding(12)
-        .background(V2Theme.ColorRole.surfaceRaised)
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(V2Theme.ColorRole.textPrimary.opacity(0.06), lineWidth: 1)
-        )
-        .shadow(color: V2Theme.ColorRole.textPrimary.opacity(0.12), radius: 22, y: 10)
     }
 
     private var header: some View {
@@ -241,21 +195,18 @@ struct V2TasksView: View {
                 .lineLimit(1)
                 .layoutPriority(1)
 
-            HStack(spacing: 8) {
+            HStack(spacing: 2) {
                 ForEach(V2TaskLens.allCases) { item in
                     Button {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             lens = item
-                            showsCaptureAffordance = false
-                            quickAddTitle = ""
-                            isQuickAddFocused = false
                         }
                     } label: {
                         Text(item.rawValue)
                             .font(V2Theme.TypeRole.labelMedium)
                             .lineLimit(1)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 32)
+                            .frame(height: 44)
                             .foregroundStyle(
                                 lens == item
                                     ? V2Theme.ColorRole.textPrimary
@@ -274,6 +225,7 @@ struct V2TasksView: View {
                             )
                     }
                     .buttonStyle(.plain)
+                    .accessibilityValue(lens == item ? "已选中" : "未选中")
                     .accessibilityIdentifier("tasks.lens.\(item.identifierComponent)")
                 }
             }
@@ -297,24 +249,12 @@ struct V2TasksView: View {
         )
     }
 
-    private var currentStructureRoot: V2TaskNode? {
-        if let structureRootID,
-           let selectedRoot = rootTasks.first(where: { $0.id == structureRootID }) {
-            return selectedRoot
-        }
-
-        if let selectedTaskID = store.state.selectedTaskID,
-           let selectedRoot = rootTasks.first(where: { $0.containsTask(id: selectedTaskID) }) {
-            return selectedRoot
-        }
-
-        return rootTasks.first
-    }
-
     private var taskCaptureLocationTitle: String {
         switch lens {
+        case .list:
+            return "列表 / 新建任务"
         case .structure:
-            return currentStructureRoot.map { "结构 / \($0.title)" } ?? "结构 / 新建根任务"
+            return "结构 / 新建根任务"
         case .fishbone:
             return "鱼骨 / 未归类"
         case .time:
@@ -322,47 +262,25 @@ struct V2TasksView: View {
         }
     }
 
-    private var taskCaptureDetent: PresentationDetent {
-        dynamicTypeSize.isAccessibilitySize ? .medium : .height(238)
-    }
-
-    private func submitScheduledTask() {
-        let title = quickAddTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !title.isEmpty else { return }
-        if store.quickAddScheduledTask(title: title, on: timeAnchor) {
-            closeQuickAdd()
-        }
-    }
-
-    private func closeQuickAdd() {
-        quickAddTitle = ""
-        isQuickAddFocused = false
-        withAnimation(.easeOut(duration: 0.16)) {
-            showsCaptureAffordance = false
-        }
-    }
-
-    private func submitTaskCapture() {
-        let title = quickAddTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !title.isEmpty, lens != .time else { return }
-
-        let parentTaskID = lens == .structure ? currentStructureRoot?.id : nil
-        if store.createTaskFromTasks(title: title, parentTaskID: parentTaskID) {
-            isTaskCapturePresented = false
-        }
+    private func toggleTaskCompletion(_ task: V2TaskNode) {
+        if let receipt = store.setTaskCompletion(taskID: task.id, completed: task.status != .done) {
+            lastTaskReceiptID = receipt.changes.isEmpty ? nil : receipt.id
+            taskActionMessage = receipt.summary
+        } else { taskActionMessage = store.errorMessage; lastTaskReceiptID = nil }
     }
 
     private func dismissTaskCapture() {
         isTaskCapturePresented = false
     }
 
-    private func clearTaskCapture() {
-        quickAddTitle = ""
+    private func presentTaskDetailsByID(_ id: String) {
+        guard let task = allTasks.first(where: { $0.id == id }) else { return }
+        presentTaskDetails(task)
     }
 
     private func presentTaskDetails(_ task: V2TaskNode) {
         let path = rootTasks.compactMap { taskPath(to: task.id, in: $0) }.first ?? [task]
-        presentedTask = V2TaskDetailContext(task: task, path: path.map(\.title))
+        presentedTask = V2TaskDetailContext(task: task, path: path.dropLast().map(\.title))
     }
 
     private func taskPath(to id: String, in node: V2TaskNode) -> [V2TaskNode]? {
@@ -376,6 +294,13 @@ struct V2TasksView: View {
             }
         }
         return nil
+    }
+
+    private func openAssistantSource() {
+        guard let id = store.assistantReturnTaskID,
+              let task = allTasks.first(where: { $0.id == id }) else { return }
+        store.assistantReturnTaskID = nil
+        presentTaskDetails(task)
     }
 
     private func openPendingPlanTask() {
@@ -398,6 +323,7 @@ struct V2TasksView: View {
 }
 
 private enum V2TaskLens: String, CaseIterable, Identifiable {
+    case list = "列表"
     case structure = "结构"
     case time = "时间"
     case fishbone = "鱼骨"
@@ -406,6 +332,7 @@ private enum V2TaskLens: String, CaseIterable, Identifiable {
 
     var identifierComponent: String {
         switch self {
+        case .list: "list"
         case .structure: "structure"
         case .time: "time"
         case .fishbone: "fishbone"
@@ -424,7 +351,7 @@ enum V2TaskTimeScale: String, CaseIterable, Identifiable {
 
 }
 
-private struct V2GoalFilter: Identifiable {
+struct V2GoalFilter: Identifiable {
     let id: String
     let title: String
     let color: Color
@@ -437,364 +364,261 @@ private struct V2TaskDetailContext: Identifiable {
     var id: String { task.id }
 }
 
-private struct V2TaskCaptureSheet: View {
-    @Binding var title: String
-    let locationTitle: String
-    let onCancel: () -> Void
-    let onSubmit: () -> Void
-
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @FocusState private var isTitleFocused: Bool
-    @AccessibilityFocusState private var isTitleAccessibilityFocused: Bool
-
-    private var isEmpty: Bool {
-        title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("新增任务")
-                    .font(V2Theme.TypeRole.titleLarge)
-                    .foregroundStyle(V2Theme.ColorRole.textPrimary)
-
-                Spacer()
-
-                Button(action: onCancel) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(V2Theme.ColorRole.textSecondary)
-                        .frame(width: 32, height: 32)
-                        .background(V2Theme.ColorRole.surfaceMuted, in: Circle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("取消新增任务")
-                .accessibilityIdentifier("tasks.capture.cancel")
-            }
-
-            TextField("任务标题", text: $title)
-                .font(V2Theme.TypeRole.bodyMedium)
-                .foregroundStyle(V2Theme.ColorRole.textPrimary)
-                .padding(.horizontal, 12)
-                .frame(minHeight: 44)
-                .background(
-                    V2Theme.ColorRole.surfaceMuted,
-                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-                )
-                .focused($isTitleFocused)
-                .accessibilityFocused($isTitleAccessibilityFocused)
-                .submitLabel(.done)
-                .onSubmit(onSubmit)
-                .accessibilityIdentifier("tasks.capture.title")
-
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: 12) {
-                    captureLocation
-                    submitButton
-                        .frame(maxWidth: .infinity)
-                }
-            } else {
-                HStack(alignment: .center, spacing: 10) {
-                    captureLocation
-                    Spacer(minLength: 12)
-                    submitButton
-                }
-            }
-        }
-        .padding(.horizontal, 20)
-        .padding(.top, 10)
-        .padding(.bottom, 18)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(V2Theme.ColorRole.surfaceRaised.ignoresSafeArea())
-        .onAppear {
-            isTitleFocused = true
-            isTitleAccessibilityFocused = true
-        }
-    }
-
-    private var captureLocation: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text("加入位置")
-                .font(V2Theme.TypeRole.labelSmall)
-                .foregroundStyle(V2Theme.ColorRole.textTertiary)
-            Text(locationTitle)
-                .font(V2Theme.TypeRole.labelMedium)
-                .foregroundStyle(V2Theme.ColorRole.textSecondary)
-                .lineLimit(2)
-                .accessibilityIdentifier("tasks.capture.location")
-        }
-    }
-
-    private var submitButton: some View {
-        Button("添加", action: onSubmit)
-            .font(V2Theme.TypeRole.labelLarge)
-            .foregroundStyle(V2Theme.ColorRole.onPrimary)
-            .padding(.horizontal, 18)
-            .frame(minHeight: 38)
-            .background(
-                V2Theme.ColorRole.primary,
-                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-            )
-            .disabled(isEmpty)
-            .opacity(isEmpty ? 0.45 : 1)
-            .accessibilityLabel("添加任务")
-            .accessibilityIdentifier("tasks.capture.submit")
-    }
-}
-
 private struct V2TaskDetailSheet: View {
     let context: V2TaskDetailContext
+    @ObservedObject var store: V2AppStore
     let onClose: () -> Void
     let onPlan: () -> Void
+    @State private var editingTask: V2Task?
+    @State private var draftKind: V2Task.Kind?
+    @State private var lastReceiptID: String?
+    @State private var actionMessage: String?
+
+    private var task: V2TaskNode? { store.state.flattenTasks().first { $0.id == context.id } }
+    private var currentTask: V2Task? { store.engine.snapshot.tasks.first { $0.id == context.id } }
+
+    private var classificationSummary: String {
+        let kind: String
+        switch currentTask?.kind {
+        case .goal: kind = "目标"
+        case .commitment: kind = "承诺"
+        case .maintenance: kind = "维护"
+        case nil: kind = "未分类"
+        }
+        return kind
+    }
+
+    private func classificationIsDirty(for task: V2Task) -> Bool {
+        draftKind != task.kind
+    }
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text("路径")
-                            .font(V2Theme.TypeRole.labelSmall)
-                            .foregroundStyle(V2Theme.ColorRole.textTertiary)
-                        Text(context.path.joined(separator: " / "))
-                            .font(V2Theme.TypeRole.bodySmall)
-                            .foregroundStyle(V2Theme.ColorRole.textSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .accessibilityIdentifier("tasks.detail.path")
-
-                    Text(context.task.title)
-                        .font(V2Theme.TypeRole.headlineSmall)
-                        .foregroundStyle(V2Theme.ColorRole.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityIdentifier("tasks.detail.title")
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("备注")
-                            .font(V2Theme.TypeRole.labelSmall)
-                            .foregroundStyle(V2Theme.ColorRole.textTertiary)
-                        Text(context.task.subtitle.isEmpty ? "暂无备注" : context.task.subtitle)
-                            .font(V2Theme.TypeRole.bodyMedium)
-                            .foregroundStyle(
-                                context.task.subtitle.isEmpty
-                                    ? V2Theme.ColorRole.textTertiary
-                                    : V2Theme.ColorRole.textSecondary
-                            )
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .accessibilityIdentifier("tasks.detail.note")
-
-                    Divider()
-                        .overlay(V2Theme.ColorRole.outline)
-
-                    HStack(alignment: .top, spacing: 18) {
-                        VStack(alignment: .leading, spacing: 7) {
-                            Text("完成状态")
-                                .font(V2Theme.TypeRole.labelSmall)
-                                .foregroundStyle(V2Theme.ColorRole.textTertiary)
-                            Label(statusTitle, systemImage: statusIcon)
-                                .font(V2Theme.TypeRole.labelMedium)
-                                .foregroundStyle(statusColor)
+            if let editingTask {
+                V2TaskEditor(mode: .edit(taskID: editingTask.id), title: editingTask.title, note: editingTask.note,
+                    additionalDirty: classificationIsDirty(for: editingTask),
+                    onSave: { title, note in
+                        let classification = V2TaskClassification(kind: draftKind)
+                        if let receipt = store.editTask(editingTask, title: title, note: note, classification: classification) {
+                            self.editingTask = nil
+                            lastReceiptID = receipt.changes.isEmpty ? nil : receipt.id
+                            actionMessage = "已保存修改"
+                            return nil
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .accessibilityIdentifier("tasks.detail.status")
-
-                        Divider()
-
-                        VStack(alignment: .leading, spacing: 7) {
-                            Text("累计用时")
-                                .font(V2Theme.TypeRole.labelSmall)
-                                .foregroundStyle(V2Theme.ColorRole.textTertiary)
-                            Label(durationTitle, systemImage: "clock")
-                                .font(V2Theme.TypeRole.labelMedium)
-                                .foregroundStyle(V2Theme.ColorRole.textSecondary)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .accessibilityIdentifier("tasks.detail.duration")
+                        return store.errorMessage ?? "保存失败，请重试。"
+                    }, onCancel: { self.editingTask = nil }) {
+                        V2TaskClassificationFields(
+                            kind: $draftKind,
+                            identifierPrefix: "tasks.editor.classification"
+                        )
                     }
-
-                    Button(action: onPlan) {
-                        Label("AI 计划", systemImage: "sparkles")
-                            .font(V2Theme.TypeRole.labelLarge)
-                            .foregroundStyle(V2Theme.ColorRole.onPrimary)
-                            .frame(maxWidth: .infinity, minHeight: 46)
-                            .background(
-                                V2Theme.ColorRole.primary,
-                                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityHint("带当前任务上下文打开助手")
-                    .accessibilityIdentifier("tasks.detail.aiPlan")
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 18)
-            }
-            .background(V2Theme.ColorRole.canvas)
-            .navigationTitle("任务详情")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(action: onClose) {
-                        Image(systemName: "xmark")
-                    }
-                    .accessibilityLabel("关闭任务详情")
-                    .accessibilityIdentifier("tasks.detail.close")
-                }
+            } else {
+                detail
             }
         }
+        .interactiveDismissDisabled(editingTask != nil)
         .accessibilityIdentifier("tasks.detail.sheet")
     }
 
-    private var statusTitle: String {
-        switch context.task.status {
-        case .planned: "未开始"
-        case .active: "进行中"
-        case .paused: "已暂停"
-        case .done: "已完成"
-        }
+    private func beginEditing() {
+        guard store.canWrite,
+              let editable = currentTask, editable.status != .archived else { return }
+        draftKind = editable.kind
+        editingTask = editable
     }
 
-    private var statusIcon: String {
-        switch context.task.status {
-        case .planned: "circle"
-        case .active: "timer"
-        case .paused: "pause.circle"
-        case .done: "checkmark.circle.fill"
+    private var detail: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                if let task {
+                    if !context.path.isEmpty {
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text("路径").font(.caption).foregroundStyle(V2Theme.secondary)
+                            Text(context.path.joined(separator: " / ")).font(.subheadline)
+                        }.accessibilityIdentifier("tasks.detail.path")
+                    }
+                    Button(action: beginEditing) {
+                        Text(task.title)
+                            .font(V2Theme.TypeRole.headlineSmall)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("点击编辑任务内容")
+                    .accessibilityIdentifier("tasks.detail.title")
+                    .disabled(!store.canWrite)
+                    Button(action: beginEditing) {
+                        Text(task.subtitle.isEmpty ? "点击编辑内容…" : task.subtitle)
+                            .foregroundStyle(task.subtitle.isEmpty ? V2Theme.secondary : V2Theme.ColorRole.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("在同一份文档中编辑标题和正文")
+                    .accessibilityIdentifier(task.subtitle.isEmpty ? "tasks.detail.emptyBody" : "tasks.detail.note")
+                    .disabled(!store.canWrite)
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("分类").font(.caption).foregroundStyle(V2Theme.secondary)
+                        Text(classificationSummary)
+                            .font(V2Theme.TypeRole.bodySmall)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("tasks.detail.classification")
+                    Divider()
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(task.status == .done ? "已完成" : task.status == .active ? "进行中" : task.status == .paused ? "已暂停" : "未开始")
+                            .accessibilityIdentifier("tasks.detail.status")
+                        Label("累计用时 \(task.spentMinutes) 分钟", systemImage: "clock")
+                            .accessibilityIdentifier("tasks.detail.duration")
+                        if store.state.activeSessions.contains(where: { $0.taskID == task.id }) {
+                            Text("此任务仍有计时记录进行中或暂停中。标记完成不会结束计时，可在今天结束时间段。")
+                                .font(.footnote).foregroundStyle(V2Theme.secondary)
+                        }
+                    }
+                } else {
+                    Text("此任务已不可用，请关闭后重新查看。")
+                }
+            }.padding(20).frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(V2Theme.ColorRole.canvas)
+        .foregroundStyle(V2Theme.ColorRole.textPrimary)
+        .navigationTitle("任务详情")
+        .v2InlineNavigationTitle()
+        #if os(iOS)
+        .toolbarBackground(V2Theme.ColorRole.canvas, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        #endif
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("关闭", action: onClose).accessibilityIdentifier("tasks.detail.close")
+            }
+
+        }
+        .safeAreaInset(edge: .bottom) {
+            VStack(spacing: 10) {
+                if let actionMessage {
+                    HStack {
+                        Text(actionMessage).font(.footnote)
+                        Spacer()
+                        if let lastReceiptID {
+                            Button("撤销") {
+                                if store.undoTaskChange(receiptID: lastReceiptID) {
+                                    self.lastReceiptID = nil
+                                    self.actionMessage = "已撤销"
+                                } else { self.actionMessage = store.errorMessage }
+                            }.accessibilityIdentifier("tasks.detail.undo")
+                        }
+                    }
+                }
+                if let task {
+                    Button(task.status == .done ? "恢复为未完成" : "标记完成") {
+                        if let receipt = store.setTaskCompletion(taskID: task.id, completed: task.status != .done) {
+                            lastReceiptID = receipt.changes.isEmpty ? nil : receipt.id
+                            actionMessage = receipt.summary
+                        } else { actionMessage = store.errorMessage; lastReceiptID = nil }
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("tasks.detail.complete")
+                    Button(action: onPlan) { Label("AI 计划", systemImage: "sparkles").frame(maxWidth: .infinity, minHeight: 44) }
+                        .accessibilityIdentifier("tasks.detail.aiPlan")
+                }
+            }.padding(.horizontal, 20).padding(.vertical, 10).background(.regularMaterial)
         }
     }
+}
 
-    private var statusColor: Color {
-        switch context.task.status {
-        case .planned: V2Theme.ColorRole.textSecondary
-        case .active: V2Theme.ColorRole.taskActive
-        case .paused: V2Theme.ColorRole.taskPaused
-        case .done: V2Theme.ColorRole.taskComplete
+private struct V2TaskListView: View {
+    @Environment(\.scheduleHighlightedIDs) private var highlightedIDs
+    let tasks: [V2TaskNode]
+    let onOpenDetails: (V2TaskNode) -> Void
+    let onToggleCompletion: (V2TaskNode) -> Void
+
+    var body: some View {
+        if tasks.isEmpty {
+            V2EmptyLensView(title: "还没有任务", detail: "记下要做的事，从一件小事开始。")
+        } else {
+            ScrollView {
+                LazyVStack(spacing: 10) {
+                    ForEach(tasks, id: \.id) { task in
+                        HStack(spacing: 8) {
+                            if task.children.isEmpty {
+                                Button { onToggleCompletion(task) } label: {
+                                    Image(systemName: task.status == .done ? "checkmark.circle.fill" : "circle")
+                                        .foregroundStyle(task.status == .done ? V2Theme.mint : V2Theme.blue)
+                                        .frame(width: 44, height: 44)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("\(task.status == .done ? "恢复未完成" : "完成")：\(task.title)")
+                                .accessibilityValue(task.status == .done ? "已完成" : "未完成")
+                                .accessibilityIdentifier("tasks.complete.\(task.id)")
+                            } else {
+                                Image(systemName: "arrow.triangle.branch")
+                                    .foregroundStyle(V2Theme.blue).frame(width: 44, height: 44)
+                                    .accessibilityHidden(true)
+                            }
+                            Button { onOpenDetails(task) } label: {
+                                HStack(spacing: 12) {
+                                    VStack(alignment: .leading, spacing: 5) {
+                                        Text(task.title)
+                                            .font(V2Theme.TypeRole.titleMedium)
+                                            .foregroundStyle(V2Theme.ink)
+                                            .multilineTextAlignment(.leading)
+                                        if !task.children.isEmpty {
+                                            Text("\(task.children.count) 个子任务")
+                                                .font(V2Theme.TypeRole.bodySmall)
+                                                .foregroundStyle(V2Theme.secondary)
+                                        }
+                                    }
+                                    Spacer(minLength: 0)
+                                    Image(systemName: "chevron.right")
+                                        .font(V2Theme.TypeRole.labelSmall)
+                                        .foregroundStyle(V2Theme.tertiary)
+                                }
+                                .frame(minHeight: 44)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(task.title)
+
+                        }
+                        .padding(14)
+                        .background(V2Theme.ColorRole.surfaceRaised, in: RoundedRectangle(cornerRadius: 20))
+                        .overlay(RoundedRectangle(cornerRadius: 20).stroke(
+                            highlightedIDs.contains(task.id) ? V2Theme.blue.opacity(0.4) : V2Theme.line.opacity(0.65)))
+                    }
+                }
+                .padding(.horizontal, 18)
+                .padding(.top, 8)
+                .padding(.bottom, 100)
+            }
+            .accessibilityIdentifier("tasks.list")
         }
-    }
-
-    private var durationTitle: String {
-        let minutes = max(0, context.task.spentMinutes)
-        guard minutes >= 60 else { return "\(minutes) 分钟" }
-        let hours = minutes / 60
-        let remainder = minutes % 60
-        return remainder == 0 ? "\(hours) 小时" : "\(hours) 小时 \(remainder) 分钟"
     }
 }
 
 private struct V2StructureLensView: View {
     let tasks: [V2TaskNode]
     let selectedTaskID: String?
-    @Binding var selectedRootID: String?
     let onOpenDetails: (V2TaskNode) -> Void
 
-    private var defaultRootID: String? {
-        tasks.first { root in
-            guard let selectedTaskID else { return false }
-            return root.containsTask(id: selectedTaskID)
-        }?.id ?? tasks.first?.id
-    }
-
-    private var selectedRootIndex: Int {
-        guard let selectedRootID,
-              let index = tasks.firstIndex(where: { $0.id == selectedRootID })
-        else {
-            return 0
-        }
-        return index
+    // Presentation-only root: never passed to commands or used as a new task's parent.
+    private var overview: V2TaskNode {
+        V2TaskNode(id: "task-overview", title: "全部任务", subtitle: "", goal: "",
+                   colorName: "blue", status: .planned, spentMinutes: 0, children: tasks)
     }
 
     var body: some View {
         if tasks.isEmpty {
-            V2EmptyLensView(title: "还没有任务结构", detail: "新的任务会先成为一个可以观察的节点。")
+            V2EmptyLensView(title: "还没有任务", detail: "记下要做的事，从一件小事开始。")
         } else {
-            TabView(selection: $selectedRootID) {
-                ForEach(tasks, id: \.id) { task in
-                    V2TaskMapCanvas(
-                        task: task,
-                        selectedTaskID: selectedTaskID,
-                        onOpenDetails: onOpenDetails
-                    )
-                        .padding(.horizontal, 2)
-                        .tag(Optional(task.id))
-                }
-            }
-            .tabViewStyle(.page(indexDisplayMode: .automatic))
-            .overlay(alignment: .topLeading) {
-                rootNavigation
-                    .padding(.leading, 8)
-                    .padding(.top, 8)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .frame(minHeight: 520)
-            .onAppear {
-                syncRootSelectionIfNeeded(force: false)
-            }
-            .onChange(of: selectedTaskID) { _, _ in
-                syncRootSelectionIfNeeded(force: true)
-            }
+            V2TaskMapCanvas(task: overview, selectedTaskID: selectedTaskID,
+                            onOpenDetails: onOpenDetails, isOverview: true)
+                .accessibilityIdentifier("tasks.structure.overview")
         }
-    }
-
-    private var rootNavigation: some View {
-        HStack(spacing: 6) {
-            rootNavigationButton(
-                systemName: "chevron.left",
-                accessibilityLabel: "上一个任务结构",
-                isEnabled: selectedRootIndex > 0
-            ) {
-                selectRoot(at: selectedRootIndex - 1)
-            }
-            rootNavigationButton(
-                systemName: "chevron.right",
-                accessibilityLabel: "下一个任务结构",
-                isEnabled: selectedRootIndex < tasks.count - 1
-            ) {
-                selectRoot(at: selectedRootIndex + 1)
-            }
-        }
-    }
-
-    private func rootNavigationButton(
-        systemName: String,
-        accessibilityLabel: String,
-        isEnabled: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 13, weight: .bold))
-                .frame(width: 32, height: 32)
-                .foregroundStyle(
-                    isEnabled
-                        ? V2Theme.ColorRole.textPrimary
-                        : V2Theme.ColorRole.textTertiary
-                )
-                .background(V2Theme.ColorRole.surfaceRaised, in: Circle())
-                .overlay {
-                    Circle()
-                        .stroke(V2Theme.ColorRole.outline, lineWidth: 1)
-                }
-        }
-        .buttonStyle(.plain)
-        .disabled(!isEnabled)
-        .accessibilityLabel(accessibilityLabel)
-    }
-
-    private func selectRoot(at index: Int) {
-        guard tasks.indices.contains(index) else { return }
-        withAnimation(.easeInOut(duration: 0.22)) {
-            selectedRootID = tasks[index].id
-        }
-    }
-
-    private func syncRootSelectionIfNeeded(force: Bool) {
-        guard force || selectedRootID == nil || !hasRoot(id: selectedRootID) else { return }
-        selectedRootID = defaultRootID
-    }
-
-    private func hasRoot(id: String?) -> Bool {
-        guard let id else { return false }
-        return tasks.contains { $0.id == id }
     }
 }
 
@@ -802,6 +626,7 @@ private struct V2TaskMapCanvas: View {
     let task: V2TaskNode
     let selectedTaskID: String?
     let onOpenDetails: (V2TaskNode) -> Void
+    var isOverview = false
 
     @State private var focusedNodeID: String?
     @State private var expandedNodeIDs: Set<String> = []
@@ -935,8 +760,16 @@ private struct V2TaskMapCanvas: View {
         }
     }
 
+    @ViewBuilder
     private func mapNode(for entry: V2TaskTreeLayout.Entry) -> some View {
-        mapNodeLabel(for: entry)
+        if isOverview && entry.depth == 0 {
+            Text("全部任务")
+                .font(V2Theme.TypeRole.headlineSmall)
+                .foregroundStyle(V2Theme.ColorRole.textPrimary)
+                .accessibilityIdentifier("tasks.structure.overviewTitle")
+        } else {
+            mapNodeLabel(for: entry)
+        }
     }
 
     private func mapNodeLabel(for entry: V2TaskTreeLayout.Entry) -> some View {
@@ -1253,6 +1086,7 @@ private struct V2TaskMapNode: View {
             }
         }
         .frame(width: nodeWidth, alignment: .leading)
+        .modifier(V2ScheduleHighlight(ids: [id]))
     }
 
     private var bodyAccessibilityLabel: String {
@@ -1428,12 +1262,13 @@ private struct V2TaskMapStatusDot: View {
     }
 }
 
-private struct V2FishboneLensView: View {
+struct V2FishboneLensView: View {
     let goals: [V2GoalFilter]
     let visibleGoalIDs: Set<String>
     let timelineItems: [V2TimelineItem]
     let tasks: [V2TaskNode]
     let onToggleGoal: (String) -> Void
+    let onOpenTask: (String) -> Void
 
     private var visibleDoneItems: [V2FishboneItem] {
         timelineItems.compactMap { item in
@@ -1443,6 +1278,7 @@ private struct V2FishboneLensView: View {
             guard visibleGoalIDs.contains(goalID) else { return nil }
             return V2FishboneItem(
                 id: item.id,
+                taskID: task?.id,
                 timeLabel: item.timeLabel,
                 title: item.title,
                 detail: item.detail,
@@ -1492,7 +1328,7 @@ private struct V2FishboneLensView: View {
                 V2EmptyLensView(title: "还没有可见完成节点", detail: "勾选目标后，完成过的任务会沉到同一条轴线上。")
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    V2FishboneAxis(items: visibleDoneItems)
+                    V2FishboneAxis(items: visibleDoneItems, onOpenTask: onOpenTask)
                         .frame(width: max(360, CGFloat(visibleDoneItems.count) * 150 + 180), height: 410)
                         .padding(.vertical, 8)
                         .padding(.trailing, 18)
@@ -1504,6 +1340,7 @@ private struct V2FishboneLensView: View {
 
 private struct V2FishboneItem: Identifiable {
     let id: String
+    let taskID: String?
     let timeLabel: String
     let title: String
     let detail: String
@@ -1513,6 +1350,7 @@ private struct V2FishboneItem: Identifiable {
 
 private struct V2FishboneAxis: View {
     let items: [V2FishboneItem]
+    let onOpenTask: (String) -> Void
 
     var body: some View {
         GeometryReader { proxy in
@@ -1547,7 +1385,18 @@ private struct V2FishboneAxis: View {
                         .frame(width: 17, height: 17)
                         .position(x: x, y: axisY)
 
-                    V2FishboneEventCard(item: item, isAbove: above)
+                    Group {
+                        if let taskID = item.taskID {
+                            Button { onOpenTask(taskID) } label: {
+                                V2FishboneEventCard(item: item, isAbove: above)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("查看详情：\(item.title)")
+                            .accessibilityIdentifier("tasks.fishbone.details.\(taskID)")
+                        } else {
+                            V2FishboneEventCard(item: item, isAbove: above)
+                        }
+                    }
                         .frame(width: 132)
                         .position(x: x + (above ? 38 : -38), y: nodeY + 46)
                 }

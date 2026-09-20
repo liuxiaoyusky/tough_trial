@@ -7,6 +7,10 @@ struct V2AIProviderSettingsView: View {
     @State private var selectedProvider: V2AIProviderPreset
     @State private var profiles: [V2AIProviderPreset: V2AIProviderSettings]
     @State private var errorMessage: String?
+    @StateObject private var connectionTest: V2AIConnectionTest
+    @State private var connectionTask: Task<Void, Never>?
+    @State private var draftCatalog: V2AIModelCatalogState
+    @State private var isLoadingCatalog = false
     @FocusState private var isEditingField: Bool
 
     init(store: V2AppStore) {
@@ -18,6 +22,13 @@ struct V2AIProviderSettingsView: View {
             }
         )
         loadedProfiles[activeSettings.provider] = activeSettings
+        _draftCatalog = State(initialValue: store.aiModelCatalog)
+        let isUITesting = ProcessInfo.processInfo.environment["TOUGH_TRIAL_UI_TESTING"] == "1"
+        _connectionTest = StateObject(wrappedValue: isUITesting ? V2AIConnectionTest(probe: { _ in
+            if ProcessInfo.processInfo.environment["TOUGH_TRIAL_UI_CONNECTION_FAILURE"] == "1" {
+                throw V2AgentClientError.requestFailed(statusCode: 401, message: "Synthetic auth failure")
+            }
+        }) : V2AIConnectionTest())
         _selectedProvider = State(initialValue: activeSettings.provider)
         _profiles = State(initialValue: loadedProfiles)
     }
@@ -26,6 +37,10 @@ struct V2AIProviderSettingsView: View {
         NavigationStack {
             Form {
                 providerSection
+                Section {
+                    NavigationLink("语音输入") { V2SpeechSettingsView() }
+                        .accessibilityIdentifier("ai.settings.speech")
+                }
 
                 switch selectedProvider {
                 case .siliconFlow:
@@ -33,14 +48,16 @@ struct V2AIProviderSettingsView: View {
                     if hasLoadedSiliconFlowModels {
                         modelSection
                     }
-                case .kimiCoding, .glmCoding:
+                case .kimiCoding, .glmCoding, .miniMax:
                     codingPlanSection
                 case .custom:
                     customProviderSection
                 }
+                thinkingSection
+                connectionSection
             }
             .navigationTitle("AI 服务")
-            .navigationBarTitleDisplayMode(.inline)
+            .v2InlineNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("完成") { dismiss() }
@@ -52,40 +69,30 @@ struct V2AIProviderSettingsView: View {
                 Text(errorMessage ?? "请稍后再试。")
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.large])
+        .onChange(of: currentProfile) { _, _ in
+            connectionTask?.cancel()
+            connectionTest.invalidate()
+        }
+        .onDisappear {
+            connectionTask?.cancel()
+            connectionTest.invalidate()
+        }
     }
 
     private var providerSection: some View {
         Section {
-            Menu {
+            Picker("AI 服务", selection: $selectedProvider) {
                 ForEach(V2AIProviderPreset.allCases) { provider in
-                    Button {
-                        selectedProvider = provider
-                    } label: {
-                        if provider == selectedProvider {
-                            Label(provider.title, systemImage: "checkmark")
-                        } else {
-                            Text(provider.title)
-                        }
-                    }
-                }
-            } label: {
-                HStack {
-                    Text("AI 服务")
-                    Spacer()
-                    Text(selectedProvider.title)
-                        .foregroundStyle(V2Theme.secondary)
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(V2Theme.tertiary)
+                    Text(provider.title).tag(provider)
                 }
             }
-            .accessibilityLabel("AI 服务 \(selectedProvider.title)")
+            .v2NavigationPicker()
             .accessibilityIdentifier("ai.settings.provider")
 
             if store.hasConnectedAIService {
                 Label(
-                    "正在使用 \(store.aiProviderSettings.provider.title)",
+                    "已保存：\(store.aiProviderSettings.provider.title)",
                     systemImage: "checkmark.circle.fill"
                 )
                 .foregroundStyle(V2Theme.mint)
@@ -99,7 +106,7 @@ struct V2AIProviderSettingsView: View {
         Section {
             if store.hasConnectedAIService && store.isUsingSiliconFlow {
                 Label {
-                    Text("已连接 · \(store.aiModelCatalog.models.count) 个聊天模型")
+                    Text("已保存 · \(draftCatalog.models.count) 个聊天模型")
                         .accessibilityIdentifier("ai.settings.connected")
                 } icon: {
                     Image(systemName: "checkmark.circle.fill")
@@ -107,7 +114,7 @@ struct V2AIProviderSettingsView: View {
                 }
             } else if hasLoadedSiliconFlowModels {
                 Label {
-                    Text("已读取 \(store.aiModelCatalog.models.count) 个模型，请选择模型")
+                    Text("已读取 \(draftCatalog.models.count) 个模型，请选择模型")
                         .accessibilityIdentifier("ai.settings.catalogLoaded")
                 } icon: {
                     Image(systemName: "arrow.down.circle.fill")
@@ -116,7 +123,7 @@ struct V2AIProviderSettingsView: View {
             }
 
             SecureField("粘贴 API Key", text: profileBinding(\.apiKey))
-                .textInputAutocapitalization(.never)
+                .v2Autocapitalization(.never)
                 .autocorrectionDisabled()
                 .focused($isEditingField)
                 .submitLabel(.done)
@@ -126,27 +133,39 @@ struct V2AIProviderSettingsView: View {
                 connectSiliconFlow()
             } label: {
                 HStack(spacing: 8) {
-                    if store.isRefreshingAIModels {
+                    if isLoadingCatalog {
                         ProgressView()
                             .controlSize(.small)
                     }
-                    Text(hasLoadedSiliconFlowModels ? "重新连接并更新模型" : "连接并更新模型")
+                    Text(hasLoadedSiliconFlowModels ? "更新可选模型" : "读取可选模型")
                 }
                 .frame(maxWidth: .infinity)
             }
-            .disabled(store.isRefreshingAIModels || !hasAPIKey)
+            .disabled(isLoadingCatalog || !hasAPIKey)
             .accessibilityIdentifier("ai.settings.connect")
         } header: {
             Text("SiliconFlow")
         } footer: {
-            Text("连接时会验证 Key 并读取可用模型。规划内容只在你发送请求时交给所选服务。")
+            Text("读取模型仅用于选择，不会保存配置；选好后请测试连接。")
         }
     }
 
     private var codingPlanSection: some View {
         Section {
+            if selectedProvider == .miniMax {
+                Picker("账号地区", selection: profileBinding(\.baseURL)) {
+                    Text("海外 · Coding Plan / API").tag("https://api.minimax.io/v1")
+                    Text("国内").tag("https://api.minimax.cn/v1")
+                    if !["https://api.minimax.io/v1", "https://api.minimax.cn/v1"].contains(currentProfile.baseURL) {
+                        Text("已保存的地址").tag(currentProfile.baseURL)
+                    }
+                }
+                .v2NavigationPicker()
+                .accessibilityIdentifier("ai.settings.minimaxRegion")
+            }
+
             SecureField("粘贴 API Key", text: profileBinding(\.apiKey))
-                .textInputAutocapitalization(.never)
+                .v2Autocapitalization(.never)
                 .autocorrectionDisabled()
                 .focused($isEditingField)
                 .submitLabel(.done)
@@ -178,12 +197,10 @@ struct V2AIProviderSettingsView: View {
             .accessibilityLabel("模型 \(currentProfile.model)")
             .accessibilityIdentifier("ai.settings.presetModel")
 
-            Button("使用此服务") {
-                saveCodingPlanProvider()
+            if selectedProvider == .glmCoding || selectedProvider == .miniMax {
+                Button("使用快速推荐：\(selectedProvider.defaultModel)") { updateProfile(\.model, to: selectedProvider.defaultModel) }
+                    .accessibilityIdentifier("ai.settings.fastModel")
             }
-            .frame(maxWidth: .infinity)
-            .disabled(!canSaveCurrentProfile)
-            .accessibilityIdentifier("ai.settings.usePreset")
 
             if isEditingActiveProvider {
                 Button("移除此 API Key", role: .destructive) {
@@ -200,32 +217,26 @@ struct V2AIProviderSettingsView: View {
     private var customProviderSection: some View {
         Section {
             TextField("服务地址", text: profileBinding(\.baseURL))
-                .textInputAutocapitalization(.never)
-                .keyboardType(.URL)
+                .v2Autocapitalization(.never)
+                .v2KeyboardType(.URL)
                 .autocorrectionDisabled()
                 .focused($isEditingField)
                 .submitLabel(.done)
                 .accessibilityIdentifier("ai.settings.baseURL")
 
             TextField("模型名称", text: profileBinding(\.model))
-                .textInputAutocapitalization(.never)
+                .v2Autocapitalization(.never)
                 .autocorrectionDisabled()
                 .focused($isEditingField)
                 .submitLabel(.done)
                 .accessibilityIdentifier("ai.settings.model")
 
             SecureField("粘贴 API Key", text: profileBinding(\.apiKey))
-                .textInputAutocapitalization(.never)
+                .v2Autocapitalization(.never)
                 .autocorrectionDisabled()
                 .focused($isEditingField)
                 .submitLabel(.done)
                 .accessibilityIdentifier("ai.settings.apiKey")
-
-            Button("使用此服务") {
-                saveCustomProvider()
-            }
-            .frame(maxWidth: .infinity)
-            .disabled(!canSaveCurrentProfile)
 
             if isEditingActiveProvider {
                 Button("移除此 API Key", role: .destructive) {
@@ -239,11 +250,43 @@ struct V2AIProviderSettingsView: View {
         }
     }
 
+    private var thinkingSection: some View {
+        let capability = currentProfile.thinkingCapability
+        return Section {
+            if capability.options.count > 1 || !capability.supports(currentProfile.thinking) {
+                Picker("思考强度", selection: thinkingBinding(capability: capability)) {
+                    ForEach(capability.options, id: \.self) { option in
+                        Text(option.title).tag(option)
+                    }
+                }
+                .accessibilityIdentifier("ai.settings.thinking")
+            } else {
+                LabeledContent("思考强度", value: capability.options.first?.title ?? "未声明")
+                    .accessibilityIdentifier("ai.settings.thinking")
+            }
+
+            Text(capability.note)
+                .font(.footnote)
+                .foregroundStyle(V2Theme.secondary)
+
+            if !capability.supports(currentProfile.thinking) {
+                Label(
+                    "当前模型不支持已保存的“\(currentProfile.thinking.title)”设置，请重新选择",
+                    systemImage: "exclamationmark.triangle"
+                )
+                .font(.footnote)
+                .foregroundStyle(V2Theme.orange)
+            }
+        } header: {
+            Text("Thinking")
+        }
+    }
+
     private var modelSection: some View {
         Section {
             NavigationLink {
                 V2AIModelSelectionView(
-                    models: store.aiModelCatalog.visibleModels,
+                    models: draftCatalog.visibleModels,
                     selectedModelID: siliconFlowSelectedModelID,
                     onSelect: selectModel
                 )
@@ -263,15 +306,15 @@ struct V2AIProviderSettingsView: View {
             .accessibilityLabel("当前模型 \(siliconFlowSelectedModelID ?? "未选择")")
             .accessibilityIdentifier("ai.settings.currentModel")
 
-            if store.aiModelCatalog.selectedModelID != nil,
-               !store.aiModelCatalog.isSelectedModelAvailable {
+            if draftCatalog.selectedModelID != nil,
+               !draftCatalog.isSelectedModelAvailable {
                 Label("原模型已不可用，请手动选择新模型", systemImage: "exclamationmark.triangle")
                     .font(.footnote)
                     .foregroundStyle(V2Theme.orange)
             }
 
             NavigationLink {
-                V2AIModelManagementView(store: store)
+                V2AIModelManagementView(catalog: $draftCatalog)
             } label: {
                 Label("管理模型", systemImage: "slider.horizontal.3")
             }
@@ -280,7 +323,7 @@ struct V2AIProviderSettingsView: View {
             Button("更新模型列表") {
                 connectSiliconFlow()
             }
-            .disabled(store.isRefreshingAIModels)
+            .disabled(isLoadingCatalog)
 
             if isEditingActiveProvider {
                 Button("移除 API Key", role: .destructive) {
@@ -306,17 +349,18 @@ struct V2AIProviderSettingsView: View {
         hasAPIKey
             && !currentProfile.baseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !currentProfile.model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && currentProfile.thinkingCapability.supports(currentProfile.thinking)
     }
 
     private var hasLoadedSiliconFlowModels: Bool {
         hasAPIKey
-            && store.aiModelCatalog.lastSuccessfulSyncAt != nil
-            && !store.aiModelCatalog.models.isEmpty
+            && draftCatalog.lastSuccessfulSyncAt != nil
+            && !draftCatalog.models.isEmpty
     }
 
     private var siliconFlowSelectedModelID: String? {
-        store.aiModelCatalog.isSelectedModelAvailable
-            ? store.aiModelCatalog.selectedModelID
+        draftCatalog.isSelectedModelAvailable
+            ? draftCatalog.selectedModelID
             : nil
     }
 
@@ -333,6 +377,8 @@ struct V2AIProviderSettingsView: View {
             "请使用 Kimi Code 控制台生成的 API Key；它与开放平台 Key 不通用。"
         case .glmCoding:
             "Coding Plan 仅保证在供应商支持的编码工具中可用；若请求被拒绝，请改用智谱普通 API。"
+        case .miniMax:
+            "海外 Coding Plan 请选“海外”，填入订阅专用 Key。国内、海外 Key 不通用；模型须在套餐支持范围内。已保存的 Key 会保留，不需要重复填写。"
         case .siliconFlow, .custom:
             ""
         }
@@ -356,12 +402,30 @@ struct V2AIProviderSettingsView: View {
         profiles[selectedProvider] = profile
     }
 
+    private func thinkingBinding(
+        capability: V2AIThinkingCapability
+    ) -> Binding<V2AIThinking> {
+        Binding(
+            get: {
+                capability.supports(currentProfile.thinking)
+                    ? currentProfile.thinking
+                    : capability.options.first ?? .automatic
+            },
+            set: { updateProfile(\.thinking, to: $0) }
+        )
+    }
+
     private func connectSiliconFlow() {
+        guard !isLoadingCatalog else { return }
         isEditingField = false
+        let settings = currentProfile
+        isLoadingCatalog = true
         Task { @MainActor in
+            defer { isLoadingCatalog = false }
             do {
-                try await store.connectSiliconFlow(apiKey: currentProfile.apiKey)
-                profiles[.siliconFlow] = store.aiProviderSettings
+                let models = try await store.fetchConfigurationModels(apiKey: settings.apiKey)
+                guard currentProfile == settings else { return }
+                draftCatalog.applySuccessfulSync(models: models, at: Date())
             } catch {
                 errorMessage = Self.message(for: error)
             }
@@ -370,8 +434,8 @@ struct V2AIProviderSettingsView: View {
 
     private func selectModel(_ id: String) -> Bool {
         do {
-            try store.selectAIModel(id: id)
-            profiles[.siliconFlow] = store.aiProviderSettings
+            try draftCatalog.selectModel(id: id)
+            updateProfile(\.model, to: id)
             return true
         } catch {
             errorMessage = Self.message(for: error)
@@ -379,26 +443,47 @@ struct V2AIProviderSettingsView: View {
         }
     }
 
-    private func saveCodingPlanProvider() {
-        isEditingField = false
-        var settings = currentProfile
-        settings.provider = selectedProvider
-        settings.baseURL = selectedProvider.baseURL
-        settings.isEnabled = true
-        saveAndDismiss(settings)
-    }
+    private var connectionSection: some View {
+        Section {
+            Button {
+                isEditingField = false
+                let settings = currentProfile
+                connectionTask?.cancel()
+                connectionTask = Task { await connectionTest.run(settings) }
+            } label: {
+                HStack {
+                    if connectionTest.isRunning { ProgressView() }
+                    Text(connectionTest.isRunning ? "正在测试…" : "测试连接")
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .disabled(!canSaveCurrentProfile || connectionTest.isRunning)
+            .accessibilityIdentifier("ai.settings.testConnection")
 
-    private func saveCustomProvider() {
-        isEditingField = false
-        var settings = currentProfile
-        settings.provider = .custom
-        settings.isEnabled = true
-        saveAndDismiss(settings)
+            if let message = connectionTest.message {
+                Text(message)
+                    .font(.footnote)
+                    .foregroundStyle(connectionTest.succeeded ? V2Theme.mint : V2Theme.orange)
+                    .accessibilityIdentifier("ai.settings.testResult")
+            }
+            Button("保存配置") {
+                guard connectionTest.canSave(currentProfile) else { return }
+                var settings = currentProfile
+                settings.isEnabled = true
+                saveAndDismiss(settings)
+            }
+            .frame(maxWidth: .infinity)
+            .disabled(!connectionTest.canSave(currentProfile))
+            .accessibilityIdentifier("ai.settings.usePreset")
+        } footer: {
+            Text("测试仅发送一条独立测试消息，不包含你的聊天或记录，可能消耗少量服务额度。通过后再保存；修改配置需要重新测试。")
+        }
     }
 
     private func saveAndDismiss(_ settings: V2AIProviderSettings) {
         do {
             try store.updatePlanningSettings(settings)
+            if settings.provider == .siliconFlow { try store.saveConfigurationCatalog(draftCatalog) }
             profiles[settings.provider] = store.aiProviderSettings
             dismiss()
         } catch {
@@ -465,7 +550,7 @@ private struct V2AIModelSelectionView: View {
             .accessibilityIdentifier("ai.settings.modelOption.\(model.id)")
         }
         .navigationTitle("选择模型")
-        .navigationBarTitleDisplayMode(.inline)
+        .v2InlineNavigationTitle()
         .searchable(text: $searchText, prompt: "搜索模型")
     }
 
@@ -477,23 +562,20 @@ private struct V2AIModelSelectionView: View {
 }
 
 private struct V2AIModelManagementView: View {
-    @ObservedObject var store: V2AppStore
+    @Binding var catalog: V2AIModelCatalogState
     @State private var errorMessage: String?
 
     var body: some View {
         List {
             Section {
-                ForEach(store.aiModelCatalog.models, id: \.id) { model in
+                ForEach(catalog.models, id: \.id) { model in
                     Toggle(
                         model.id,
                         isOn: Binding(
-                            get: { !store.aiModelCatalog.hiddenModelIDs.contains(model.id) },
+                            get: { !catalog.hiddenModelIDs.contains(model.id) },
                             set: { isVisible in
                                 do {
-                                    try store.setAIModelVisible(
-                                        id: model.id,
-                                        isVisible: isVisible
-                                    )
+                                    try catalog.setModelHidden(id: model.id, isHidden: !isVisible)
                                 } catch {
                                     errorMessage = (error as? LocalizedError)?.errorDescription
                                         ?? error.localizedDescription
@@ -501,7 +583,7 @@ private struct V2AIModelManagementView: View {
                             }
                         )
                     )
-                    .disabled(model.id == store.aiModelCatalog.selectedModelID)
+                    .disabled(model.id == catalog.selectedModelID)
                     .accessibilityIdentifier("ai.model.visible.\(model.id)")
                 }
             } footer: {
@@ -509,7 +591,7 @@ private struct V2AIModelManagementView: View {
             }
         }
         .navigationTitle("管理模型")
-        .navigationBarTitleDisplayMode(.inline)
+        .v2InlineNavigationTitle()
         .alert("模型没有更新", isPresented: errorBinding) {
             Button("知道了") { errorMessage = nil }
         } message: {

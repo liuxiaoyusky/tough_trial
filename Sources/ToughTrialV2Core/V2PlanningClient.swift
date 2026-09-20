@@ -325,19 +325,22 @@ public struct V2OpenAICompatiblePlanningConfiguration: Equatable, Sendable {
     public var model: String
     public var providerLabel: String
     public var usesPromptCacheKey: Bool
+    public var thinking: V2AIThinking
 
     public init(
         endpoint: URL,
         apiKey: String,
         model: String,
         providerLabel: String = "在线 AI",
-        usesPromptCacheKey: Bool = false
+        usesPromptCacheKey: Bool = false,
+        thinking: V2AIThinking? = nil
     ) {
         self.endpoint = endpoint
         self.apiKey = apiKey
         self.model = model
         self.providerLabel = providerLabel
         self.usesPromptCacheKey = usesPromptCacheKey
+        self.thinking = thinking ?? V2AIThinking.defaultSelection(endpoint: endpoint, model: model)
     }
 }
 
@@ -385,7 +388,7 @@ public struct V2OpenAICompatiblePlanningClient<Transport: V2PlanningHTTPTranspor
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         urlRequest.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         urlRequest.httpBody = try JSONSerialization.data(
-            withJSONObject: Self.requestBody(configuration: configuration, request: request),
+            withJSONObject: try Self.requestBody(configuration: configuration, request: request),
             options: [.sortedKeys]
         )
         return urlRequest
@@ -446,7 +449,7 @@ private extension V2OpenAICompatiblePlanningClient {
     static func requestBody(
         configuration: V2OpenAICompatiblePlanningConfiguration,
         request: V2PlanningRequest
-    ) -> [String: Any] {
+    ) throws -> [String: Any] {
         let userPayload: [String: Any] = [
             "request": V2RemotePlanningClient<Transport>.planningInput(request),
             "output_schema": V2RemotePlanningClient<Transport>.structuredOutputSchema,
@@ -481,7 +484,12 @@ private extension V2OpenAICompatiblePlanningClient {
            !cacheKey.isEmpty {
             body["prompt_cache_key"] = cacheKey
         }
-        return body
+        return try V2OpenAIRequestCompatibility.makeBody(
+            body,
+            endpoint: configuration.endpoint,
+            model: configuration.model,
+            thinking: configuration.thinking
+        )
     }
 }
 

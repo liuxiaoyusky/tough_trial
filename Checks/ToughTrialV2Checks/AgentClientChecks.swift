@@ -42,7 +42,7 @@ func checkAgentClientRequestsAToolWithoutExposingReasoning() async throws {
     require(
         systemInstruction.contains("untrusted data")
             && systemInstruction.contains("source IDs")
-            && systemInstruction.contains("at most one action")
+            && systemInstruction.contains("executes native tool calls sequentially")
             && systemInstruction.contains("private reasoning"),
         "The system instruction should constrain observations, citations, actions, and reasoning exposure"
     )
@@ -182,6 +182,16 @@ func checkAgentClientDecodesEveryValidActionAndRejectsHTTPWebRead() throws {
             expected: .answer(text: "可以")
         ),
         ValidActionFixture(
+            name: "answer with leftover read fields",
+            envelope: ["action": "answer", "text": "今天还有完成演示。", "query": "今天的任务", "url": "https://example.com/unused"],
+            expected: .answer(text: "今天还有完成演示。")
+        ),
+        ValidActionFixture(
+            name: "local search with explanatory text",
+            envelope: ["action": "local_search", "text": "我来查看今天的任务。", "query": "今天的任务", "url": "https://example.com/unused"],
+            expected: .localSearch(query: "今天的任务")
+        ),
+        ValidActionFixture(
             name: "web_search",
             envelope: ["action": "web_search", "text": "", "query": "香港天气", "url": ""],
             expected: .webSearch(query: "香港天气")
@@ -215,6 +225,24 @@ func checkAgentClientDecodesEveryValidActionAndRejectsHTTPWebRead() throws {
     for fixture in fixtures {
         let result = try client.decodeResponse(agentActionResponseData(fixture.envelope))
         require(result.action == fixture.expected, "\(fixture.name) should decode its valid action envelope")
+        let compact = fixture.envelope.filter { !$0.value.isEmpty }
+        let compactResult = try client.decodeResponse(agentActionResponseData(compact))
+        require(compactResult.action == fixture.expected, "\(fixture.name) should allow omitted unused fields")
+    }
+
+    for invalid in [
+        ["action": "answer"],
+        ["action": "web_search", "text": "unexpected"],
+        ["action": "answer", "text": "", "query": "今天的任务"],
+        ["action": "local_search", "text": "查询任务"],
+        ["action": "schedule", "text": "不要修改", "query": "新增任务"],
+    ] {
+        do {
+            _ = try client.decodeResponse(agentActionResponseData(invalid))
+            fatalError("Missing required or conflicting fields must still fail")
+        } catch V2AgentClientError.invalidOutput {
+            // Omitting unused fields does not relax action-specific validation.
+        }
     }
 
     do {

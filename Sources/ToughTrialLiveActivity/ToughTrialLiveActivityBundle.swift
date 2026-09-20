@@ -7,6 +7,10 @@ import WidgetKit
 struct ToughTrialLiveActivityBundle: WidgetBundle {
     var body: some Widget {
         V2FocusLiveActivity()
+        V2QuickCaptureWidget(variant: .medium)
+        V2QuickCaptureWidget(variant: .ledger)
+        V2QuickCaptureWidget(variant: .task)
+        V2QuickCaptureWidget(variant: .note)
     }
 }
 

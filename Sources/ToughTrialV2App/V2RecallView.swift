@@ -1,7 +1,11 @@
 import PencilKit
 import SwiftUI
 import ToughTrialV2Core
+#if os(iOS)
 import UIKit
+#else
+import AppKit
+#endif
 
 enum V2RecallInputMode: String {
     case text

@@ -21,13 +21,24 @@ final class ToughTrialUITests: XCTestCase {
         XCTAssertTrue(app.buttons["assistant.starter.web"].exists)
         XCTAssertTrue(app.buttons["assistant.starter.local"].exists)
         XCTAssertTrue(app.buttons["assistant.starter.plan"].exists)
-        XCTAssertFalse(tabBar.isHittable)
+        XCTAssertTrue(tabBar.isHittable)
 
-        app.buttons["assistant.exit"].tap()
+        app.tabBars.firstMatch.buttons["今天"].tap()
         XCTAssertTrue(tabBar.buttons["回想"].waitForExistence(timeout: 3))
 
         tabBar.buttons["回想"].tap()
         XCTAssertTrue(app.staticTexts["回想"].firstMatch.waitForExistence(timeout: 3))
+    }
+
+    @MainActor
+    private func testAndSaveAIConfiguration(in app: XCUIApplication) {
+        let test = app.buttons["ai.settings.testConnection"]
+        for _ in 0..<3 where !test.isHittable { app.swipeUp() }
+        test.tap()
+        XCTAssertTrue(app.staticTexts["ai.settings.testResult"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["ai.settings.testResult"].label.contains("连接成功"))
+        app.buttons["ai.settings.usePreset"].tap()
+        XCTAssertTrue(app.navigationBars["AI 服务"].waitForNonExistence(timeout: 5))
     }
 
     @MainActor
@@ -37,6 +48,8 @@ final class ToughTrialUITests: XCTestCase {
         app.buttons["assistant.more"].tap()
         app.buttons["assistant.settings"].tap()
         XCTAssertTrue(app.navigationBars["AI 服务"].waitForExistence(timeout: 3))
+
+        selectAIProvider("SiliconFlow", in: app)
 
         let apiKey = app.secureTextFields["ai.settings.apiKey"]
         XCTAssertTrue(apiKey.waitForExistence(timeout: 3))
@@ -57,9 +70,7 @@ final class ToughTrialUITests: XCTestCase {
         let qwenModel = app.buttons["ai.settings.modelOption.Qwen/Qwen3-32B"]
         XCTAssertTrue(qwenModel.waitForExistence(timeout: 3))
         qwenModel.tap()
-        XCTAssertTrue(
-            app.staticTexts["ai.settings.connected"].waitForExistence(timeout: 3)
-        )
+        XCTAssertTrue(app.buttons["ai.settings.currentModel"].label.contains("Qwen/Qwen3-32B"))
 
         app.collectionViews.firstMatch.swipeUp()
         let manageModels = app.buttons["ai.settings.manageModels"]
@@ -81,7 +92,7 @@ final class ToughTrialUITests: XCTestCase {
         waitForExpectations(timeout: 3)
         app.navigationBars["管理模型"].buttons["AI 服务"].tap()
 
-        app.navigationBars["AI 服务"].buttons["完成"].tap()
+        testAndSaveAIConfiguration(in: app)
         XCTAssertTrue(app.buttons["assistant.sessions"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["assistant.more"].exists)
     }
@@ -96,7 +107,7 @@ final class ToughTrialUITests: XCTestCase {
         app.tabBars.firstMatch.buttons["助手"].tap()
 
         XCTAssertTrue(app.staticTexts["先连接 AI"].waitForExistence(timeout: 3))
-        XCTAssertFalse(app.textFields["assistant.composer"].exists)
+        XCTAssertFalse(app.textViews["assistant.composer"].exists)
         XCTAssertFalse(app.buttons["assistant.starter.plan"].exists)
         keepScreenshot(of: app, name: "assistant-ai-configuration-required")
 
@@ -104,6 +115,8 @@ final class ToughTrialUITests: XCTestCase {
         XCTAssertTrue(configure.exists)
         configure.tap()
         XCTAssertTrue(app.navigationBars["AI 服务"].waitForExistence(timeout: 3))
+
+        selectAIProvider("SiliconFlow", in: app)
 
         let apiKey = app.secureTextFields["ai.settings.apiKey"]
         apiKey.tap()
@@ -118,10 +131,10 @@ final class ToughTrialUITests: XCTestCase {
         let qwenModel = app.buttons["ai.settings.modelOption.Qwen/Qwen3-32B"]
         XCTAssertTrue(qwenModel.waitForExistence(timeout: 3))
         qwenModel.tap()
-        XCTAssertTrue(app.staticTexts["ai.settings.connected"].waitForExistence(timeout: 3))
-        app.navigationBars["AI 服务"].buttons["完成"].tap()
+        XCTAssertTrue(app.buttons["ai.settings.currentModel"].label.contains("Qwen/Qwen3-32B"))
+        testAndSaveAIConfiguration(in: app)
 
-        XCTAssertTrue(app.textFields["assistant.composer"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.textViews["assistant.composer"].waitForExistence(timeout: 3))
         XCTAssertFalse(app.staticTexts["先连接 AI"].exists)
     }
 
@@ -145,8 +158,8 @@ final class ToughTrialUITests: XCTestCase {
         let kimiKey = app.secureTextFields["ai.settings.apiKey"]
         kimiKey.tap()
         kimiKey.typeText("fake-kimi-key")
-        app.buttons["ai.settings.usePreset"].tap()
-        XCTAssertTrue(app.textFields["assistant.composer"].waitForExistence(timeout: 3))
+        testAndSaveAIConfiguration(in: app)
+        XCTAssertTrue(app.textViews["assistant.composer"].waitForExistence(timeout: 3))
 
         app.buttons["assistant.more"].tap()
         app.buttons["assistant.settings"].tap()
@@ -155,14 +168,14 @@ final class ToughTrialUITests: XCTestCase {
         selectAIProvider("GLM Coding Plan", in: app)
         let glmPresetModel = app.buttons["ai.settings.presetModel"]
         XCTAssertTrue(glmPresetModel.waitForExistence(timeout: 3))
-        XCTAssertTrue(glmPresetModel.label.contains("glm-5.2"))
+        XCTAssertTrue(glmPresetModel.label.contains("glm-5.3-flash"))
 
         let glmKey = app.secureTextFields["ai.settings.apiKey"]
         XCTAssertEqual(glmKey.value as? String, "粘贴 API Key")
         glmKey.tap()
         glmKey.typeText("fake-glm-key")
-        app.buttons["ai.settings.usePreset"].tap()
-        XCTAssertTrue(app.textFields["assistant.composer"].waitForExistence(timeout: 3))
+        testAndSaveAIConfiguration(in: app)
+        XCTAssertTrue(app.textViews["assistant.composer"].waitForExistence(timeout: 3))
 
         app.buttons["assistant.more"].tap()
         app.buttons["assistant.settings"].tap()
@@ -177,7 +190,7 @@ final class ToughTrialUITests: XCTestCase {
         let app = launchApp()
         app.tabBars.firstMatch.buttons["助手"].tap()
 
-        let composer = app.textFields["assistant.composer"]
+        let composer = app.textViews["assistant.composer"]
         XCTAssertTrue(composer.waitForExistence(timeout: 3))
         keepScreenshot(of: app, name: "assistant-empty")
         composer.tap()
@@ -222,7 +235,7 @@ final class ToughTrialUITests: XCTestCase {
         app.launch()
 
         app.tabBars.firstMatch.buttons["助手"].tap()
-        let composer = app.textFields["assistant.composer"]
+        let composer = app.textViews["assistant.composer"]
         XCTAssertTrue(composer.waitForExistence(timeout: 3))
         composer.tap()
         composer.typeText("帮我安排明天")
@@ -230,6 +243,7 @@ final class ToughTrialUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["没有收到可用回复"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["assistant.retry"].exists)
+        keepScreenshot(of: app, name: "assistant-error")
     }
 
     @MainActor
@@ -239,7 +253,7 @@ final class ToughTrialUITests: XCTestCase {
         app.launch()
 
         app.tabBars.firstMatch.buttons["助手"].tap()
-        let composer = app.textFields["assistant.composer"]
+        let composer = app.textViews["assistant.composer"]
         XCTAssertTrue(composer.waitForExistence(timeout: 3))
         composer.tap()
         composer.typeText("这周想跑十公里")
@@ -251,13 +265,19 @@ final class ToughTrialUITests: XCTestCase {
     func testAssistantSessionsKeepConversationIsolatedAndSearchable() {
         let app = launchApp()
         app.tabBars.firstMatch.buttons["助手"].tap()
-        let composer = app.textFields["assistant.composer"]
+        let composer = app.textViews["assistant.composer"]
         XCTAssertTrue(composer.waitForExistence(timeout: 3))
 
         composer.tap()
         composer.typeText("第一段独立对话")
         app.buttons["assistant.send"].tap()
         XCTAssertTrue(app.staticTexts["测试回复：第一段独立对话"].waitForExistence(timeout: 5))
+
+        composer.tap()
+        composer.typeText("先做最重要的一件事，剩下的晚点再看")
+        app.buttons["assistant.send"].tap()
+        XCTAssertTrue(app.staticTexts["测试回复：先做最重要的一件事，剩下的晚点再看"].waitForExistence(timeout: 5))
+        keepScreenshot(of: app, name: "assistant-multiturn")
 
         app.buttons["assistant.newSession"].tap()
         XCTAssertTrue(app.staticTexts["想一起处理什么？"].waitForExistence(timeout: 3))
@@ -285,7 +305,7 @@ final class ToughTrialUITests: XCTestCase {
     func testAssistantRendersTraceSourcesAndFullSessionDetails() {
         let app = launchApp()
         app.tabBars.firstMatch.buttons["助手"].tap()
-        let composer = app.textFields["assistant.composer"]
+        let composer = app.textViews["assistant.composer"]
         composer.tap()
         composer.typeText("搜索网页")
         app.buttons["assistant.send"].tap()
@@ -296,6 +316,7 @@ final class ToughTrialUITests: XCTestCase {
             NSPredicate(format: "label BEGINSWITH %@", "完成 3 个步骤")
         ).firstMatch
         XCTAssertTrue(trace.waitForExistence(timeout: 3))
+        keepScreenshot(of: app, name: "assistant-sources")
         trace.tap()
         XCTAssertTrue(app.staticTexts["搜索网页"].waitForExistence(timeout: 3))
         keepScreenshot(of: app, name: "assistant-conversation-trace")
@@ -316,7 +337,7 @@ final class ToughTrialUITests: XCTestCase {
         app.launch()
 
         app.tabBars.firstMatch.buttons["助手"].tap()
-        let composer = app.textFields["assistant.composer"]
+        let composer = app.textViews["assistant.composer"]
         XCTAssertTrue(composer.waitForExistence(timeout: 3))
         composer.tap()
         composer.typeText("搜索网页")
@@ -338,13 +359,19 @@ final class ToughTrialUITests: XCTestCase {
         let firstInlineBrowser = inlineBrowsers.element(boundBy: 0)
         XCTAssertTrue(firstInlineBrowser.waitForExistence(timeout: 3))
 
+        // Expanded content can place the next source behind the fixed composer on small screens.
+        let conversation = app.scrollViews["assistant.conversation"]
+        conversation.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.60))
+            .press(forDuration: 0.05, thenDragTo: conversation.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.12)))
         secondSource.tap()
         let secondInlineBrowser = inlineBrowsers.element(boundBy: 1)
         XCTAssertTrue(secondInlineBrowser.waitForExistence(timeout: 3))
         XCTAssertTrue(composer.exists)
         keepScreenshot(of: app, name: "assistant-two-inline-browsers")
 
-        let fullscreenButton = app.buttons["assistant.browser.fullscreen"].firstMatch
+        conversation.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.60))
+            .press(forDuration: 0.05, thenDragTo: conversation.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.12)))
+        let fullscreenButton = app.buttons.matching(identifier: "assistant.browser.fullscreen").allElementsBoundByIndex.last!
         XCTAssertTrue(fullscreenButton.waitForExistence(timeout: 3))
         fullscreenButton.tap()
 
@@ -366,12 +393,12 @@ final class ToughTrialUITests: XCTestCase {
         let taskTitle = "UI test \(UUID().uuidString.prefix(8))"
         app.descendants(matching: .any)["today.quickAdd"].tap()
 
-        let field = app.textFields["记一件要处理的事"]
-        XCTAssertTrue(field.waitForExistence(timeout: 3))
-        field.typeText(taskTitle)
+        let document = app.textViews["today.quickAdd.document"]
+        XCTAssertTrue(document.waitForExistence(timeout: 3))
+        document.typeText(taskTitle)
         XCTAssertFalse(app.staticTexts[taskTitle].exists)
 
-        app.buttons["添加任务"].tap()
+        app.buttons["today.quickAdd.submit"].tap()
         XCTAssertTrue(app.staticTexts[taskTitle].waitForExistence(timeout: 3))
     }
 
@@ -386,30 +413,31 @@ final class ToughTrialUITests: XCTestCase {
         XCTAssertTrue(app.buttons["tasks.lens.structure"].waitForExistence(timeout: 5))
 
         app.buttons["tasks.capture.open"].tap()
-        let captureTitle = app.textFields["tasks.capture.title"]
-        XCTAssertTrue(captureTitle.waitForExistence(timeout: 3))
-        captureTitle.typeText(cancelledTitle)
+        let document = app.textViews["tasks.capture.document"]
+        XCTAssertTrue(document.waitForExistence(timeout: 3))
+        document.typeText(cancelledTitle)
         app.buttons["tasks.capture.cancel"].tap()
-        XCTAssertTrue(captureTitle.waitForNonExistence(timeout: 3))
+        app.buttons["放弃修改"].tap()
+        XCTAssertTrue(document.waitForNonExistence(timeout: 3))
         XCTAssertFalse(app.staticTexts[cancelledTitle].exists)
 
         app.buttons["tasks.capture.open"].tap()
-        XCTAssertTrue(captureTitle.waitForExistence(timeout: 3))
+        XCTAssertTrue(document.waitForExistence(timeout: 3))
         keepScreenshot(of: app, name: "remediation-task-capture-structure")
-        captureTitle.typeText(structureTitle)
+        document.typeText(structureTitle)
         app.buttons["tasks.capture.submit"].tap()
-        XCTAssertTrue(captureTitle.waitForNonExistence(timeout: 3))
+        XCTAssertTrue(document.waitForNonExistence(timeout: 3))
         XCTAssertTrue(app.buttons[structureTitle].waitForExistence(timeout: 5))
         keepScreenshot(of: app, name: "remediation-task-created-structure")
 
         app.buttons["tasks.lens.fishbone"].tap()
         app.buttons["tasks.capture.open"].tap()
-        XCTAssertTrue(captureTitle.waitForExistence(timeout: 3))
+        XCTAssertTrue(document.waitForExistence(timeout: 3))
         XCTAssertEqual(app.staticTexts["tasks.capture.location"].label, "鱼骨 / 未归类")
         keepScreenshot(of: app, name: "remediation-task-capture-fishbone")
-        captureTitle.typeText(fishboneTitle)
+        document.typeText(fishboneTitle)
         app.buttons["tasks.capture.submit"].tap()
-        XCTAssertTrue(captureTitle.waitForNonExistence(timeout: 3))
+        XCTAssertTrue(document.waitForNonExistence(timeout: 3))
 
         for _ in 0..<2 {
             app.terminate()
@@ -423,6 +451,7 @@ final class ToughTrialUITests: XCTestCase {
     func testTaskDetailOpensContextualAssistantAndWritesOnlyOnAccept() {
         let app = launchApp()
         app.tabBars.firstMatch.buttons["任务"].tap()
+        app.buttons["tasks.lens.structure"].tap()
 
         let details = app.buttons["查看详情：定位"]
         let disclosure = app.buttons["定位"]
@@ -430,8 +459,8 @@ final class ToughTrialUITests: XCTestCase {
         XCTAssertTrue(disclosure.exists)
         details.tap()
 
-        XCTAssertTrue(app.staticTexts["tasks.detail.title"].waitForExistence(timeout: 3))
-        XCTAssertEqual(app.staticTexts["tasks.detail.title"].label, "定位")
+        XCTAssertTrue(app.buttons["tasks.detail.title"].waitForExistence(timeout: 3))
+        XCTAssertEqual(app.buttons["tasks.detail.title"].label, "定位")
         XCTAssertTrue(app.buttons["tasks.detail.aiPlan"].exists)
         keepScreenshot(of: app, name: "remediation-task-detail")
         app.buttons["tasks.detail.aiPlan"].tap()
@@ -442,7 +471,7 @@ final class ToughTrialUITests: XCTestCase {
         XCTAssertFalse(app.buttons["加入计划"].exists)
         keepScreenshot(of: app, name: "remediation-task-assistant-context")
 
-        let composer = app.textFields["assistant.composer"]
+        let composer = app.textViews["assistant.composer"]
         XCTAssertTrue(composer.waitForExistence(timeout: 3))
         composer.tap()
         composer.typeText("帮我安排这周跑 10 公里")
@@ -456,7 +485,7 @@ final class ToughTrialUITests: XCTestCase {
         app.buttons["assistant.send"].tap()
         XCTAssertTrue(app.buttons["assistant.plan.accept"].waitForExistence(timeout: 5))
 
-        app.buttons["assistant.exit"].tap()
+        app.tabBars.firstMatch.buttons["今天"].tap()
         app.tabBars.firstMatch.buttons["今天"].tap()
         assertTaskIsMissingFromZenSearch("轻松跑 3 公里", in: app)
 
@@ -468,7 +497,7 @@ final class ToughTrialUITests: XCTestCase {
         app.buttons["assistant.plan.accept"].tap()
         XCTAssertTrue(app.staticTexts["已加入计划"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["assistant.plan.accept"].exists)
-        app.buttons["assistant.exit"].tap()
+        app.tabBars.firstMatch.buttons["今天"].tap()
 
         app.tabBars.firstMatch.buttons["今天"].tap()
         assertTaskCanBeFoundForZen("轻松跑 3 公里", in: app)
@@ -593,6 +622,7 @@ final class ToughTrialUITests: XCTestCase {
     func testTaskMapCollapseAndZoomControls() {
         let app = launchApp()
         app.tabBars.firstMatch.buttons["任务"].tap()
+        app.buttons["tasks.lens.structure"].tap()
 
         let branch = app.buttons["定位"]
         let completedLeaf = app.descendants(matching: .any)["内容边界"]
@@ -620,6 +650,9 @@ final class ToughTrialUITests: XCTestCase {
         XCTAssertTrue(
             app.descendants(matching: .any)["建立稳定创作系统"].exists
         )
+        app.buttons["tasks.lens.list"].tap()
+        XCTAssertTrue(app.buttons["建立稳定创作系统"].waitForExistence(timeout: 3))
+        keepScreenshot(of: app, name: "tasks-root-list")
     }
 
     @MainActor
@@ -679,6 +712,26 @@ final class ToughTrialUITests: XCTestCase {
     }
 
     @MainActor
+    func testLooseTasksShareOneListAndOpenDetails() {
+        let app = launchEmptyApp()
+        app.tabBars.firstMatch.buttons["任务"].tap()
+        for title in ["买牛奶", "取快递"] {
+            app.buttons["tasks.capture.open"].tap()
+            let input = app.textViews["tasks.capture.document"]
+            XCTAssertTrue(input.waitForExistence(timeout: 3))
+            XCTAssertEqual(app.staticTexts["tasks.capture.location"].label, "结构 / 新建根任务")
+            input.tap()
+            input.typeText(title)
+            app.buttons["tasks.capture.submit"].tap()
+        }
+        XCTAssertTrue(app.buttons["买牛奶"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["取快递"].exists)
+        keepScreenshot(of: app, name: "tasks-shared-list")
+        app.buttons["买牛奶"].tap()
+        XCTAssertTrue(app.staticTexts["买牛奶"].firstMatch.waitForExistence(timeout: 3))
+    }
+
+    @MainActor
     func testCapturePrimaryVisualBaselines() {
         let app = launchApp()
         let tabBar = app.tabBars.firstMatch
@@ -693,10 +746,48 @@ final class ToughTrialUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["想一起处理什么？"].waitForExistence(timeout: 3))
         keepScreenshot(of: app, name: "03-assistant")
 
-        app.buttons["assistant.exit"].tap()
+        app.tabBars.firstMatch.buttons["今天"].tap()
         tabBar.buttons["回想"].tap()
         XCTAssertTrue(app.staticTexts["回想"].firstMatch.waitForExistence(timeout: 3))
         keepScreenshot(of: app, name: "04-recall")
+    }
+
+    @MainActor
+    func testAssistantOffersRealtimeSpeechAndIndependentSettings() {
+        let app = launchApp()
+        app.tabBars.firstMatch.buttons["助手"].tap()
+        XCTAssertTrue(app.buttons["assistant.speech.start"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["assistant.speech.finish"].exists)
+        keepScreenshot(of: app, name: "assistant-realtime-speech-entry")
+        let selector = app.buttons["assistant.speech.provider"]
+        XCTAssertTrue(selector.exists)
+        selector.tap()
+        app.buttons["苹果原生"].tap()
+        XCTAssertTrue(selector.label.contains("苹果原生"))
+        selector.tap()
+        app.buttons["阿里云 FunASR"].tap()
+        XCTAssertTrue(selector.label.contains("FunASR"))
+        app.buttons["assistant.more"].tap()
+        app.buttons["assistant.settings"].tap()
+        app.buttons["ai.settings.speech"].tap()
+        app.segmentedControls["speech.settings.provider"].buttons["阿里云 FunASR"].tap()
+        XCTAssertTrue(app.secureTextFields["speech.settings.apiKey"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["speech.settings.save"].exists)
+        XCTAssertFalse(app.staticTexts["无法读取语音配置，请稍后重试。"].exists)
+        keepScreenshot(of: app, name: "assistant-realtime-speech-settings")
+        app.segmentedControls["speech.settings.provider"].buttons["苹果原生"].tap()
+        XCTAssertTrue(app.buttons["speech.settings.prepareApple"].exists)
+        XCTAssertFalse(app.secureTextFields["speech.settings.apiKey"].exists)
+        keepScreenshot(of: app, name: "assistant-apple-speech-settings")
+        app.terminate()
+        app.launch()
+        app.tabBars.firstMatch.buttons["助手"].tap()
+        app.buttons["assistant.speech.settings"].tap()
+        XCTAssertTrue(app.buttons["speech.settings.prepareApple"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.segmentedControls["speech.settings.provider"].buttons["苹果原生"].isSelected)
+        app.segmentedControls["speech.settings.provider"].buttons["阿里云 FunASR"].tap()
+        XCTAssertTrue(app.secureTextFields["speech.settings.apiKey"].exists)
+
     }
 
     @MainActor
@@ -705,6 +796,7 @@ final class ToughTrialUITests: XCTestCase {
         app.launchEnvironment["TOUGH_TRIAL_AI_API_KEY"] = ""
         app.launchEnvironment["TOUGH_TRIAL_UI_TESTING"] = "1"
         app.launch()
+        app.tabBars.firstMatch.buttons["今天"].tap()
         return app
     }
 
@@ -715,6 +807,7 @@ final class ToughTrialUITests: XCTestCase {
         app.launchEnvironment["TOUGH_TRIAL_UI_TESTING"] = "0"
         app.launchEnvironment["TOUGH_TRIAL_UI_TEST_EMPTY"] = "1"
         app.launch()
+        app.tabBars.firstMatch.buttons["今天"].tap()
         return app
     }
 
@@ -725,6 +818,7 @@ final class ToughTrialUITests: XCTestCase {
         app.launchEnvironment["TOUGH_TRIAL_UI_TESTING"] = "0"
         app.launchEnvironment["TOUGH_TRIAL_UI_TEST_EMPTY"] = "0"
         app.launch()
+        app.tabBars.firstMatch.buttons["今天"].tap()
         return app
     }
 
@@ -733,11 +827,11 @@ final class ToughTrialUITests: XCTestCase {
         let quickAdd = app.descendants(matching: .any)["today.quickAdd"]
         XCTAssertTrue(quickAdd.waitForExistence(timeout: 5))
         quickAdd.tap()
-        let field = app.textFields["today.quickAdd.title"]
-        XCTAssertTrue(field.waitForExistence(timeout: 3))
-        field.typeText(title)
-        app.buttons["添加任务"].tap()
-        XCTAssertTrue(field.waitForNonExistence(timeout: 3))
+        let document = app.textViews["today.quickAdd.document"]
+        XCTAssertTrue(document.waitForExistence(timeout: 3))
+        document.typeText(title)
+        app.buttons["today.quickAdd.submit"].tap()
+        XCTAssertTrue(document.waitForNonExistence(timeout: 3))
     }
 
     @MainActor
@@ -793,42 +887,14 @@ final class ToughTrialUITests: XCTestCase {
     ) {
         let provider = app.buttons["ai.settings.provider"]
         XCTAssertTrue(provider.waitForExistence(timeout: 3), file: file, line: line)
-        guard !provider.label.contains(name) else { return }
-
+        if (provider.label + String(describing: provider.value)).contains(name) { return }
+        provider.tap()
         let option = app.buttons[name]
-        for attempt in 0..<2 {
-            if attempt > 0 {
-                app.coordinate(withNormalizedOffset: .zero)
-                    .withOffset(CGVector(dx: 16, dy: 90))
-                    .tap()
-                Thread.sleep(forTimeInterval: 0.3)
-            }
-
-            provider.tap()
-            var frame = option.frame
-            let frameDeadline = Date().addingTimeInterval(3)
-            while Date() < frameDeadline,
-                  frame.isNull || frame.isInfinite || frame.width < 1 || frame.height < 1 {
-                Thread.sleep(forTimeInterval: 0.1)
-                frame = option.frame
-            }
-            guard !frame.isNull, !frame.isInfinite, frame.width >= 1, frame.height >= 1 else {
-                continue
-            }
-
-            Thread.sleep(forTimeInterval: 0.4)
-            app.coordinate(withNormalizedOffset: .zero)
-                .withOffset(CGVector(dx: frame.midX, dy: frame.midY))
-                .tap()
-
-            let deadline = Date().addingTimeInterval(2)
-            while Date() < deadline, !provider.label.contains(name) {
-                Thread.sleep(forTimeInterval: 0.1)
-            }
-            if provider.label.contains(name) { return }
-        }
-
-        XCTFail("未能选择 AI 服务：\(name)", file: file, line: line)
+        XCTAssertTrue(option.waitForExistence(timeout: 3), file: file, line: line)
+        option.tap()
+        if !provider.waitForExistence(timeout: 2) { app.navigationBars.buttons.firstMatch.tap() }
+        XCTAssertTrue(provider.waitForExistence(timeout: 3), file: file, line: line)
+        XCTAssertTrue((provider.label + String(describing: provider.value)).contains(name), file: file, line: line)
     }
 
     @MainActor

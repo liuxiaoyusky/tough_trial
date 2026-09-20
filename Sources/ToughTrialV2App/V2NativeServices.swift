@@ -1,11 +1,14 @@
-@preconcurrency import ActivityKit
 import AVFoundation
 import Combine
 import Foundation
 import Speech
-import ToughTrialActivityShared
 import ToughTrialV2Core
 import UserNotifications
+
+#if os(iOS)
+@preconcurrency import ActivityKit
+import ToughTrialActivityShared
+#endif
 
 enum V2NativeCapabilityError: Error, LocalizedError {
     case notificationsDenied
@@ -36,11 +39,13 @@ final class V2NotificationService {
         now: Date = Date(),
         calendar: Calendar = .current
     ) async throws -> Int {
+        let ticket = try V2PluginStore.shared.ticket(["tasks"])
         let granted = try await center.requestAuthorization(options: [.alert, .sound])
+        try V2PluginStore.shared.validate(ticket)
         guard granted else {
             throw V2NativeCapabilityError.notificationsDenied
         }
-        return try await schedule(planItems: planItems, now: now, calendar: calendar)
+        return try await schedule(planItems: planItems, now: now, calendar: calendar, ticket: ticket)
     }
 
     func scheduleIfAuthorized(
@@ -48,19 +53,54 @@ final class V2NotificationService {
         now: Date = Date(),
         calendar: Calendar = .current
     ) async throws -> Int {
+        let ticket = try V2PluginStore.shared.ticket(["tasks"])
         let settings = await center.notificationSettings()
+        try V2PluginStore.shared.validate(ticket)
         guard settings.authorizationStatus == .authorized
                 || settings.authorizationStatus == .provisional
         else {
             return 0
         }
-        return try await schedule(planItems: planItems, now: now, calendar: calendar)
+        return try await schedule(planItems: planItems, now: now, calendar: calendar, ticket: ticket)
+    }
+
+    func replaceIfAuthorized(planItems: [V2PlanItem], affectedIDs: Set<String>, now: Date, calendar: Calendar) async throws {
+        center.removePendingNotificationRequests(withIdentifiers: affectedIDs.map { "v2-plan-\($0)" })
+        _ = try await scheduleIfAuthorized(planItems: planItems, now: now, calendar: calendar)
+    }
+
+    func cancel(planIDs: Set<String>) {
+        center.removePendingNotificationRequests(withIdentifiers: planIDs.map { "v2-plan-\($0)" })
+    }
+
+    func cancelAllOwned() {
+        Task {
+            let pending = await center.pendingNotificationRequests()
+            guard !V2PluginStore.shared.enabled("tasks") else { return }
+            center.removePendingNotificationRequests(withIdentifiers: pending.filter { $0.identifier.hasPrefix("v2-plan-") }.map(\.identifier))
+        }
+    }
+
+    func rebuildOwned(planItems: [V2PlanItem], now: Date, calendar: Calendar) async throws {
+        let ticket = try V2PluginStore.shared.ticket(["tasks"])
+        let pending = await center.pendingNotificationRequests()
+        try V2PluginStore.shared.validate(ticket)
+        center.removePendingNotificationRequests(withIdentifiers: pending.filter { $0.identifier.hasPrefix("v2-plan-") }.map(\.identifier))
+        let settings = await center.notificationSettings()
+        try V2PluginStore.shared.validate(ticket)
+        guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else {
+            // No future reminders means no outstanding system permission work.
+            guard planItems.contains(where: { ($0.startAt ?? .distantPast) > now && $0.status != .completed && $0.status != .canceled }) else { return }
+            throw V2NativeCapabilityError.notificationsDenied
+        }
+        _ = try await schedule(planItems: planItems, now: now, calendar: calendar, ticket: ticket)
     }
 
     private func schedule(
         planItems: [V2PlanItem],
         now: Date,
-        calendar: Calendar
+        calendar: Calendar,
+        ticket: V2ModuleTicket
     ) async throws -> Int {
         let eligible = planItems
             .filter {
@@ -73,6 +113,7 @@ final class V2NotificationService {
 
         var count = 0
         for item in eligible {
+            try V2PluginStore.shared.validate(ticket)
             guard let startAt = item.startAt else { continue }
             let identifier = "v2-plan-\(item.id)"
             center.removePendingNotificationRequests(withIdentifiers: [identifier])
@@ -96,15 +137,19 @@ final class V2NotificationService {
                 )
             )
             try await center.add(request)
+            do { try V2PluginStore.shared.validate(ticket) }
+            catch { center.removePendingNotificationRequests(withIdentifiers: [identifier]); throw error }
             count += 1
         }
         return count
     }
 }
 
+#if os(iOS)
 @MainActor
 final class V2LiveActivityService {
     func sync(session: V2ActiveSession, now: Date = Date()) async throws {
+        let ticket = try V2PluginStore.shared.ticket(["tasks"])
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
 
         let state = V2FocusActivityAttributes.ContentState(
@@ -119,6 +164,7 @@ final class V2LiveActivityService {
             $0.attributes.sessionID == session.id
         }) {
             await activity.update(ActivityContent(state: state, staleDate: nil))
+            if (try? V2PluginStore.shared.validate(ticket)) == nil { await endAll() }
             return
         }
 
@@ -128,11 +174,18 @@ final class V2LiveActivityService {
                 dismissalPolicy: .immediate
             )
         }
+        try V2PluginStore.shared.validate(ticket)
         _ = try Activity.request(
             attributes: V2FocusActivityAttributes(sessionID: session.id),
             content: ActivityContent(state: state, staleDate: nil),
             pushType: nil
         )
+    }
+
+    func endAll() async {
+        for activity in Activity<V2FocusActivityAttributes>.activities {
+            await activity.end(ActivityContent(state: activity.content.state, staleDate: nil), dismissalPolicy: .immediate)
+        }
     }
 
     func end(session: V2ActiveSession) async {
@@ -151,6 +204,17 @@ final class V2LiveActivityService {
         }
     }
 }
+#else
+/// Live Activities are an iOS surface. The Mac app keeps the service type so
+/// shared stores can use the same lifecycle calls while the desktop app
+/// presents the running session in its own window.
+@MainActor
+final class V2LiveActivityService {
+    func sync(session: V2ActiveSession, now: Date = Date()) async throws {}
+    func endAll() async {}
+    func end(session: V2ActiveSession) async {}
+}
+#endif
 
 @MainActor
 final class V2SpeechTranscriber: NSObject, ObservableObject, @unchecked Sendable {
@@ -194,10 +258,12 @@ final class V2SpeechTranscriber: NSObject, ObservableObject, @unchecked Sendable
         recognitionTask = nil
         recognitionRequest = nil
         isListening = false
+        #if os(iOS)
         try? AVAudioSession.sharedInstance().setActive(
             false,
             options: .notifyOthersOnDeactivation
         )
+        #endif
     }
 
     private func requestPermissionsAndStart() {
@@ -210,15 +276,15 @@ final class V2SpeechTranscriber: NSObject, ObservableObject, @unchecked Sendable
                 return
             }
 
-            AVAudioApplication.requestRecordPermission { [weak self] granted in
-                DispatchQueue.main.async {
-                    guard self?.wantsListening == true else { return }
-                    guard granted else {
-                        self?.errorMessage = V2NativeCapabilityError.microphoneDenied.localizedDescription
-                        return
-                    }
-                    self?.startRecording()
+            Task { @MainActor [weak self] in
+                guard let self, self.wantsListening else { return }
+                let granted = await V2MicrophonePermission.requestAccess()
+                guard self.wantsListening else { return }
+                guard granted else {
+                    self.errorMessage = V2NativeCapabilityError.microphoneDenied.localizedDescription
+                    return
                 }
+                self.startRecording()
             }
         }
     }
@@ -235,9 +301,11 @@ final class V2SpeechTranscriber: NSObject, ObservableObject, @unchecked Sendable
         errorMessage = nil
 
         do {
+            #if os(iOS)
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.record, mode: .measurement, options: .duckOthers)
             try session.setActive(true, options: .notifyOthersOnDeactivation)
+            #endif
 
             let request = SFSpeechAudioBufferRecognitionRequest()
             request.shouldReportPartialResults = true

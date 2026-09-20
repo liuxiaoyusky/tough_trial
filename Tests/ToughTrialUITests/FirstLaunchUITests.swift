@@ -18,8 +18,8 @@ final class FirstLaunchUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["还没有任务结构"].waitForExistence(timeout: 3))
 
         tabBar.buttons["助手"].tap()
-        XCTAssertTrue(app.buttons["assistant.exit"].waitForExistence(timeout: 3))
-        app.buttons["assistant.exit"].tap()
+        XCTAssertTrue(app.textViews["assistant.composer"].waitForExistence(timeout: 3))
+        app.tabBars.firstMatch.buttons["今天"].tap()
 
         XCTAssertTrue(tabBar.buttons["回想"].waitForExistence(timeout: 3))
         tabBar.buttons["回想"].tap()
@@ -29,10 +29,10 @@ final class FirstLaunchUITests: XCTestCase {
         let taskTitle = "第一次空数据任务"
         app.descendants(matching: .any)["today.quickAdd"].tap()
 
-        let titleField = app.textFields["today.quickAdd.title"]
-        XCTAssertTrue(titleField.waitForExistence(timeout: 3))
-        titleField.typeText(taskTitle)
-        app.buttons["添加任务"].tap()
+        let document = app.textViews["today.quickAdd.document"]
+        XCTAssertTrue(document.waitForExistence(timeout: 3))
+        document.typeText(taskTitle)
+        app.buttons["today.quickAdd.submit"].tap()
         XCTAssertTrue(
             app.descendants(matching: .any)[taskTitle]
                 .waitForExistence(timeout: 3)

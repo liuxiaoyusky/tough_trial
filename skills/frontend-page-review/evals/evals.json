@@ -1,0 +1,14 @@
+[
+  {
+    "prompt": "把当前后台管理网页做成可以逐页标注的评审页，我想在 Codex 里点评登录、Dashboard、订单详情三页，然后你按批注改。",
+    "expected": "Creates a local multi-page annotation review site, persists comments, applies accepted feedback, and validates real browser interactions."
+  },
+  {
+    "prompt": "这是当前手机 App 的几个页面截图，帮我做一套可以点图批注的评审环境，任务、首页、设置都要走一遍，批注后再落到代码。",
+    "expected": "Builds a review workspace from mobile screenshots, keeps static visual review distinct from device interaction acceptance, then maps feedback to implementation."
+  },
+  {
+    "prompt": "把这个 Electron/macOS 客户端当前主要窗口做成页面评审站，包含空状态、正常状态、错误状态，并且后续修改要做真实点击验收。",
+    "expected": "Inventories window states, generates annotation pages for each state, implements feedback surgically, and validates actual desktop interactions."
+  }
+]

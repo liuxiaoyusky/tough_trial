@@ -151,7 +151,7 @@ public extension V2Engine {
             throw V2TaskImportError.unsupportedVersion(manifest.version)
         }
 
-        return try commit { snapshot in
+        return try commit(modules: ["core.tasks"], commandID: "core.tasks.import") { snapshot in
             let contextsByKey = try Self.validatedImportContexts(manifest.contexts)
             _ = try Self.validatedImportRecords(manifest.tasks)
             var createdContexts = 0

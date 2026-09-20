@@ -34,7 +34,17 @@ public struct V2JSONSnapshotStore: Sendable {
         let data = try Data(contentsOf: fileURL)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .secondsSince1970
-        let snapshot = try decoder.decode(V2AppSnapshot.self, from: data)
+        var snapshot = try decoder.decode(V2AppSnapshot.self, from: data)
+        if snapshot.schemaVersion == 1 {
+            // Keep the exact pre-migration bytes. A failed backup/save leaves
+            // the old file authoritative and stops startup instead of resetting it.
+            let backup = fileURL.appendingPathExtension("schema-1.backup")
+            if !fileManager.fileExists(atPath: backup.path) {
+                try data.write(to: backup, options: .withoutOverwriting)
+            }
+            snapshot.schemaVersion = V2AppSnapshot.currentSchemaVersion
+            try save(snapshot, fileManager: fileManager)
+        }
         guard snapshot.schemaVersion == V2AppSnapshot.currentSchemaVersion else {
             throw V2SnapshotStoreError.unsupportedSchema(snapshot.schemaVersion)
         }

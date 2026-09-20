@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "community.reading-note",
+  "name": "阅读随记",
+  "summary": "记下书名和启发，保存到随手记后可继续交给 AI 整理。",
+  "fields": [
+    {"id": "book", "title": "书名", "required": true},
+    {"id": "note", "title": "想法", "required": true}
+  ],
+  "template": "阅读《{{book}}》\n想法：{{note}}"
+}

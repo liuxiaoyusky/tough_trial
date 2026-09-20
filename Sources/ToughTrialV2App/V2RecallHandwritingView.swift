@@ -1,6 +1,10 @@
 import PencilKit
 import SwiftUI
+#if os(iOS)
 import UIKit
+#else
+import AppKit
+#endif
 
 enum V2RecallCanvasTool: String, CaseIterable {
     case pen

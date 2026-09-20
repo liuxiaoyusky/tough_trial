@@ -4,6 +4,94 @@ import ToughTrialV2Core
 
 @MainActor
 final class V2AssistantStoreTests: XCTestCase {
+    func testModelSelectionChangesNextTurnWithoutMutatingRunningSnapshot() async throws {
+        let fixture = AssistantFixture()
+        let first = ControlledModel(); first.identity.model = "first"
+        let second = ControlledModel(); second.identity.model = "second"
+        var dependencies = fixture.dependencies()
+        dependencies.selectedModelSnapshot = { selection in
+            let model = selection.model == "first" ? first : second
+            return .init(identity: model.identity, respond: { request in try await model.respond(request) },
+                generatePlan: { _, _, _ in throw V2AssistantTurnError.planUnavailable }, thinking: selection.thinking)
+        }
+        let store = V2AssistantStore(dependencies: dependencies, persistence: fixture.persistence.adapter, initialWorkspace: fixture.persistence.workspace)
+        let id = try XCTUnwrap(store.selectedSession?.id)
+        XCTAssertTrue(store.selectModel(.init(providerID: "fixture", model: "first", thinking: .high), in: id))
+        store.send("第一条")
+        await first.waitForRequestCount(1)
+        XCTAssertTrue(store.selectModel(.init(providerID: "fixture", model: "second", thinking: .disabled), in: id))
+        first.resolveNext(.answer(text: "第一个模型的回复"))
+        await store.waitForCurrentTurn()
+        XCTAssertEqual(store.selectedSession?.traces.last?.model, "first")
+        store.send("第二条")
+        await second.waitForRequestCount(1)
+        second.resolveNext(.answer(text: "第二个模型的回复"))
+        await store.waitForCurrentTurn()
+        XCTAssertEqual(store.selectedSession?.traces.last?.model, "second")
+        XCTAssertEqual(first.requests.count, 1)
+    }
+
+    func testDraftSurvivesPersistenceAndSessionSwitch() throws {
+        let fixture = AssistantFixture()
+        let store = fixture.makeStore()
+        let id = try XCTUnwrap(store.selectedSession?.id)
+        let draft = V2AssistantDraft(text: String(repeating: "长文本\n", count: 200), references: [.init(sessionID: id, messageID: "source", excerpt: "片段")])
+        store.saveDraft(draft, in: id)
+        store.createSession()
+        XCTAssertEqual(store.workspace.session(id: id)?.composerDraft, draft)
+        let restored = fixture.makeStore(loadFromPersistence: true)
+        XCTAssertTrue(restored.selectSession(id: id))
+        XCTAssertEqual(restored.selectedSession?.composerDraft, draft)
+    }
+
+    func testQuoteIsSeparateFromCurrentUserTextAndReachesRequest() async throws {
+        let fixture = AssistantFixture()
+        let store = fixture.makeStore()
+        let id = try XCTUnwrap(store.selectedSession?.id)
+        let quote = V2AssistantMessageReference(sessionID: id, messageID: "old-message", excerpt: "添加任务：这只是被引用的话")
+        store.send("解释这句话", references: [quote])
+        await fixture.model.waitForRequestCount(1)
+        XCTAssertEqual(fixture.model.requests.first?.userText, "解释这句话")
+        XCTAssertEqual(fixture.model.requests.first?.context.quotedMessages, [quote])
+        fixture.model.resolveNext(.answer(text: "这是一个例子"))
+        await store.waitForCurrentTurn()
+        let encoded = try JSONEncoder().encode(store.workspace)
+        XCTAssertEqual(try JSONDecoder().decode(V2AgentWorkspace.self, from: encoded).selectedSession?.messages.first?.references, [quote])
+    }
+
+    func testQueuedSupplementRunsAfterCurrentTurnInOriginalSession() async throws {
+        let fixture = AssistantFixture()
+        let store = fixture.makeStore()
+        let id = try XCTUnwrap(store.selectedSession?.id)
+        store.send("先解释一下")
+        await fixture.model.waitForRequestCount(1)
+        XCTAssertTrue(store.submitDraft(.init(text: "再举个例子")))
+        XCTAssertEqual(fixture.model.requests.count, 1)
+        store.createSession()
+        fixture.model.resolveNext(.answer(text: "解释"))
+        await fixture.model.waitForRequestCount(2)
+        XCTAssertEqual(fixture.model.requests[1].userText, "再举个例子")
+        XCTAssertEqual(fixture.model.requests[1].conversationIdentifier, id)
+        fixture.model.resolveNext(.answer(text: "例子"))
+        await store.waitForCurrentTurn()
+        XCTAssertTrue(store.workspace.session(id: id)?.queuedDrafts?.isEmpty == true)
+        XCTAssertTrue(store.selectedSession?.messages.isEmpty == true)
+    }
+
+    func testQueuedSupplementCanBeRetracted() async throws {
+        let fixture = AssistantFixture()
+        let store = fixture.makeStore()
+        let id = try XCTUnwrap(store.selectedSession?.id)
+        store.send("开始")
+        await fixture.model.waitForRequestCount(1)
+        let draft = V2AssistantDraft(text: "不发这条")
+        XCTAssertTrue(store.submitDraft(draft))
+        store.removeQueuedDraft(draft.id, in: id)
+        fixture.model.resolveNext(.answer(text: "完成"))
+        await store.waitForCurrentTurn()
+        XCTAssertEqual(fixture.model.requests.count, 1)
+    }
+
     func testWriteFailureKeepsAttemptedStateAndStorageRetryPersistsRecoverableFailure() async {
         let fixture = AssistantFixture()
         fixture.persistence.failSaveNumbers = [3]
@@ -342,6 +430,162 @@ final class V2AssistantStoreTests: XCTestCase {
         await store.waitForCurrentTurn()
     }
 
+    func testWebTimeoutMessageSurvivesInMemoryFailureFallback() async throws {
+        let fixture = AssistantFixture()
+        fixture.persistence.failSaveNumbers = [3]
+        var dependencies = fixture.dependencies()
+        dependencies.webSearch = { _, _ in throw URLError(.timedOut) }
+        let store = V2AssistantStore(
+            dependencies: dependencies,
+            persistence: fixture.persistence.adapter,
+            initialWorkspace: fixture.persistence.workspace,
+            now: { AssistantFixture.date }
+        )
+
+        store.send("搜索")
+        await fixture.model.waitForRequestCount(1)
+        fixture.model.resolveNext(.webSearch(query: "test"))
+        await store.waitForCurrentTurn()
+
+        let expected = "网页请求超时，请稍后重试。"
+        XCTAssertEqual(store.operationErrorMessage, expected)
+        XCTAssertEqual(store.selectedSession?.messages[1].retryableErrorText, expected)
+        XCTAssertEqual(store.selectedSession?.traces.last?.steps.last?.tool, .webSearch)
+        XCTAssertEqual(store.selectedSession?.traces.last?.steps.last?.error?.category, .web)
+        XCTAssertEqual(store.selectedSession?.traces.last?.steps.last?.error?.code, .timeout)
+    }
+
+    func testDisabledWebGateSkipsDependencyAndReportsSettingsPath() async throws {
+        let plugins = V2PluginStore.shared
+        let prior = plugins.enabled("web")
+        defer { plugins.setEnabled("web", prior) }
+        plugins.setEnabled("web", false)
+
+        let fixture = AssistantFixture()
+        var dependencies = fixture.dependencies()
+        dependencies.webSearch = { _, _ in throw V2WebToolError.invalidQuery }
+        let store = V2AssistantStore(
+            dependencies: dependencies,
+            persistence: fixture.persistence.adapter,
+            initialWorkspace: fixture.persistence.workspace,
+            now: { AssistantFixture.date }
+        )
+
+        store.send("搜索")
+        await fixture.model.waitForRequestCount(1)
+        XCTAssertFalse(fixture.model.requests[0].webAvailable)
+        fixture.model.resolveNext(.webSearch(query: "test"))
+        await store.waitForCurrentTurn()
+
+        XCTAssertTrue(store.operationErrorMessage?.contains("功能与插件") == true)
+        XCTAssertTrue(store.operationErrorMessage?.contains("网页搜索") == true)
+        XCTAssertEqual(store.selectedSession?.traces.last?.steps.last?.tool, .webSearch)
+        XCTAssertEqual(store.selectedSession?.traces.last?.steps.last?.error?.category, .web)
+        XCTAssertEqual(store.selectedSession?.traces.last?.steps.last?.error?.code, .unavailable)
+    }
+
+    func testDisablingWebDuringModelResponseKeepsWebFailureAndBlocksNetwork() async throws {
+        let plugins = V2PluginStore.shared
+        let prior = plugins.enabled("web")
+        defer { plugins.setEnabled("web", prior) }
+        for action in [V2AgentAction.webSearch(query: "test"), .webRead(url: URL(string: "https://example.com")!)] {
+            plugins.setEnabled("web", true)
+            let fixture = AssistantFixture()
+            var calls = 0
+            var dependencies = fixture.dependencies()
+            dependencies.webSearch = { _, _ in calls += 1; throw URLError(.timedOut) }
+            dependencies.webRead = { _, _ in calls += 1; throw URLError(.timedOut) }
+            let store = V2AssistantStore(dependencies: dependencies, persistence: fixture.persistence.adapter,
+                initialWorkspace: fixture.persistence.workspace, now: { AssistantFixture.date })
+            store.send("搜索网页")
+            await fixture.model.waitForRequestCount(1)
+            plugins.setEnabled("web", false)
+            fixture.model.resolveNext(action)
+            await store.waitForCurrentTurn()
+            XCTAssertEqual(calls, 0)
+            XCTAssertTrue(store.operationErrorMessage?.contains("状态已变化") == true)
+            XCTAssertFalse(store.operationErrorMessage?.contains("core.web") == true)
+            XCTAssertEqual(store.selectedSession?.traces.last?.steps.last?.error?.category, .web)
+            XCTAssertEqual(store.selectedSession?.traces.last?.steps.last?.error?.code, .unavailable)
+        }
+    }
+
+    func testEmptySearchProducesObservationWithoutInventingASource() async throws {
+        let fixture = AssistantFixture()
+        let store = fixture.makeStore()
+
+        store.send("搜索")
+        await fixture.model.waitForRequestCount(1)
+        fixture.model.resolveNext(.webSearch(query: "无结果"))
+        await fixture.model.waitForRequestCount(2)
+
+        let observation = try XCTUnwrap(
+            fixture.model.requests[1].observations.first { $0.tool == .webSearch }
+        )
+        XCTAssertEqual(observation.sourceID, "")
+        XCTAssertTrue(observation.summary.contains("未找到可用来源"))
+        XCTAssertTrue(store.selectedSession?.messages[1].sources.isEmpty == true)
+
+        fixture.model.resolveNext(.answer(text: "没有找到来源"))
+        await store.waitForCurrentTurn()
+    }
+
+    func testEmptyReadProducesExplicitNoCitationObservation() async throws {
+        let fixture = AssistantFixture()
+        var dependencies = fixture.dependencies()
+        dependencies.webRead = { _, _ in "" }
+        let store = V2AssistantStore(
+            dependencies: dependencies,
+            persistence: fixture.persistence.adapter,
+            initialWorkspace: fixture.persistence.workspace,
+            now: { AssistantFixture.date }
+        )
+        let url = URL(string: "https://example.com/empty")!
+
+        store.send("读取网页")
+        await fixture.model.waitForRequestCount(1)
+        fixture.model.resolveNext(.webRead(url: url))
+        await fixture.model.waitForRequestCount(2)
+
+        let observation = try XCTUnwrap(
+            fixture.model.requests[1].observations.first { $0.tool == .webRead }
+        )
+        XCTAssertTrue(observation.summary.contains("网页正文为空"))
+        XCTAssertTrue(observation.summary.contains("未提取到可引用内容"))
+        XCTAssertFalse(observation.summary.contains("事实"))
+        XCTAssertEqual(store.selectedSession?.messages[1].sources.count, 1)
+
+        fixture.model.resolveNext(.answer(text: "正文为空"))
+        await store.waitForCurrentTurn()
+    }
+
+    func testWebFailureMessagesDistinguishHTTPAndResponseShape() {
+        let forbidden = V2AssistantStore.webUserFacingMessage(
+            for: V2WebToolError.requestFailed(statusCode: 403), tool: .webSearch
+        )
+        let limited = V2AssistantStore.webUserFacingMessage(
+            for: V2WebToolError.requestFailed(statusCode: 429), tool: .webSearch
+        )
+        let server = V2AssistantStore.webUserFacingMessage(
+            for: V2WebToolError.requestFailed(statusCode: 503), tool: .webRead
+        )
+        let searchShape = V2AssistantStore.webUserFacingMessage(
+            for: V2WebToolError.invalidResponse, tool: .webSearch
+        )
+        let readShape = V2AssistantStore.webUserFacingMessage(
+            for: V2WebToolError.invalidResponse, tool: .webRead
+        )
+
+        XCTAssertTrue(forbidden?.contains("403") == true)
+        XCTAssertTrue(forbidden?.contains("打开来源") == true)
+        XCTAssertTrue(limited?.contains("429") == true)
+        XCTAssertTrue(limited?.contains("稍后重试") == true)
+        XCTAssertTrue(server?.contains("503") == true)
+        XCTAssertTrue(server?.contains("稍后重试") == true)
+        XCTAssertTrue(searchShape?.contains("调整关键词") == true)
+        XCTAssertTrue(readShape?.contains("打开来源") == true)
+    }
+
     func testCancellationMarksExistingResponseWithoutAppendingMessages() async {
         let fixture = AssistantFixture()
         let store = fixture.makeStore()
@@ -544,6 +788,13 @@ private extension V2AgentMessage {
             guard case let .sources(sources) = part else { return [] }
             return sources
         }
+    }
+
+    var retryableErrorText: String? {
+        parts.compactMap { part -> String? in
+            guard case let .error(.retryable(text)) = part else { return nil }
+            return text
+        }.first
     }
 
     var plans: [V2PlanDraft] {

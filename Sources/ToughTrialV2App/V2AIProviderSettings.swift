@@ -6,6 +6,7 @@ enum V2AIProviderPreset: String, CaseIterable, Identifiable {
     case siliconFlow = "silicon-flow"
     case kimiCoding = "kimi-coding"
     case glmCoding = "glm-coding"
+    case miniMax = "minimax"
     case custom
 
     var id: String { rawValue }
@@ -18,6 +19,8 @@ enum V2AIProviderPreset: String, CaseIterable, Identifiable {
             "Kimi Coding Plan"
         case .glmCoding:
             "GLM Coding Plan"
+        case .miniMax:
+            "MiniMax"
         case .custom:
             "其他兼容服务"
         }
@@ -31,6 +34,8 @@ enum V2AIProviderPreset: String, CaseIterable, Identifiable {
             "https://api.kimi.com/coding/v1"
         case .glmCoding:
             "https://open.bigmodel.cn/api/coding/paas/v4"
+        case .miniMax:
+            "https://api.minimax.io/v1"
         case .custom:
             "https://api.openai.com/v1"
         }
@@ -43,7 +48,9 @@ enum V2AIProviderPreset: String, CaseIterable, Identifiable {
         case .kimiCoding:
             "k3-256k"
         case .glmCoding:
-            "glm-5.2"
+            "glm-5.3-flash"
+        case .miniMax:
+            "MiniMax-M2.7-highspeed"
         case .custom:
             ""
         }
@@ -54,7 +61,9 @@ enum V2AIProviderPreset: String, CaseIterable, Identifiable {
         case .kimiCoding:
             ["k3-256k", "k3", "kimi-for-coding", "kimi-for-coding-highspeed"]
         case .glmCoding:
-            ["glm-5.2", "glm-5-turbo", "glm-4.7"]
+            ["glm-5.3-flash", "glm-5.3", "glm-5.2", "glm-5-turbo", "glm-4.7"]
+        case .miniMax:
+            ["MiniMax-M2.7-highspeed", "MiniMax-M2.5-highspeed", "MiniMax-M2.7"]
         case .siliconFlow, .custom:
             []
         }
@@ -70,19 +79,32 @@ enum V2AIProviderPreset: String, CaseIterable, Identifiable {
             isEnabled: false,
             baseURL: baseURL,
             model: defaultModel,
-            apiKey: ""
+            apiKey: "",
+            thinking: defaultThinking
         )
+    }
+
+    var defaultThinking: V2AIThinking {
+        switch self {
+        case .glmCoding:
+            // GLM-5.3 Flash requires thinking; low is the quick default.
+            .low
+        case .siliconFlow, .kimiCoding, .miniMax, .custom:
+            .automatic
+        }
     }
 
     static func inferred(from baseURL: String) -> Self {
         let host = URL(string: baseURL)?.host?.lowercased() ?? ""
+        if ["api.minimax.cn", "api.minimaxi.com", "api.minimax.io"].contains(host) { return .miniMax }
         if host.contains("siliconflow") {
             return .siliconFlow
         }
         if host == "api.kimi.com" {
             return .kimiCoding
         }
-        if host == "open.bigmodel.cn" {
+        if ["open.bigmodel.cn", "api.z.ai"].contains(host),
+           URL(string: baseURL)?.path.hasPrefix("/api/coding/paas/v4") == true {
             return .glmCoding
         }
         return .custom
@@ -98,9 +120,41 @@ struct V2AIProviderSettings: Equatable {
     var baseURL: String
     var model: String
     var apiKey: String
+    var thinking: V2AIThinking
+
+    init(
+        provider: V2AIProviderPreset,
+        isEnabled: Bool,
+        baseURL: String,
+        model: String,
+        apiKey: String,
+        thinking: V2AIThinking? = nil
+    ) {
+        self.provider = provider
+        self.isEnabled = isEnabled
+        self.baseURL = baseURL
+        self.model = model
+        self.apiKey = apiKey
+        self.thinking = thinking ?? URL(string: baseURL).map { V2AIThinking.defaultSelection(endpoint: $0, model: model) } ?? .automatic
+    }
 
     static var defaults: Self {
-        V2AIProviderPreset.siliconFlow.defaultSettings()
+        V2AIProviderPreset.glmCoding.defaultSettings()
+    }
+
+    var thinkingCapability: V2AIThinkingCapability {
+        guard let rawURL = URL(string: baseURL), rawURL.host != nil else {
+            return V2AIThinkingCapability(
+                kind: .unknown,
+                options: [.automatic],
+                note: "服务地址无效，无法读取思考能力。"
+            )
+        }
+        let path = rawURL.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let endpoint = path.hasSuffix("chat/completions")
+            ? rawURL
+            : rawURL.appendingPathComponent("chat").appendingPathComponent("completions")
+        return V2AIThinking.capability(for: endpoint, model: model)
     }
 
     func planningConfiguration() throws -> V2OpenAICompatiblePlanningConfiguration {
@@ -110,7 +164,8 @@ struct V2AIProviderSettings: Equatable {
             apiKey: configuration.apiKey,
             model: configuration.model,
             providerLabel: configuration.providerLabel,
-            usesPromptCacheKey: configuration.usesPromptCacheKey
+            usesPromptCacheKey: configuration.usesPromptCacheKey,
+            thinking: configuration.thinking
         )
     }
 
@@ -121,7 +176,8 @@ struct V2AIProviderSettings: Equatable {
             apiKey: configuration.apiKey,
             model: configuration.model,
             providerLabel: configuration.providerLabel,
-            usesPromptCacheKey: configuration.usesPromptCacheKey
+            usesPromptCacheKey: configuration.usesPromptCacheKey,
+            thinking: configuration.thinking
         )
     }
 
@@ -137,15 +193,24 @@ struct V2AIProviderSettings: Equatable {
         apiKey: String,
         model: String,
         providerLabel: String,
-        usesPromptCacheKey: Bool
+        usesPromptCacheKey: Bool,
+        thinking: V2AIThinking
     ) {
         let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         let model = model.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else {
             throw V2AIProviderSettingsError.invalidValue("请输入 API Key")
         }
+        if provider == .miniMax && key.contains(where: { $0.isWhitespace }) {
+            throw V2AIProviderSettingsError.invalidValue("API Key 中含有空白或换行。请只粘贴完整 Key，不要包含命令、配置文字或 Authorization 前缀。")
+        }
         guard !model.isEmpty else {
             throw V2AIProviderSettingsError.invalidValue("请输入模型名称")
+        }
+        guard thinkingCapability.supports(thinking) else {
+            throw V2AIProviderSettingsError.invalidValue(
+                V2AIThinkingError.unsupported(selection: thinking, model: model).localizedDescription
+            )
         }
 
         let rawURL = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -174,7 +239,8 @@ struct V2AIProviderSettings: Equatable {
             apiKey: key,
             model: model,
             providerLabel: providerLabel(for: baseURL),
-            usesPromptCacheKey: provider == .kimiCoding
+            usesPromptCacheKey: provider == .kimiCoding,
+            thinking: thinking
         )
     }
 
@@ -186,6 +252,8 @@ struct V2AIProviderSettings: Equatable {
             return "Kimi Coding Plan"
         case .glmCoding:
             return "GLM Coding Plan"
+        case .miniMax:
+            return "MiniMax"
         case .custom:
             break
         }
@@ -233,15 +301,23 @@ enum V2AIProviderSettingsStore {
         }
 
         let initial = provider.defaultSettings()
-        return V2AIProviderSettings(
+        var result = V2AIProviderSettings(
             provider: provider,
             isEnabled: defaults.bool(forKey: profileKey("enabled", provider: provider)),
             baseURL: defaults.string(forKey: profileKey("base-url", provider: provider))
                 ?? initial.baseURL,
             model: defaults.string(forKey: profileKey("model", provider: provider))
                 ?? initial.model,
-            apiKey: (try? V2AIProviderKeychain.load(account: provider.keychainAccount)) ?? ""
+            apiKey: (try? V2AIProviderKeychain.load(account: provider.keychainAccount)) ?? "",
+            thinking: V2AIThinking(
+                rawValue: defaults.string(forKey: profileKey("thinking", provider: provider)) ?? ""
+            ),
         )
+        if result.thinking == .disabled, !result.thinkingCapability.supports(.disabled),
+           result.thinkingCapability.kind == .glm {
+            result.thinking = .low
+        }
+        return result
     }
 
     static func save(
@@ -266,8 +342,9 @@ enum V2AIProviderSettingsStore {
             provider: V2AIProviderPreset.inferred(from: baseURL),
             isEnabled: defaults.bool(forKey: legacyEnabledKey),
             baseURL: baseURL,
-            model: defaults.string(forKey: legacyModelKey) ?? initial.model,
-            apiKey: (try? V2AIProviderKeychain.load(account: legacyKeychainAccount)) ?? ""
+            model: defaults.string(forKey: legacyModelKey) ?? V2AIProviderPreset.inferred(from: baseURL).defaultModel,
+            apiKey: defaults.string(forKey: legacyBaseURLKey) == nil ? ""
+                : ((try? V2AIProviderKeychain.load(account: legacyKeychainAccount)) ?? "")
         )
     }
 
@@ -296,6 +373,10 @@ enum V2AIProviderSettingsStore {
             settings.model,
             forKey: profileKey("model", provider: settings.provider)
         )
+        defaults.set(
+            settings.thinking.rawValue,
+            forKey: profileKey("thinking", provider: settings.provider)
+        )
     }
 
     private static func hasStoredProfile(
@@ -305,6 +386,7 @@ enum V2AIProviderSettingsStore {
         defaults.object(forKey: profileKey("enabled", provider: provider)) != nil
             || defaults.object(forKey: profileKey("base-url", provider: provider)) != nil
             || defaults.object(forKey: profileKey("model", provider: provider)) != nil
+            || defaults.object(forKey: profileKey("thinking", provider: provider)) != nil
     }
 
     private static func profileKey(
@@ -336,7 +418,7 @@ enum V2AIModelCatalogStore {
     }
 }
 
-private enum V2AIProviderKeychain {
+enum V2AIProviderKeychain {
     private static var service: String {
         "\(Bundle.main.bundleIdentifier ?? "com.skyliu.toughtrial").ai-provider"
     }

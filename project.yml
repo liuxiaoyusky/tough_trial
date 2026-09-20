@@ -7,16 +7,78 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     MARKETING_VERSION: "1.0"
-    CURRENT_PROJECT_VERSION: "1"
+    CURRENT_PROJECT_VERSION: "10"
 packages:
   FocusTimelineCore:
     path: .
 targets:
+  ToughTrialMac:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: Sources/ToughTrialMacApp
+      - path: Sources/ToughTrialV2App
+        excludes:
+          - ToughTrialV2App.swift
+          - V2RootView.swift
+          - Info.plist
+          - V2RecallView.swift
+          - V2RecallHandwritingView.swift
+          - Components/README.md
+    dependencies:
+      - package: FocusTimelineCore
+        product: ToughTrialAppShared
+      - package: FocusTimelineCore
+        product: ToughTrialV2Core
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(TOUGH_TRIAL_MAC_BUNDLE_ID)
+        TOUGH_TRIAL_MAC_BUNDLE_ID: com.skyliu.toughtrial.mac
+        PRODUCT_NAME: ToughTrialMac
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Tough Trial
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: 将你主动录入的语音转成可编辑文字。
+        INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: 将你主动录入的语音转成可编辑文字。
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+        ENABLE_HARDENED_RUNTIME: YES
+  ToughTrialMacAppTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: Tests/ToughTrialMacAppTests
+    dependencies:
+      - target: ToughTrialMac
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.skyliu.toughtrial.mac.AppTests
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+  ToughTrialMacUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: Tests/ToughTrialMacUITests
+    dependencies:
+      - target: ToughTrialMac
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.skyliu.toughtrial.mac.UITests
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
   ToughTrial:
     type: application
     platform: iOS
     sources:
       - path: Sources/ToughTrialV2App
+        excludes:
+          - Components/README.md
     dependencies:
       - package: FocusTimelineCore
         product: ToughTrialV2Core
@@ -92,6 +154,17 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.skyliu.toughtrial.AppTests
         GENERATE_INFOPLIST_FILE: YES
 schemes:
+  ToughTrialMac:
+    build:
+      targets:
+        ToughTrialMac: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - ToughTrialMacAppTests
+        - ToughTrialMacUITests
   ToughTrial:
     build:
       targets:

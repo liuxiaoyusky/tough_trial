@@ -4,7 +4,20 @@ import ToughTrialV2Core
 struct V2RootView: View {
     @StateObject private var store: V2AppStore
     @StateObject private var assistantStore: V2AssistantStore
-    @State private var selectedTab = V2RootTab.today
+    @ObservedObject private var plugins = V2PluginStore.shared
+    @ObservedObject private var navigation = V2NavigationStore.shared
+    @State private var showPlugins = false
+    @State private var showHiddenCapture = false
+    @State private var showHiddenToday = false
+    @State private var showHiddenTasks = false
+    @State private var standaloneQuickAction: V2QuickCaptureRequest?
+    @ObservedObject private var financeNotifications = V2FinanceNotifications.shared
+    @State private var financeDestination: V2FinancePlan?
+    @State private var quickCaptureRequest: V2QuickCaptureRequest?
+    @State private var selectedTab = V2NavigationID.assistant
+    @State private var standaloneModule: V2NavigationID?
+    @State private var showHiddenAssistant = false
+    @Environment(\.scenePhase) private var scenePhase
     private let recallDrawingStore: V2RecallDrawingStore
 
     init() {
@@ -27,58 +40,101 @@ struct V2RootView: View {
     var body: some View {
         ZStack {
             if store.zenSession == nil {
-                TabView(selection: tabSelection) {
-                    V2TodayView(store: store)
-                        .tabItem {
-                            Label("今天", systemImage: "calendar")
-                        }
-                        .tag(V2RootTab.today)
-
-                    V2TasksView(store: store)
-                        .tabItem {
-                            Label("任务", systemImage: "square.stack.3d.up")
-                        }
-                        .tag(V2RootTab.tasks)
-
-                    Color.clear
-                        .tabItem {
-                            Label("助手", systemImage: "sparkles")
-                        }
-                        .tag(V2RootTab.assistant)
-
-                    V2RecallView(
-                        store: store,
-                        drawingStore: recallDrawingStore
-                    )
-                        .tabItem {
-                            Label("回想", systemImage: "clock.arrow.circlepath")
-                        }
-                        .tag(V2RootTab.recall)
-                }
-                .tint(V2Theme.blue)
+                rootContent
+                    .safeAreaInset(edge: .bottom, spacing: 0) {
+                        V2BottomNavigationBar(
+                            navigation: navigation,
+                            availableIDs: availableNavigationIDs,
+                            selection: tabSelection
+                        )
+                    }
             } else {
                 Color.clear
                     .accessibilityHidden(true)
             }
         }
-        .fullScreenCover(isPresented: $store.isPlanPresented) {
-            V2AssistantView(
-                store: assistantStore,
-                appStore: store,
-                onExit: store.closePlanAgent
-            )
-            .onAppear {
-                guard let task = store.planningSourceTask else { return }
-                _ = assistantStore.openContextSession(
-                    for: V2AgentSourceTask(
-                        id: task.id,
-                        title: task.title,
-                        note: task.subtitle
-                    )
-                )
+        .v2Sheet(isPresented: $showPlugins) {
+            NavigationStack { V2PluginsView(appStore: store).toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { showPlugins = false }.accessibilityIdentifier("plugins.done") } } }
+        }
+        .v2Sheet(isPresented: $showHiddenCapture) {
+            V2CaptureView(appStore: store, client: Self.captureTestClient, quickRequest: $quickCaptureRequest)
+        }
+        .v2Sheet(isPresented: $showHiddenToday) { V2TodayView(store: store) }
+        .v2Sheet(isPresented: $showHiddenTasks) { V2TasksView(store: store) }
+        .v2Sheet(item: $standaloneModule) { item in
+            standaloneContent(item)
+        }
+        .v2Sheet(item: $standaloneQuickAction) { request in
+            if request.action == .ledger { V2CaptureLedgerForm(store: V2CaptureStore(appStore: store)) }
+            else if request.action == .task { V2QuickTaskForm(store: V2CaptureStore(appStore: store)) }
+        }
+        .v2Sheet(item: $financeDestination) { plan in
+            NavigationStack {
+                V2FinanceView(captureStore: V2CaptureStore(appStore: store), initialPlanID: plan.id)
+                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("关闭") { financeDestination = nil } } }
             }
         }
-        .fullScreenCover(isPresented: zenPresentationBinding) {
+        .onChange(of: financeNotifications.selectedPlanID) { _, id in
+            guard let id else { return }
+            if plugins.enabled("finance") { financeDestination = store.engine.snapshot.capture.finance?.plans.first { $0.id == id } }
+            else { showPlugins = true }
+            financeNotifications.selectedPlanID = nil
+        }
+        .onAppear {
+            navigation.reconcile(availableIDs: availableNavigationIDs)
+            if !navigation.orderedTabs.contains(selectedTab) { selectedTab = preferredNavigationTab }
+            store.moduleSceneActive = scenePhase == .active
+            store.reconcileStoppedModules()
+            if scenePhase == .active { store.startForegroundScheduleSync() }
+            #if DEBUG
+            if ProcessInfo.processInfo.environment["TOUGH_TRIAL_UI_TESTING"] == "1",
+               let value = ProcessInfo.processInfo.environment["TOUGH_TRIAL_UI_TEST_QUICK_URL"],
+               let url = URL(string: value), let action = V2QuickCaptureAction(url: url), quickCaptureRequest == nil {
+                quickCaptureRequest = .init(action: action); selectedTab = .capture
+            }
+            #endif
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .v2ModulesChanged)) { _ in
+            store.reconcileStoppedModules()
+            if plugins.enabled("sync") { store.startForegroundScheduleSync() } else { store.stopForegroundScheduleSync() }
+            if !plugins.enabled("tasks") {
+                store.scheduleReminderTask?.cancel()
+                store.notificationService.cancel(planIDs: Set(store.engine.snapshot.planItems.map(\.id)))
+            }
+            Task { await financeNotifications.refresh(store.engine.snapshot.capture.finance?.plans ?? []) }
+        }
+        .onChange(of: plugins.preferences) { _, _ in
+            navigation.reconcile(availableIDs: availableNavigationIDs)
+            if !navigation.orderedTabs.contains(selectedTab) { selectedTab = preferredNavigationTab }
+            if !plugins.enabled("assistant") { assistantStore.cancelCurrentTurn(); store.closePlanAgent() }
+            if !plugins.enabled("sync") { store.pendingScheduleConflict = nil }
+            if !plugins.enabled("capture") { showHiddenCapture = false }
+            if !plugins.enabled("tasks") { showHiddenToday = false; showHiddenTasks = false }
+        }
+        .onChange(of: navigation.preferences) { _, _ in
+            if !navigation.orderedTabs.contains(selectedTab) {
+                selectedTab = preferredNavigationTab
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            store.moduleSceneActive = phase == .active
+            if phase == .active {
+                store.startForegroundScheduleSync()
+                Task { await financeNotifications.refresh(store.engine.snapshot.capture.finance?.plans ?? []) }
+            }
+            else { store.stopForegroundScheduleSync() }
+        }
+        .v2Sheet(isPresented: $showHiddenAssistant) { assistantHome }
+        .onChange(of: store.isPlanPresented) { _, presented in
+            guard presented else { return }
+            if let task = store.planningSourceTask {
+                _ = assistantStore.openContextSession(for: V2AgentSourceTask(id: task.id, title: task.title, note: task.subtitle))
+            }
+            if navigation.orderedTabs.contains(.assistant) { selectedTab = .assistant }
+            else { showHiddenAssistant = true }
+            store.closePlanAgent()
+        }
+        .v2FullScreenCover(isPresented: zenPresentationBinding) {
             if let session = store.zenSession {
                 V2ZenView(
                     session: session,
@@ -90,28 +146,115 @@ struct V2RootView: View {
             }
         }
         .task {
+            await financeNotifications.refresh(store.engine.snapshot.capture.finance?.plans ?? [])
             await store.runClock()
         }
         .onOpenURL { url in
-            guard url.scheme == "toughtrial", url.host == "today" else { return }
-            store.closePlanAgent()
-            store.closeZen()
-            selectedTab = .today
+            if let action = V2QuickCaptureAction(url: url) {
+                guard action != .ledger || plugins.enabled("ledger"), action != .task || plugins.enabled("tasks"), action != .note || plugins.enabled("capture") else { showPlugins = true; return }
+                store.closePlanAgent(); store.closeZen()
+                if !plugins.enabled("capture") {
+                    standaloneQuickAction = .init(action: action)
+                    return
+                }
+                quickCaptureRequest = .init(action: action)
+                if navigation.orderedTabs.contains(.capture) { selectedTab = .capture } else { showHiddenCapture = true }
+            } else if url.scheme == "toughtrial", url.host == "today" {
+                guard plugins.enabled("tasks") else { showPlugins = true; return }
+                store.closePlanAgent(); store.closeZen()
+                if navigation.orderedTabs.contains(.today) { selectedTab = .today } else { showHiddenToday = true }
+            }
         }
     }
 
-    private var tabSelection: Binding<V2RootTab> {
+    private var availableNavigationIDs: Set<V2NavigationID> {
+        Set(V2NavigationID.allCases.filter { item in
+            guard let moduleID = item.requiredModuleID else { return true }
+            return plugins.enabled(moduleID)
+        })
+    }
+
+    private var preferredNavigationTab: V2NavigationID {
+        navigation.orderedTabs.first(where: { $0 != .morePlugins }) ?? .morePlugins
+    }
+
+    @ViewBuilder
+    private var rootContent: some View {
+        switch selectedTab {
+        case .assistant:
+            assistantHome
+        case .today:
+            V2TodayView(store: store)
+        case .tasks:
+            V2TasksView(store: store)
+        case .capture:
+            V2CaptureView(appStore: store, client: Self.captureTestClient, quickRequest: $quickCaptureRequest)
+        case .recall:
+            V2RecallView(store: store, drawingStore: recallDrawingStore)
+        case .ownProfile:
+            V2OwnProfileView()
+        case .morePlugins:
+            V2MorePluginsView(
+                appStore: store,
+                navigation: navigation,
+                availableIDs: availableNavigationIDs,
+                openModule: openModuleFromMore
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func standaloneContent(_ item: V2NavigationID) -> some View {
+        switch item {
+        case .assistant: assistantHome
+        case .today: V2TodayView(store: store)
+        case .tasks: V2TasksView(store: store)
+        case .capture: V2CaptureView(appStore: store, client: Self.captureTestClient, quickRequest: $quickCaptureRequest)
+        case .recall: V2RecallView(store: store, drawingStore: recallDrawingStore)
+        case .ownProfile: V2OwnProfileView()
+        case .morePlugins: EmptyView()
+        }
+    }
+
+    private func openModuleFromMore(_ item: V2NavigationID) {
+        if navigation.orderedTabs.contains(item) { selectedTab = item }
+        else { standaloneModule = item }
+    }
+
+    private var assistantHome: some View {
+        V2AssistantView(store: assistantStore, appStore: store, onExit: {
+            showHiddenAssistant = false
+            selectedTab = navigation.orderedTabs.contains(.today) ? .today : preferredNavigationTab
+        }, embedded: true, onOpenSource: { id in
+            guard plugins.enabled("tasks") else { showPlugins = true; return }
+            store.assistantReturnTaskID = id
+            if navigation.orderedTabs.contains(.tasks) { selectedTab = .tasks }
+            else { showHiddenTasks = true }
+        })
+    }
+
+    private var assistantEntry: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "sparkles").font(.largeTitle).foregroundStyle(V2Theme.blue)
+            Text("说点什么，交给助手整理").font(.headline)
+            Button("打开助手") { store.openPlanAgent() }
+                .buttonStyle(.borderedProminent).accessibilityIdentifier("plugins.assistant.fallback")
+        }.frame(maxWidth: .infinity, maxHeight: .infinity).background(V2Theme.page)
+    }
+
+    private static var captureTestClient: (any V2CaptureClient)? {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["TOUGH_TRIAL_UI_TEST_CAPTURE"] == "1" { return V2CaptureUITestClient() }
+        #endif
+        return nil
+    }
+
+    private var tabSelection: Binding<V2NavigationID> {
         Binding(
             get: { selectedTab },
             set: { newTab in
-                if newTab == .assistant {
-                    store.openPlanAgent()
-                } else {
-                    if newTab == .recall {
-                        store.refreshRecallEvidence()
-                    }
-                    selectedTab = newTab
-                }
+                if newTab == .recall { store.refreshRecallEvidence() }
+                selectedTab = newTab
             }
         )
     }
@@ -128,6 +271,12 @@ struct V2RootView: View {
     }
 
     private static func makeUITestStore() -> V2AppStore {
+#if DEBUG
+        if let fixtureID = ProcessInfo.processInfo.environment["TOUGH_TRIAL_UI_FILE_FIXTURE"],
+           let id = UUID(uuidString: fixtureID) {
+            return makeFileUITestStore(id: id)
+        }
+#endif
         let engine = V2Engine()
         let startedAt = Date(timeIntervalSince1970: 1_700_000_000)
 
@@ -187,11 +336,38 @@ struct V2RootView: View {
             memoryEngine: V2MemoryEngine()
         )
     }
-}
 
-private enum V2RootTab: Hashable {
-    case today
-    case tasks
-    case assistant
-    case recall
+#if DEBUG
+    /// Seed files only; all reads, writes, and recovery run through the normal UI.
+    private static func makeFileUITestStore(id: UUID) -> V2AppStore {
+        do {
+            let directory = FileManager.default.temporaryDirectory
+                .appendingPathComponent("ScheduleFileUITest-\(id.uuidString)", isDirectory: true)
+            let snapshotURL = directory.appendingPathComponent("snapshot.json")
+            let baselineURL = directory.appendingPathComponent("baseline.json")
+            let file = directory.appendingPathComponent("日程.md")
+            let snapshotStore = V2JSONSnapshotStore(fileURL: snapshotURL)
+            let mode = ProcessInfo.processInfo.environment["TOUGH_TRIAL_UI_FILE_MODE"]
+            if mode == "seed" {
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                let engine = V2Engine(store: snapshotStore)
+                _ = try engine.createTask(title: "文件原始任务")
+                let document = try engine.prepareScheduleDocument(timeZoneIdentifier: "Asia/Shanghai")
+                try Data(V2ScheduleMarkdown.encode(document).utf8).write(to: file, options: .atomic)
+                let read = try V2ScheduleFileIO.read(url: file)
+                try engine.recordScheduleFileWrite(document, bookmark: read.bookmark, fileName: file.lastPathComponent)
+                try V2JSONSnapshotStore(fileURL: baselineURL).save(engine.snapshot)
+                var edited = document
+                edited.tasks[0].title = "电脑修改后的任务"
+                try Data(V2ScheduleMarkdown.encode(edited).utf8).write(to: file, options: .atomic)
+            } else if mode == "readback" {
+                // Keep the written Markdown, but remove all local changes made by the test.
+                try snapshotStore.save(V2JSONSnapshotStore(fileURL: baselineURL).load())
+            }
+            return V2AppStore(engine: try V2Engine.load(from: snapshotStore), memoryEngine: V2MemoryEngine())
+        } catch {
+            fatalError("Schedule file UI fixture failed: \(error)")
+        }
+    }
+#endif
 }

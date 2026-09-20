@@ -1,0 +1,27 @@
+{
+  "manifestVersion": 2,
+  "id": "community.reading-note",
+  "version": "1.0.0",
+  "hostAPIMajor": 1,
+  "name": "阅读随记",
+  "kind": "declarative",
+  "permissions": [
+    {"capability": "capture.create", "scope": "submitted-form"}
+  ],
+  "contributions": {
+    "forms": [
+      {
+        "id": "quick-note",
+        "title": "阅读随记",
+        "fields": [
+          {"id": "book", "type": "text", "title": "书名", "required": true},
+          {"id": "note", "type": "text", "title": "想法", "required": true}
+        ],
+        "submit": {
+          "template": "阅读《{{book}}》\n想法：{{note}}",
+          "command": "core.capture.create"
+        }
+      }
+    ]
+  }
+}

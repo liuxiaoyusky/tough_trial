@@ -28,8 +28,8 @@ func checkAgentAutomaticActionsCannotAcceptPlans() {
         "The plan action must mean draft generation"
     )
     require(
-        Set(V2AgentAutomaticTool.allCases) == [.webSearch, .webRead, .localSearch, .planDraft],
-        "Automatic actions must stay limited to read-only tools and plan draft generation"
+        Set(V2AgentAutomaticTool.allCases) == [.webSearch, .webRead, .localSearch, .planDraft, .schedule],
+        "Automatic tools include explicit schedule commands while plan remains a draft"
     )
     require(
         !V2AgentAutomaticTool.allCases.contains { $0.rawValue.lowercased().contains("accept") },
@@ -94,4 +94,13 @@ func checkAgentPlanningRequestUsesSessionContext() {
     require(revision.userPrompt == "安排写作", "Plan revisions must retain the draft's original prompt")
     require(revision.clarificationResponse == "改到后天", "Plan revisions should carry the requested adjustment")
     require(revision.currentDraft == session.pendingPlan, "Plan revisions must carry the Session draft")
+}
+
+func checkDirectCreationRoutingIsConservative() {
+    for text in ["新增任务：买牛奶", "请帮我创建一个任务，明天取快递", "添加待办 买牛奶"] {
+        require(V2AgentTurnPolicy.canDirectlyParseCreation(text), "Explicit create should skip routing: \(text)")
+    }
+    for text in ["新增任务：买牛奶，可以吗？", "不要新增任务：买牛奶", "如果新增任务：买牛奶", "新增任务有什么用", "新增任务：先不要做", "帮我想想任务", "把它改到明天", "新增任务：" + String(repeating: "长", count: 181)] {
+        require(!V2AgentTurnPolicy.canDirectlyParseCreation(text), "Uncertain input should keep general routing: \(text)")
+    }
 }
