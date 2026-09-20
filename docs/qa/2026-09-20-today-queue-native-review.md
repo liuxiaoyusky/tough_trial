@@ -29,3 +29,9 @@
 ## Mac 用户验收
 
 2026-09-20：最新 ToughTrialMac Debug 构建通过，打开原生「今天」供用户测试；用户确认「可以，测试完毕」，授权 commit 与 push。iOS 真机安装状态不变。
+
+## 发布检查点与 main 整合
+
+用户明确授权将当前完整检查点推送到 `liuxiaoyusky/tough_trial` 并合并 main。远端 main 为 `0fb66d0`（2026-07-24）；当前分支从 `78dd5d9`（2026-07-30，脱敏源码发布）重新建根，因此没有共同祖先。整合保留双方历史，以已验收的当前源码树作为结果，不恢复旧版源码、私人工作材料或缓存；不使用 force push。
+
+敏感信息检查的 8 个文件告警来自测试占位凭据、非法 ID 与脱敏测试字符串。将这些夹具改为明确的 test 占位值，保留非法 ID 拒绝与脱敏断言；检查规则不变。`node Tools/check-sensitive-info.mjs`、`swift run ToughTrialV2Checks`、31 项 Composer / Thinking / Archive 测试通过。此前记录的附件测试编译问题仍未修复，未宣称全套测试通过。

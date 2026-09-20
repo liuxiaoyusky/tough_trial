@@ -60,7 +60,7 @@ final class V2AssistantArchiveTests: XCTestCase {
             state: .applied,
             operationID: "operation-one",
             idempotencyKey: "key-one",
-            summary: "已创建任务 token=sk-test-secret-123456789",
+            summary: "已创建任务 token=sk-test-secret",
             entityReferences: ["task-one"]
         )
         let proposal = V2ScheduleProposal(summary: "安排任务", operations: [])

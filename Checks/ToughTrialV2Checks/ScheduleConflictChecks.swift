@@ -36,12 +36,12 @@ func checkScheduleConflictAIContractApplyUndoAndStaleProtection() async throws {
         return try JSONSerialization.data(withJSONObject: ["request_id": "metadata", "choices": [["finish_reason": "stop", "message": ["content": text, "reasoning_content": "ignored"]]]])
     }
     let transport = ConflictTransport(payload: try response(output))
-    let client = V2OpenAICompatibleConflictClient(configuration: .init(endpoint: URL(string: "https://example.com/chat/completions")!, apiKey: "secret-only-header", model: "fixture"), transport: transport, guidance: "保留双方要求")
+    let client = V2OpenAICompatibleConflictClient(configuration: .init(endpoint: URL(string: "https://example.com/chat/completions")!, apiKey: "test-secret-only-header", model: "fixture"), transport: transport, guidance: "保留双方要求")
     let outcome = try await client.resolve(conflict)
     guard case let .resolution(resolutions) = outcome else { fatalError("Valid AI result must become controlled resolutions") }
     let request = await transport.request!
     let body = String(decoding: request.httpBody!, as: UTF8.self)
-    require(!body.contains("secret-only-header") && body.contains("保留双方要求"), "User guidance is sent while credentials stay out of the payload")
+    require(!body.contains("test-secret-only-header") && body.contains("保留双方要求"), "User guidance is sent while credentials stay out of the payload")
     let before = engine.snapshot
     let changed = V2Engine(snapshot: before)
     _ = try changed.createTask(title: "模型处理期间新增")

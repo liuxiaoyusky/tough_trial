@@ -21,19 +21,19 @@ final class V2AIProviderSettingsTests: XCTestCase {
         XCTAssertEqual(V2AIProviderSettings.defaults.provider, .glmCoding)
         XCTAssertEqual(V2AIProviderSettings.defaults.model, "glm-5.3-flash")
         var settings = V2AIProviderPreset.miniMax.defaultSettings()
-        settings.apiKey = "fixture-key"
+        settings.apiKey = "test-fixture-key"
         XCTAssertEqual(settings.model, "MiniMax-M2.7-highspeed")
         XCTAssertEqual(try settings.agentConfiguration().endpoint.absoluteString, "https://api.minimax.io/v1/chat/completions")
         XCTAssertEqual(V2AIProviderPreset.inferred(from: settings.baseURL), .miniMax)
     }
     func testMiniMaxRejectsPastedConfigurationInsteadOfSendingIt() throws {
         var settings = V2AIProviderPreset.miniMax.defaultSettings()
-        settings.apiKey = "Authorization: Bearer fixture-key"
+        settings.apiKey = "Authorization: Bearer test-fixture-key"
         XCTAssertThrowsError(try settings.agentConfiguration())
         settings.apiKey = "fixture\nkey"
         XCTAssertThrowsError(try settings.agentConfiguration())
-        settings.apiKey = "  fixture-key\n"
-        XCTAssertEqual(try settings.agentConfiguration().apiKey, "fixture-key")
+        settings.apiKey = "  test-fixture-key\n"
+        XCTAssertEqual(try settings.agentConfiguration().apiKey, "test-fixture-key")
     }
 
     func testSavedMiniMaxRegionIsPreserved() throws {
@@ -53,7 +53,7 @@ final class V2AIProviderSettingsTests: XCTestCase {
         var settings = V2AIProviderPreset.glmCoding.defaultSettings()
         XCTAssertEqual(settings.model, "glm-5.3-flash")
         XCTAssertTrue(V2AIProviderPreset.glmCoding.models.contains("glm-5.3-flash"))
-        settings.apiKey = "fixture-key"
+        settings.apiKey = "test-fixture-key"
         XCTAssertEqual(try settings.agentConfiguration().endpoint.absoluteString,
                        "https://open.bigmodel.cn/api/coding/paas/v4/chat/completions")
         settings.baseURL = "https://api.z.ai/api/coding/paas/v4"

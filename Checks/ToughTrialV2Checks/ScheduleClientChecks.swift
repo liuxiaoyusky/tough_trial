@@ -110,7 +110,7 @@ func checkScheduleClientRequestShapeAndProposal() async throws {
     let client = V2OpenAICompatibleScheduleClient(
         configuration: .init(
             endpoint: URL(string: "https://example.com/v1/chat/completions")!,
-            apiKey: "schedule-secret",
+            apiKey: "test-schedule-secret",
             model: "test-schedule",
             providerLabel: "Test Schedule"
         ),
@@ -140,7 +140,7 @@ func checkScheduleClientRequestShapeAndProposal() async throws {
     }
 
     require(request.httpMethod == "POST", "Schedule requests should use POST")
-    require(request.value(forHTTPHeaderField: "Authorization") == "Bearer schedule-secret", "API key belongs in the authorization header")
+    require(request.value(forHTTPHeaderField: "Authorization") == "Bearer test-schedule-secret", "API key belongs in the authorization header")
     require(request.timeoutInterval > 0, "Schedule requests should set a finite timeout")
     require(object["model"] as? String == "test-schedule", "Schedule requests should carry the configured model")
     require(payload["user_text"] as? String == scheduleClientRequest().userText, "User text should be preserved")
@@ -153,7 +153,7 @@ func checkScheduleClientRequestShapeAndProposal() async throws {
     require(userContent.contains("task-run") && userContent.contains("plan-run"), "Known task and plan IDs should be visible to the model")
     require(userContent.contains("我想安排本周训练") && userContent.contains("要保留哪些限制？"), "Conversation messages should be forwarded")
     require(!userContent.contains("scheduleReceipts") && !userContent.contains("receipts"), "Schedule context must not include receipt history")
-    require(!String(data: body, encoding: .utf8)!.contains("schedule-secret"), "API keys must not appear in the request body")
+    require(!String(data: body, encoding: .utf8)!.contains("test-schedule-secret"), "API keys must not appear in the request body")
     let systemPrompt = messages.first?["content"] as? String ?? ""
     require(
         systemPrompt.contains("明确要求") && systemPrompt.contains("不要使用 Markdown"),
@@ -253,14 +253,14 @@ func checkScheduleGLMCodingCompatibility() throws {
     ]
     for (url, model, expected) in cases {
         let client = V2OpenAICompatibleScheduleClient(configuration: .init(
-            endpoint: URL(string: url)!, apiKey: "fixture-key", model: model))
+            endpoint: URL(string: url)!, apiKey: "test-fixture-key", model: model))
         let request = try client.makeURLRequest(for: scheduleClientRequest())
         let body = try JSONSerialization.jsonObject(with: request.httpBody!) as! [String: Any]
         require((body["thinking"] as? [String: String]) == (expected ? ["type": "enabled"] : nil),
                 "Only verified GLM endpoints and models receive GLM thinking fields")
-        require(request.value(forHTTPHeaderField: "Authorization") == "Bearer fixture-key", "GLM must use Bearer authentication")
+        require(request.value(forHTTPHeaderField: "Authorization") == "Bearer test-fixture-key", "GLM must use Bearer authentication")
         require((body["reasoning_effort"] as? String) == (expected ? "low" : nil) && body["enable_thinking"] == nil, "GLM 5.3 uses its supported low effort field")
-        require(!String(decoding: request.httpBody!, as: UTF8.self).contains("fixture-key"), "GLM credentials must stay out of the payload")
+        require(!String(decoding: request.httpBody!, as: UTF8.self).contains("test-fixture-key"), "GLM credentials must stay out of the payload")
     }
 }
 

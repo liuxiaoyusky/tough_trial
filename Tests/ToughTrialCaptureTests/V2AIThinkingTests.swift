@@ -170,7 +170,7 @@ final class V2AIThinkingTests: XCTestCase {
         let endpoint = URL(string: "https://open.bigmodel.cn/api/coding/paas/v4/chat/completions")!
         let configuration = V2OpenAICompatibleAgentConfiguration(
             endpoint: endpoint,
-            apiKey: "fixture-key",
+            apiKey: "test-fixture-key",
             model: "glm-5.2",
             thinking: .max
         )
@@ -204,7 +204,7 @@ final class V2AIThinkingTests: XCTestCase {
         let selection = V2AIProviderSelection(providerID: "glm-coding", model: "glm-5.2", thinking: .high)
         let configuration = V2OpenAICompatibleAgentConfiguration(
             endpoint: URL(string: "https://open.bigmodel.cn/api/coding/paas/v4/chat/completions")!,
-            apiKey: "fixture-key",
+            apiKey: "test-fixture-key",
             model: "glm-5.3-flash",
             providerLabel: "GLM",
             usesPromptCacheKey: false,

@@ -6,7 +6,7 @@ import ToughTrialV2Core
 final class V2AIConnectionTestTests: XCTestCase {
     private func settings() -> V2AIProviderSettings {
         var settings = V2AIProviderPreset.miniMax.defaultSettings()
-        settings.apiKey = "fixture-key"
+        settings.apiKey = "test-fixture-key"
         return settings
     }
 
@@ -31,7 +31,7 @@ final class V2AIConnectionTestTests: XCTestCase {
             var edited = original
             switch changed {
             case "model": edited.model = "another-model"
-            case "key": edited.apiKey = "another-key"
+            case "key": edited.apiKey = "test-another-key"
             case "endpoint": edited.baseURL = "https://api.minimax.cn/v1"
             default: edited.thinking = .low
             }

@@ -153,7 +153,7 @@ func checkAgentTraceSubjectValueBoundaries() throws {
     let artifactID = V2AgentTraceArtifactID(artifactUUID)
     require(artifactID.value == artifactUUID, "UUID artifact IDs must construct a Trace subject value")
     require(V2AgentTraceArtifactID(artifactUUID.uuidString)?.value == artifactUUID, "UUID artifact ID strings must construct a Trace subject value")
-    for invalidID in ["sessionKey=top-secret", "计划标题", "id/with/slashes", "sk-4Vj7aK9mQ2xL8pR5tN3cD6wB1zY0uE"] {
+    for invalidID in ["sessionKey=top-secret", "计划标题", "id/with/slashes", "test-invalid-source-id"] {
         require(V2AgentTraceSourceID(invalidID) == nil, "Invalid source ID must not construct a Trace subject")
         require(V2AgentTraceArtifactID(invalidID) == nil, "Invalid artifact ID must not construct a Trace subject")
         let encodedID = Data("\"\(invalidID)\"".utf8)

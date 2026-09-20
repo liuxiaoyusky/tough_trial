@@ -41,7 +41,7 @@ final class AssistantComposerTests: XCTestCase {
     }
 
     func testModelCanDeclareRemainingWorkWithoutChangingWriteAuthority() throws {
-        let client = V2OpenAICompatibleAgentClient(configuration: .init(endpoint: URL(string: "https://example.com/v1/chat/completions")!, apiKey: "synthetic", model: "fixture"))
+        let client = V2OpenAICompatibleAgentClient(configuration: .init(endpoint: URL(string: "https://example.com/v1/chat/completions")!, apiKey: "test-synthetic", model: "fixture"))
         let action = #"{"action":"schedule","query":"创建任务后分析","text":"","url":"","continue_after_tool":true}"#
         let data = try JSONSerialization.data(withJSONObject: ["choices": [["message": ["content": action]]]])
         let response = try client.decodeResponse(data)
