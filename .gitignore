@@ -1,7 +1,52 @@
+# Swift and Xcode build products
 .build/
 .swiftpm/
 build/
 DerivedData/
-.DS_Store
+*.dSYM/
+*.ipa
+*.xcarchive/
+*.xcresult/
 **/xcuserdata/
 *.xcuserstate
+
+# macOS and local tooling
+.DS_Store
+.playwright-mcp/
+.superpowers/
+.worktrees/
+outputs/
+scratch/
+
+# Local credentials and machine-specific configuration
+.env
+.env.*
+!.env.example
+*.local.json
+*.local.yaml
+*.local.yml
+*.mobileprovision
+*.p12
+*.pem
+Tools/sensitive-patterns.local.txt
+
+# Private workbench material that is not part of the public product
+AI_TEAM_DEVELOPMENT_RULES.md
+app/
+conflicts/
+design/
+design-qa.md
+docs/agent-guide.md
+docs/collaboration/
+docs/decisions/
+docs/handoff.md
+docs/mvp.md
+docs/overview.md
+docs/talks/
+ownership/
+/tasks/
+tasks.md
+
+# Python tooling caches
+__pycache__/
+*.py[cod]

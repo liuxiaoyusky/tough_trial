@@ -31,13 +31,15 @@ struct V2ZenView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("回到今天")
+                    .accessibilityIdentifier("zen.close")
 
                     Spacer()
 
-                    Text(session.status == .running ? "Zen" : "Paused")
+                    Text(session.status == .running ? "Zen" : "暂停中")
                         .font(.subheadline.weight(.bold))
                         .foregroundStyle(.white.opacity(0.70))
                         .monospaced()
+                        .accessibilityIdentifier("zen.status")
                 }
                 .padding(.horizontal, 22)
                 .padding(.top, 18)
@@ -55,6 +57,7 @@ struct V2ZenView: View {
                         .foregroundStyle(.white)
                         .minimumScaleFactor(0.72)
                         .lineLimit(1)
+                        .accessibilityIdentifier("zen.timer")
 
                     Text(session.title)
                         .font(.system(size: 21, weight: .semibold))
@@ -63,6 +66,7 @@ struct V2ZenView: View {
                         .lineLimit(3)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.horizontal, 28)
+                        .accessibilityIdentifier("zen.title")
 
                     Text(footerText)
                         .font(.footnote.weight(.medium))
@@ -88,6 +92,7 @@ struct V2ZenView: View {
                             )
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("zen.toggle")
 
                     Button(action: onFinish) {
                         Text("结束时间段")
@@ -98,11 +103,14 @@ struct V2ZenView: View {
                             .background(Color(red: 0.94, green: 0.89, blue: 0.78), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("zen.finish")
                 }
                 .padding(.horizontal, 26)
                 .padding(.bottom, 30)
             }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isModal)
     }
 
     private var footerText: String {

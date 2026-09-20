@@ -1,0 +1,715 @@
+{
+  "formatVersion": 1,
+  "nodes": [
+    {
+      "id": "core.tasks",
+      "type": "system",
+      "label": "任务系统",
+      "references": [
+        "Sources/ToughTrialV2Core/V2ModuleRuntime.swift"
+      ]
+    },
+    {
+      "id": "capability.tasks.edit_document",
+      "type": "capability",
+      "label": "编辑任务文档",
+      "aliases": [
+        "任务点开无法编辑",
+        "标题修改",
+        "备注",
+        "正文",
+        "编辑后重开丢失",
+        "edit task"
+      ],
+      "references": [
+        "docs/superpowers/specs/2026-09-16-macos-sync-ontology-design-zh.md"
+      ]
+    },
+    {
+      "id": "core.tasks.update",
+      "type": "command",
+      "label": "更新任务",
+      "references": [
+        "Sources/ToughTrialV2Core/V2NativeContracts.swift"
+      ]
+    },
+    {
+      "id": "data.Task.document",
+      "type": "data",
+      "label": "Task.title / Task.note / Task.kind",
+      "references": [
+        "Sources/ToughTrialV2Core/V2EngineModels.swift"
+      ]
+    },
+    {
+      "id": "rule.tasks.edit",
+      "type": "invariant",
+      "label": "非空标题、拒绝过期覆盖、保留身份与层级",
+      "references": [
+        "Sources/ToughTrialV2Core/V2TaskClassification.swift"
+      ]
+    },
+    {
+      "id": "code.document.split",
+      "type": "symbol",
+      "label": "拆分首段标题与正文",
+      "binding": {
+        "path": "Sources/ToughTrialV2Core/V2TaskDocumentContent.swift",
+        "symbol": "V2TaskDocumentContent.split(_:)"
+      }
+    },
+    {
+      "id": "code.workspace.save",
+      "type": "symbol",
+      "label": "Mac 工作区保存草稿",
+      "binding": {
+        "path": "Sources/ToughTrialAppShared/V2TaskWorkspace.swift",
+        "symbol": "V2TaskWorkspace.save()"
+      }
+    },
+    {
+      "id": "code.workspace.updateText",
+      "type": "symbol",
+      "label": "Mac 更新输入与保留草稿",
+      "binding": {
+        "path": "Sources/ToughTrialAppShared/V2TaskWorkspace.swift",
+        "symbol": "V2TaskWorkspace.updateText(_:isComposing:)"
+      }
+    },
+    {
+      "id": "code.workspace.new",
+      "type": "symbol",
+      "label": "Mac 新建草稿",
+      "binding": {
+        "path": "Sources/ToughTrialAppShared/V2TaskWorkspace.swift",
+        "symbol": "V2TaskWorkspace.beginNew()"
+      }
+    },
+    {
+      "id": "code.workspace.complete",
+      "type": "symbol",
+      "label": "Mac 完成与恢复",
+      "binding": {
+        "path": "Sources/ToughTrialAppShared/V2TaskWorkspace.swift",
+        "symbol": "V2TaskWorkspace.toggleCompletion(_:)"
+      }
+    },
+    {
+      "id": "code.workspace.undo",
+      "type": "symbol",
+      "label": "Mac 撤销上次保存",
+      "binding": {
+        "path": "Sources/ToughTrialAppShared/V2TaskWorkspace.swift",
+        "symbol": "V2TaskWorkspace.undoLastSave()"
+      }
+    },
+    {
+      "id": "code.mac.editor",
+      "type": "symbol",
+      "label": "Mac 连续编辑界面",
+      "binding": {
+        "path": "Sources/ToughTrialMacApp/MacTaskWorkspaceView.swift",
+        "symbol": "MacTaskWorkspaceView.editor.get"
+      }
+    },
+    {
+      "id": "code.mac.input",
+      "type": "symbol",
+      "label": "Mac 原生输入事件",
+      "binding": {
+        "path": "Sources/ToughTrialMacApp/MacTaskDocumentInput.swift",
+        "symbol": "MacTaskDocumentInput.Coordinator.textDidChange(_:)"
+      }
+    },
+    {
+      "id": "code.ios.edit",
+      "type": "symbol",
+      "label": "iPhone 编辑任务入口",
+      "binding": {
+        "path": "Sources/ToughTrialV2App/V2AppStoreTaskEditing.swift",
+        "symbol": "V2AppStore.editTask(_:title:note:classification:at:)"
+      }
+    },
+    {
+      "id": "code.engine.update",
+      "type": "symbol",
+      "label": "共享任务更新规则",
+      "binding": {
+        "path": "Sources/ToughTrialV2Core/V2TaskClassification.swift",
+        "symbol": "V2Engine.updateTaskClassification(id:title:note:classification:expectedTask:at:)"
+      }
+    },
+    {
+      "id": "code.engine.commit",
+      "type": "symbol",
+      "label": "事务校验与原子保存入口",
+      "binding": {
+        "path": "Sources/ToughTrialV2Core/V2Engine.swift",
+        "symbol": "V2Engine.commit(modules:commandID:_:)"
+      }
+    },
+    {
+      "id": "code.engine.load",
+      "type": "symbol",
+      "label": "启动加载",
+      "binding": {
+        "path": "Sources/ToughTrialV2Core/V2Engine.swift",
+        "symbol": "V2Engine.load(from:)"
+      }
+    },
+    {
+      "id": "code.store.save",
+      "type": "symbol",
+      "label": "JSON 快照原子写入",
+      "binding": {
+        "path": "Sources/ToughTrialV2Core/V2JSONSnapshotStore.swift",
+        "symbol": "V2JSONSnapshotStore.save(_:fileManager:)"
+      }
+    },
+    {
+      "id": "code.store.load",
+      "type": "symbol",
+      "label": "JSON 快照读取与迁移",
+      "binding": {
+        "path": "Sources/ToughTrialV2Core/V2JSONSnapshotStore.swift",
+        "symbol": "V2JSONSnapshotStore.load(fileManager:)"
+      }
+    },
+    {
+      "id": "test.workspace.restart",
+      "type": "test",
+      "label": "编辑后重启与撤销",
+      "binding": {
+        "path": "Tests/ToughTrialWorkspaceTests/TaskWorkspaceTests.swift",
+        "symbol": "TaskWorkspaceTests.testCreateEditReloadAndUndoPreserveIdentityAndPlacement()"
+      }
+    },
+    {
+      "id": "test.workspace.stale",
+      "type": "test",
+      "label": "旧版本与空标题不能覆盖",
+      "binding": {
+        "path": "Tests/ToughTrialWorkspaceTests/TaskWorkspaceTests.swift",
+        "symbol": "TaskWorkspaceTests.testBlankOrStaleEditDoesNotOverwriteSavedData()"
+      }
+    },
+    {
+      "id": "test.workspace.failure",
+      "type": "test",
+      "label": "写入失败与重试",
+      "binding": {
+        "path": "Tests/ToughTrialWorkspaceTests/TaskWorkspaceTests.swift",
+        "symbol": "TaskWorkspaceTests.testStorageFailureKeepsOriginalAndDraftThenRetrySucceeds()"
+      }
+    },
+    {
+      "id": "test.workspace.duplicate",
+      "type": "test",
+      "label": "创建中断重试不重复",
+      "binding": {
+        "path": "Tests/ToughTrialWorkspaceTests/TaskWorkspaceTests.swift",
+        "symbol": "TaskWorkspaceTests.testRetryAfterCreateBeforeDraftAcknowledgementDoesNotDuplicate()"
+      }
+    },
+    {
+      "id": "test.workspace.draft",
+      "type": "test",
+      "label": "草稿重启与取消",
+      "binding": {
+        "path": "Tests/ToughTrialWorkspaceTests/TaskWorkspaceTests.swift",
+        "symbol": "TaskWorkspaceTests.testUncreatedDraftSurvivesRestartAndExplicitCancelDoesNotCreateTask()"
+      }
+    },
+    {
+      "id": "code.store.loadOrCreate",
+      "type": "symbol",
+      "label": "加载现有快照或首次建立空数据",
+      "binding": {
+        "path": "Sources/ToughTrialV2Core/V2JSONSnapshotStore.swift",
+        "symbol": "V2JSONSnapshotStore.loadOrCreateEmpty(fileManager:)"
+      }
+    },
+    {
+      "id": "code.engine.complete",
+      "type": "symbol",
+      "label": "共享完成与恢复规则",
+      "binding": {
+        "path": "Sources/ToughTrialV2Core/V2TaskCompletion.swift",
+        "symbol": "V2Engine.setTaskCompletion(taskID:completed:at:calendar:)"
+      }
+    },
+    {
+      "id": "code.engine.undo",
+      "type": "symbol",
+      "label": "按 receipt 撤销并拒绝覆盖后续修改",
+      "binding": {
+        "path": "Sources/ToughTrialV2Core/V2ScheduleCommands.swift",
+        "symbol": "V2Engine.undoScheduleReceipt(id:at:)"
+      }
+    },
+    {
+      "id": "test.workspace.complete",
+      "type": "test",
+      "label": "完成与撤销重启验证",
+      "binding": {
+        "path": "Tests/ToughTrialWorkspaceTests/TaskWorkspaceTests.swift",
+        "symbol": "TaskWorkspaceTests.testCompletionUndoAndRestart()"
+      }
+    },
+    {
+      "id": "test.workspace.composition",
+      "type": "test",
+      "label": "候选词未确认时不提交",
+      "binding": {
+        "path": "Tests/ToughTrialWorkspaceTests/TaskWorkspaceTests.swift",
+        "symbol": "TaskWorkspaceTests.testMarkedTextCannotBeSavedOrUsedToSwitchTasks()"
+      }
+    },
+    {
+      "id": "mac.app",
+      "type": "surface",
+      "label": "Mac 完整客户端导航",
+      "binding": {
+        "path": "Sources/ToughTrialMacApp/MacRootView.swift",
+        "symbol": "MacRootView.body.get"
+      },
+      "aliases": [
+        "Mac页面",
+        "桌面导航"
+      ]
+    },
+    {
+      "id": "code.mac.lifecycle",
+      "type": "symbol",
+      "label": "Mac 离开/关闭前保存",
+      "binding": {
+        "path": "Sources/ToughTrialMacApp/MacAppModel.swift",
+        "symbol": "MacAppModel.preserve()"
+      },
+      "aliases": [
+        "关闭丢失",
+        "切换页面保存"
+      ]
+    },
+    {
+      "id": "code.mac.model",
+      "type": "symbol",
+      "label": "Mac 单资料库装配",
+      "binding": {
+        "path": "Sources/ToughTrialMacApp/MacAppModel.swift",
+        "symbol": "MacAppModel.init(directory:)"
+      },
+      "aliases": [
+        "跨页面数据不一致"
+      ]
+    },
+    {
+      "id": "code.capture.save",
+      "type": "symbol",
+      "label": "随手记保存原文",
+      "binding": {
+        "path": "Sources/ToughTrialV2App/V2CaptureStore.swift",
+        "symbol": "V2CaptureStore.saveDraft()"
+      },
+      "aliases": [
+        "随手记保存"
+      ]
+    },
+    {
+      "id": "code.recall.save",
+      "type": "symbol",
+      "label": "回想正文与引用保存",
+      "binding": {
+        "path": "Sources/ToughTrialV2App/V2AppStore.swift",
+        "symbol": "V2AppStore.saveRecall(hasHandwriting:at:)"
+      },
+      "aliases": [
+        "回想保存"
+      ]
+    },
+    {
+      "id": "code.finance.execute",
+      "type": "symbol",
+      "label": "账单与理账命令",
+      "binding": {
+        "path": "Sources/ToughTrialV2App/V2CaptureStore.swift",
+        "symbol": "V2CaptureStore.executeFinance(_:confirmedPayment:)"
+      },
+      "aliases": [
+        "理账",
+        "财务"
+      ]
+    },
+    {
+      "id": "code.assistant.submit",
+      "type": "symbol",
+      "label": "助手提交输入",
+      "binding": {
+        "path": "Sources/ToughTrialV2App/V2AssistantComposerStore.swift",
+        "symbol": "V2AssistantStore.submitDraft(_:source:)"
+      },
+      "aliases": [
+        "助手发送"
+      ]
+    },
+    {
+      "id": "test.mac.shared",
+      "type": "test",
+      "label": "跨页面同一引擎与重启持久化",
+      "binding": {
+        "path": "Tests/ToughTrialMacAppTests/MacAppModelTests.swift",
+        "symbol": "MacAppModelTests.testTaskSurfacesShareOneEngineAndPersist()"
+      },
+      "aliases": []
+    },
+    {
+      "id": "code.workspace.preserve",
+      "type": "symbol",
+      "label": "持久化未提交任务草稿",
+      "binding": {
+        "path": "Sources/ToughTrialAppShared/V2TaskWorkspace.swift",
+        "symbol": "V2TaskWorkspace.preserveBeforeClosing()"
+      }
+    },
+    {
+      "id": "code.ledger.statistics",
+      "type": "symbol",
+      "label": "自然时间收支统计",
+      "binding": {
+        "path": "Sources/ToughTrialV2Core/V2LedgerStatistics.swift",
+        "symbol": "V2LedgerStatistics.project(entries:categories:anchor:period:calendar:)"
+      },
+      "aliases": [
+        "统计金额不对",
+        "收入统计",
+        "分类统计"
+      ]
+    },
+    {
+      "id": "test.ledger.statistics",
+      "type": "test",
+      "label": "统计日期边界回归",
+      "binding": {
+        "path": "Tests/ToughTrialCaptureTests/V2LedgerStatisticsTests.swift",
+        "symbol": "V2LedgerStatisticsTests.testNaturalPeriodBoundariesFollowCalendarDayWeekMonthAndYear()"
+      },
+      "aliases": []
+    },
+    {
+      "id": "code.mac.window",
+      "type": "symbol",
+      "label": "主窗口委托与系统面板隔离",
+      "binding": {
+        "path": "Sources/ToughTrialMacApp/ToughTrialMacApp.swift",
+        "symbol": "MacAppDelegate.observeMainWindow(_:)"
+      },
+      "aliases": [
+        "选择附件崩溃",
+        "文件选择器闪退"
+      ]
+    },
+    {
+      "id": "test.mac.window",
+      "type": "test",
+      "label": "系统面板保持原有委托",
+      "binding": {
+        "path": "Tests/ToughTrialMacAppTests/MacAppModelTests.swift",
+        "symbol": "MacAppModelTests.testSystemPanelsKeepTheirDelegate()"
+      },
+      "aliases": []
+    },
+    {
+      "id": "code.mac.shutdown",
+      "type": "symbol",
+      "label": "退出时保存并等待服务停止",
+      "binding": {
+        "path": "Sources/ToughTrialMacApp/MacAppModel.swift",
+        "symbol": "MacAppModel.shutdown()"
+      },
+      "aliases": [
+        "退出丢草稿",
+        "退出同步"
+      ]
+    },
+    {
+      "id": "test.mac.attachment",
+      "type": "test",
+      "label": "附件实际字节持久化与重启",
+      "binding": {
+        "path": "Tests/ToughTrialMacAppTests/MacAppModelTests.swift",
+        "symbol": "MacAppModelTests.testFileAttachmentPersistsWithMacDirectory()"
+      },
+      "aliases": [
+        "附件无法保存"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "capability.tasks.edit_document",
+      "to": "core.tasks",
+      "relation": "belongs_to",
+      "provenance": "source_review",
+      "evidence": "docs/superpowers/specs/2026-09-16-macos-sync-ontology-design-zh.md"
+    },
+    {
+      "from": "capability.tasks.edit_document",
+      "to": "core.tasks.update",
+      "relation": "invokes",
+      "provenance": "source_review",
+      "evidence": "Sources/ToughTrialAppShared/V2TaskWorkspace.swift"
+    },
+    {
+      "from": "capability.tasks.edit_document",
+      "to": "rule.tasks.edit",
+      "relation": "constrained_by",
+      "provenance": "source_review",
+      "evidence": "Sources/ToughTrialV2Core/V2TaskClassification.swift"
+    },
+    {
+      "from": "core.tasks.update",
+      "to": "data.Task.document",
+      "relation": "writes",
+      "provenance": "source_review",
+      "evidence": "Sources/ToughTrialV2Core/V2TaskClassification.swift"
+    },
+    {
+      "from": "code.mac.editor",
+      "to": "capability.tasks.edit_document",
+      "relation": "implements",
+      "provenance": "source_review",
+      "evidence": "Sources/ToughTrialMacApp/MacTaskWorkspaceView.swift"
+    },
+    {
+      "from": "code.ios.edit",
+      "to": "capability.tasks.edit_document",
+      "relation": "implements",
+      "provenance": "source_review",
+      "evidence": "Sources/ToughTrialV2App/V2AppStoreTaskEditing.swift"
+    },
+    {
+      "from": "code.mac.input",
+      "to": "code.workspace.updateText",
+      "relation": "invokes",
+      "provenance": "source_review",
+      "evidence": "Sources/ToughTrialMacApp/MacTaskWorkspaceView.swift"
+    },
+    {
+      "from": "code.mac.editor",
+      "to": "code.workspace.save",
+      "relation": "invokes",
+      "provenance": "source_review",
+      "evidence": "Sources/ToughTrialMacApp/MacTaskWorkspaceView.swift"
+    },
+    {
+      "from": "code.workspace.save",
+      "to": "code.document.split",
+      "relation": "invokes",
+      "provenance": "source_review",
+      "evidence": "Sources/ToughTrialAppShared/V2TaskWorkspace.swift"
+    },
+    {
+      "from": "code.workspace.save",
+      "to": "code.engine.update",
+      "relation": "invokes",
+      "provenance": "source_review",
+      "evidence": "Sources/ToughTrialAppShared/V2TaskWorkspace.swift"
+    },
+    {
+      "from": "code.ios.edit",
+      "to": "code.engine.update",
+      "relation": "invokes",
+      "provenance": "source_review",
+      "evidence": "Sources/ToughTrialV2App/V2AppStoreTaskEditing.swift"
+    },
+    {
+      "from": "code.engine.update",
+      "to": "core.tasks.update",
+      "relation": "implements",
+      "provenance": "source_review",
+      "evidence": "Sources/ToughTrialV2Core/V2TaskClassification.swift"
+    },
+    {
+      "from": "code.engine.update",
+      "to": "code.engine.commit",
+      "relation": "invokes",
+      "provenance": "source_review",
+      "evidence": "Sources/ToughTrialV2Core/V2TaskClassification.swift"
+    },
+    {
+      "from": "code.engine.commit",
+      "to": "code.store.save",
+      "relation": "invokes",
+      "provenance": "source_review",
+      "evidence": "Sources/ToughTrialV2Core/V2Engine.swift"
+    },
+    {
+      "from": "code.engine.load",
+      "to": "code.store.loadOrCreate",
+      "relation": "invokes",
+      "provenance": "source_review",
+      "evidence": "Sources/ToughTrialV2Core/V2Engine.swift"
+    },
+    {
+      "from": "code.workspace.save",
+      "to": "test.workspace.restart",
+      "relation": "verified_by",
+      "provenance": "source_review",
+      "evidence": "Tests/ToughTrialWorkspaceTests/TaskWorkspaceTests.swift"
+    },
+    {
+      "from": "code.workspace.save",
+      "to": "test.workspace.stale",
+      "relation": "verified_by",
+      "provenance": "source_review",
+      "evidence": "Tests/ToughTrialWorkspaceTests/TaskWorkspaceTests.swift"
+    },
+    {
+      "from": "code.workspace.save",
+      "to": "test.workspace.failure",
+      "relation": "verified_by",
+      "provenance": "source_review",
+      "evidence": "Tests/ToughTrialWorkspaceTests/TaskWorkspaceTests.swift"
+    },
+    {
+      "from": "code.workspace.save",
+      "to": "test.workspace.duplicate",
+      "relation": "verified_by",
+      "provenance": "source_review",
+      "evidence": "Tests/ToughTrialWorkspaceTests/TaskWorkspaceTests.swift"
+    },
+    {
+      "from": "code.workspace.updateText",
+      "to": "test.workspace.draft",
+      "relation": "verified_by",
+      "provenance": "source_review",
+      "evidence": "Tests/ToughTrialWorkspaceTests/TaskWorkspaceTests.swift"
+    },
+    {
+      "from": "code.store.loadOrCreate",
+      "to": "code.store.load",
+      "relation": "invokes",
+      "provenance": "source_review",
+      "evidence": "Sources/ToughTrialV2Core/V2JSONSnapshotStore.swift"
+    },
+    {
+      "from": "code.workspace.complete",
+      "to": "code.engine.complete",
+      "relation": "invokes",
+      "provenance": "source_review",
+      "evidence": "Sources/ToughTrialAppShared/V2TaskWorkspace.swift"
+    },
+    {
+      "from": "code.workspace.undo",
+      "to": "code.engine.undo",
+      "relation": "invokes",
+      "provenance": "source_review",
+      "evidence": "Sources/ToughTrialAppShared/V2TaskWorkspace.swift"
+    },
+    {
+      "from": "code.workspace.complete",
+      "to": "test.workspace.complete",
+      "relation": "verified_by",
+      "provenance": "source_review",
+      "evidence": "Tests/ToughTrialWorkspaceTests/TaskWorkspaceTests.swift"
+    },
+    {
+      "from": "code.workspace.save",
+      "to": "test.workspace.composition",
+      "relation": "verified_by",
+      "provenance": "source_review",
+      "evidence": "Tests/ToughTrialWorkspaceTests/TaskWorkspaceTests.swift"
+    },
+    {
+      "to": "code.mac.model",
+      "relation": "depends_on",
+      "provenance": "source_review",
+      "evidence": "Sources/ToughTrialMacApp/MacRootView.swift",
+      "from": "mac.app"
+    },
+    {
+      "to": "code.mac.lifecycle",
+      "relation": "invokes",
+      "provenance": "source_review",
+      "evidence": "Sources/ToughTrialMacApp/MacRootView.swift",
+      "from": "mac.app"
+    },
+    {
+      "to": "code.workspace.preserve",
+      "relation": "invokes",
+      "provenance": "source_review",
+      "evidence": "Sources/ToughTrialMacApp/MacAppModel.swift",
+      "from": "code.mac.lifecycle"
+    },
+    {
+      "to": "code.capture.save",
+      "relation": "invokes",
+      "provenance": "source_review",
+      "evidence": "Sources/ToughTrialMacApp/MacAppModel.swift",
+      "from": "code.mac.lifecycle"
+    },
+    {
+      "to": "code.recall.save",
+      "relation": "invokes",
+      "provenance": "source_review",
+      "evidence": "Sources/ToughTrialMacApp/MacAppModel.swift",
+      "from": "code.mac.lifecycle"
+    },
+    {
+      "to": "code.assistant.submit",
+      "relation": "depends_on",
+      "provenance": "source_review",
+      "evidence": "Sources/ToughTrialMacApp/MacRootView.swift",
+      "from": "mac.app"
+    },
+    {
+      "to": "code.finance.execute",
+      "relation": "depends_on",
+      "provenance": "source_review",
+      "evidence": "Sources/ToughTrialMacApp/MacRootView.swift",
+      "from": "mac.app"
+    },
+    {
+      "to": "test.mac.shared",
+      "relation": "verified_by",
+      "provenance": "source_review",
+      "evidence": "Sources/ToughTrialMacApp/MacAppModel.swift",
+      "from": "code.mac.model"
+    },
+    {
+      "from": "code.ledger.statistics",
+      "to": "test.ledger.statistics",
+      "relation": "verified_by",
+      "evidence": "Sources/ToughTrialV2Core/V2LedgerStatistics.swift",
+      "provenance": "source_review"
+    },
+    {
+      "from": "mac.app",
+      "to": "code.ledger.statistics",
+      "relation": "depends_on",
+      "evidence": "Sources/ToughTrialMacApp/MacFinanceWorkspace.swift",
+      "provenance": "source_review"
+    },
+    {
+      "from": "code.mac.window",
+      "to": "test.mac.window",
+      "relation": "verified_by",
+      "evidence": "Sources/ToughTrialMacApp/ToughTrialMacApp.swift",
+      "provenance": "source_review"
+    },
+    {
+      "from": "code.mac.shutdown",
+      "to": "code.mac.lifecycle",
+      "relation": "invokes",
+      "evidence": "Sources/ToughTrialMacApp/MacAppModel.swift",
+      "provenance": "source_review"
+    },
+    {
+      "from": "code.mac.model",
+      "to": "test.mac.attachment",
+      "relation": "verified_by",
+      "evidence": "Sources/ToughTrialMacApp/MacAppModel.swift",
+      "provenance": "source_review"
+    }
+  ]
+}

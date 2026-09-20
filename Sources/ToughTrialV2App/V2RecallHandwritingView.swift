@@ -1,107 +1,131 @@
 import PencilKit
 import SwiftUI
+#if os(iOS)
+import UIKit
+#else
+import AppKit
+#endif
 
-struct V2RecallHandwritingView: View {
-    @Environment(\.dismiss) private var dismiss
-    @State private var drawing: PKDrawing
-    @State private var errorMessage: String?
+enum V2RecallCanvasTool: String, CaseIterable {
+    case pen
+    case marker
+    case eraser
 
-    private let date: Date
-    private let drawingStore: V2RecallDrawingStore
-
-    init(date: Date) {
-        self.date = date
-        let drawingStore = V2RecallDrawingStore()
-        self.drawingStore = drawingStore
-        _drawing = State(initialValue: drawingStore.load(for: date))
+    var systemImage: String {
+        switch self {
+        case .pen:
+            "pencil.tip"
+        case .marker:
+            "highlighter"
+        case .eraser:
+            "eraser"
+        }
     }
+
+    var accessibilityLabel: String {
+        switch self {
+        case .pen:
+            "钢笔"
+        case .marker:
+            "荧光笔"
+        case .eraser:
+            "橡皮"
+        }
+    }
+}
+
+struct V2RecallHandwritingCanvas: View {
+    @Binding var drawing: PKDrawing
+    @Binding var selectedTool: V2RecallCanvasTool
+    @Binding var inkColor: Color
+
+    let onDrawingChanged: () -> Void
 
     var body: some View {
-        NavigationStack {
-            V2PencilCanvas(drawing: $drawing)
-                .background(V2Theme.ColorRole.surface)
-                .ignoresSafeArea(edges: .bottom)
-                .navigationTitle(Self.titleFormatter.string(from: date))
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("关闭") {
-                            dismiss()
-                        }
-                    }
+        ZStack(alignment: .bottom) {
+            V2PencilCanvas(
+                drawing: $drawing,
+                selectedTool: selectedTool,
+                inkColor: UIColor(inkColor),
+                onDrawingChanged: onDrawingChanged
+            )
 
-                    ToolbarItemGroup(placement: .primaryAction) {
-                        Button {
-                            drawing = PKDrawing()
-                        } label: {
-                            Image(systemName: "trash")
-                        }
-                        .accessibilityLabel("清空手写")
+            toolBar
+                .padding(.bottom, 18)
+        }
+    }
 
-                        Button("保存") {
-                            save()
-                        }
-                        .fontWeight(.semibold)
-                    }
+    private var toolBar: some View {
+        HStack(spacing: 4) {
+            ForEach(V2RecallCanvasTool.allCases, id: \.self) { tool in
+                Button {
+                    selectedTool = tool
+                } label: {
+                    Image(systemName: tool.systemImage)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(
+                            selectedTool == tool
+                                ? V2Theme.ColorRole.textInverse
+                                : V2Theme.ColorRole.textSecondary
+                        )
+                        .frame(width: 38, height: 38)
+                        .background(
+                            selectedTool == tool
+                                ? V2Theme.ColorRole.textPrimary
+                                : Color.clear
+                        )
+                        .clipShape(Circle())
                 }
-        }
-        .alert("手写稿未保存", isPresented: errorBinding) {
-            Button("知道了") {
-                errorMessage = nil
+                .buttonStyle(.plain)
+                .accessibilityLabel(tool.accessibilityLabel)
             }
-        } message: {
-            Text(errorMessage ?? "请稍后再试。")
+
+            Divider()
+                .frame(height: 22)
+                .padding(.horizontal, 4)
+
+            ColorPicker("笔迹颜色", selection: $inkColor, supportsOpacity: false)
+                .labelsHidden()
+                .frame(width: 38, height: 38)
+                .accessibilityLabel("笔迹颜色")
         }
-    }
-
-    private var errorBinding: Binding<Bool> {
-        Binding(
-            get: { errorMessage != nil },
-            set: {
-                if !$0 {
-                    errorMessage = nil
-                }
-            }
-        )
-    }
-
-    private func save() {
-        do {
-            try drawingStore.save(drawing, for: date)
-            dismiss()
-        } catch {
-            errorMessage = error.localizedDescription
+        .padding(6)
+        .background(.ultraThinMaterial)
+        .background(V2Theme.ColorRole.surfaceRaised.opacity(0.94))
+        .clipShape(Capsule())
+        .overlay {
+            Capsule()
+                .stroke(V2Theme.ColorRole.outline, lineWidth: 1)
         }
+        .shadow(color: .black.opacity(0.10), radius: 18, y: 8)
     }
-
-    private static let titleFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "M月d日手写"
-        return formatter
-    }()
 }
 
 private struct V2PencilCanvas: UIViewRepresentable {
     @Binding var drawing: PKDrawing
 
+    let selectedTool: V2RecallCanvasTool
+    let inkColor: UIColor
+    let onDrawingChanged: () -> Void
+
     func makeCoordinator() -> Coordinator {
-        Coordinator(drawing: $drawing)
+        Coordinator(drawing: $drawing, onDrawingChanged: onDrawingChanged)
     }
 
     func makeUIView(context: Context) -> PKCanvasView {
         let canvas = PKCanvasView()
         canvas.delegate = context.coordinator
         canvas.drawing = drawing
-        canvas.drawingPolicy = .anyInput
+        canvas.drawingPolicy = Self.drawingPolicy
         canvas.backgroundColor = .clear
         canvas.isOpaque = false
         canvas.alwaysBounceVertical = true
-
-        let toolPicker = PKToolPicker()
-        context.coordinator.toolPicker = toolPicker
-        toolPicker.addObserver(canvas)
-        toolPicker.setVisible(true, forFirstResponder: canvas)
+        canvas.keyboardDismissMode = .interactive
+        canvas.isAccessibilityElement = true
+        canvas.accessibilityIdentifier = "recall.handwritingCanvas"
+        canvas.accessibilityLabel = "手写画布"
+        updateAccessibilityValue(for: canvas)
+        applyTool(to: canvas)
 
         DispatchQueue.main.async {
             canvas.becomeFirstResponder()
@@ -111,27 +135,66 @@ private struct V2PencilCanvas: UIViewRepresentable {
 
     func updateUIView(_ canvas: PKCanvasView, context: Context) {
         context.coordinator.drawing = $drawing
+        context.coordinator.onDrawingChanged = onDrawingChanged
         if canvas.drawing != drawing {
             canvas.drawing = drawing
         }
+        applyTool(to: canvas)
+        updateAccessibilityValue(for: canvas)
+    }
+
+    private func applyTool(to canvas: PKCanvasView) {
+        switch selectedTool {
+        case .pen:
+            canvas.tool = PKInkingTool(.pen, color: inkColor, width: 3)
+        case .marker:
+            canvas.tool = PKInkingTool(.marker, color: inkColor.withAlphaComponent(0.45), width: 16)
+        case .eraser:
+            canvas.tool = PKEraserTool(.vector)
+        }
+    }
+
+    private func updateAccessibilityValue(for canvas: PKCanvasView) {
+        canvas.accessibilityValue = canvas.drawing.strokes.isEmpty ? "空白" : "已有笔迹"
+    }
+
+    private static var drawingPolicy: PKCanvasViewDrawingPolicy {
+#if targetEnvironment(simulator)
+        .anyInput
+#else
+        UIDevice.current.userInterfaceIdiom == .phone ? .anyInput : .pencilOnly
+#endif
     }
 
     final class Coordinator: NSObject, PKCanvasViewDelegate {
         var drawing: Binding<PKDrawing>
-        var toolPicker: PKToolPicker?
+        var onDrawingChanged: () -> Void
 
-        init(drawing: Binding<PKDrawing>) {
+        init(drawing: Binding<PKDrawing>, onDrawingChanged: @escaping () -> Void) {
             self.drawing = drawing
+            self.onDrawingChanged = onDrawingChanged
         }
 
         func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
             drawing.wrappedValue = canvasView.drawing
+            canvasView.accessibilityValue =
+                canvasView.drawing.strokes.isEmpty ? "空白" : "已有笔迹"
+            onDrawingChanged()
         }
     }
 }
 
-private struct V2RecallDrawingStore {
-    private let fileManager = FileManager.default
+struct V2RecallDrawingStore {
+    private let fileManager: FileManager
+    private let baseDirectory: URL?
+
+    init(
+        fileManager: FileManager = .default,
+        baseDirectory: URL? = nil
+    ) {
+        self.fileManager = fileManager
+        self.baseDirectory = baseDirectory
+    }
 
     func load(for date: Date) -> PKDrawing {
         guard let data = try? Data(contentsOf: fileURL(for: date)),
@@ -144,6 +207,13 @@ private struct V2RecallDrawingStore {
 
     func save(_ drawing: PKDrawing, for date: Date) throws {
         let url = fileURL(for: date)
+        if drawing.strokes.isEmpty {
+            if fileManager.fileExists(atPath: url.path) {
+                try fileManager.removeItem(at: url)
+            }
+            return
+        }
+
         try fileManager.createDirectory(
             at: url.deletingLastPathComponent(),
             withIntermediateDirectories: true
@@ -152,7 +222,7 @@ private struct V2RecallDrawingStore {
     }
 
     private func fileURL(for date: Date) -> URL {
-        let base = (try? fileManager.url(
+        let root = baseDirectory ?? (try? fileManager.url(
             for: .applicationSupportDirectory,
             in: .userDomainMask,
             appropriateFor: nil,
@@ -165,7 +235,7 @@ private struct V2RecallDrawingStore {
             components.month ?? 0,
             components.day ?? 0
         )
-        return base
+        return root
             .appendingPathComponent("ToughTrial", isDirectory: true)
             .appendingPathComponent("recall-drawings", isDirectory: true)
             .appendingPathComponent(filename)

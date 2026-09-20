@@ -3,11 +3,25 @@ import SwiftUI
 import ToughTrialV2Core
 
 @MainActor
+private final class V2WebUITestFailureState {
+    var hasFailed = false
+}
+
+@MainActor
 final class V2AppStore: ObservableObject {
     @Published var state: V2PrototypeState
     @Published var isPlanPresented = false
     @Published var zenSession: V2ActiveSession?
+    @Published private(set) var planningSourceTask: V2TaskNode?
     @Published var errorMessage: String?
+    @Published var highlightedScheduleIDs = Set<String>() {
+        didSet { scheduleHighlightExpiresAt = highlightedScheduleIDs.isEmpty ? nil : Date().addingTimeInterval(8) }
+    }
+    private var scheduleHighlightExpiresAt: Date?
+    @Published var isScheduleSyncing = false
+    @Published var scheduleSyncMessage: String?
+    @Published var scheduleSyncError: String?
+    @Published var pendingScheduleConflict: V2PendingScheduleConflict?
     @Published private(set) var pendingPlanDrafts: [V2PlanDraftRecord] = []
     @Published private(set) var recallDate = Date()
     @Published private(set) var recallText = ""
@@ -16,44 +30,111 @@ final class V2AppStore: ObservableObject {
     @Published private(set) var savedRecallEntry: V2RecallEntry?
     @Published private(set) var isRecallDirty = false
     @Published private(set) var isPlanning = false
-    @Published private(set) var planningProviderLabel = "本地基础规划"
+    @Published private(set) var planningProviderLabel = "AI 未连接"
     @Published private(set) var planningSuggestedReplies: [String] = []
+    @Published private(set) var planningFailureMessage: String?
+    @Published private(set) var aiProviderSettings = V2AIProviderSettings.defaults
+    @Published private(set) var aiModelCatalog = V2AIModelCatalogState()
+    @Published private(set) var isRefreshingAIModels = false
     @Published private(set) var memoryRecords: [V2UserMemoryRecord] = []
     @Published private(set) var memoryIssueMessage: String?
     @Published private(set) var dreamingCandidates: [V2DreamingCandidate] = []
     @Published private(set) var noticeMessage: String?
 
-    private let engine: V2Engine
-    private let planningClient: any V2PlanningClient
-    private let memoryEngine: V2MemoryEngine
-    private let notificationService = V2NotificationService()
+    let engine: V2Engine
+    private var planningClient: any V2PlanningClient
+    private let aiModelCatalogClient: any V2AIModelCatalogClient
+    let memoryEngine: V2MemoryEngine
+    var scheduleReminderTask: Task<Void, Never>?
+    var foregroundScheduleSyncTask: Task<Void, Never>?
+    var isStoppingServices = false
+    var isDrainingModuleOutbox = false
+    var moduleSceneActive = true
+    let notificationService = V2NotificationService()
     private let liveActivityService = V2LiveActivityService()
-    private let calendar: Calendar
-    private let canWrite: Bool
+    let calendar: Calendar
+    let canWrite: Bool
     private let canWriteMemory: Bool
+    private let allowsPlanningWithoutSavedAIService: Bool
     private let startupErrorMessage: String?
+    private var aiProviderProfiles: [V2AIProviderPreset: V2AIProviderSettings]
     private var focusedSessionID: String?
     private var zenSessionID: String?
     private var baseRecallReferences = V2RecallReferences()
     private var recallWorkingDrafts: [Date: V2RecallWorkingDraft] = [:]
     private var activePlanningPrompt: String?
+    private var activePlanningConversationID = UUID().uuidString
+    private var recallStopGuardID: UUID?
 
     init(
         engine injectedEngine: V2Engine? = nil,
         planningClient injectedPlanningClient: (any V2PlanningClient)? = nil,
+        aiModelCatalogClient injectedAIModelCatalogClient: (any V2AIModelCatalogClient)? = nil,
         memoryEngine injectedMemoryEngine: V2MemoryEngine? = nil,
+        aiProviderSettings injectedAIProviderSettings: V2AIProviderSettings? = nil,
+        memoryStoreURL: URL? = nil,
         initialState: V2PrototypeState = .empty(),
         calendar: Calendar = .current
     ) {
+        let environment = ProcessInfo.processInfo.environment
+        let isEmptyUITestMode = environment["TOUGH_TRIAL_UI_TEST_EMPTY"] == "1"
+        let isUITestMode =
+            isEmptyUITestMode
+            || environment["TOUGH_TRIAL_UI_TESTING"] == "1"
+        let isPlanningFailureUITest = environment["TOUGH_TRIAL_UI_TEST_PLANNING_FAILURE"] == "1"
+        let requiresAIConfigurationUITest =
+            environment["TOUGH_TRIAL_UI_TEST_REQUIRE_AI_CONFIGURATION"] == "1"
+        #if DEBUG
+        let hasDebugAIConfiguration = !(environment["TOUGH_TRIAL_AI_API_KEY"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty
+        #else
+        let hasDebugAIConfiguration = false
+        #endif
         self.state = initialState
         self.calendar = calendar
-        let resolvedPlanningClient = injectedPlanningClient ?? Self.configuredPlanningClient()
+        self.allowsPlanningWithoutSavedAIService =
+            injectedPlanningClient != nil
+            || (isUITestMode && !requiresAIConfigurationUITest)
+            || hasDebugAIConfiguration
+        let loadedAISettings = injectedAIProviderSettings ?? (isUITestMode
+            ? V2AIProviderSettings.defaults
+            : V2AIProviderSettingsStore.load())
+        self.aiProviderProfiles = Dictionary(
+            uniqueKeysWithValues: V2AIProviderPreset.allCases.map { provider in
+                let settings = isUITestMode
+                    ? provider.defaultSettings()
+                    : V2AIProviderSettingsStore.loadProfile(for: provider)
+                return (provider, settings)
+            }
+        )
+        self.aiProviderProfiles[loadedAISettings.provider] = loadedAISettings
+        self.aiProviderSettings = loadedAISettings
+        self.aiModelCatalog = isUITestMode
+            ? V2AIModelCatalogState()
+            : V2AIModelCatalogStore.load()
+        self.aiModelCatalogClient = injectedAIModelCatalogClient
+            ?? (isUITestMode
+                ? V2UITestAIModelCatalogClient()
+                : V2SiliconFlowModelCatalogClient())
+        let basePlanningClient = injectedPlanningClient
+            ?? (isPlanningFailureUITest
+                ? V2UnavailablePlanningClient(message: "测试服务暂时不可用")
+                : (isUITestMode
+                    ? V2DeterministicPlanningClient()
+                    : Self.configuredPlanningClient(settings: loadedAISettings)))
+        let resolvedPlanningClient = V2ValidatedPlanningClient(client: basePlanningClient)
         self.planningClient = resolvedPlanningClient
         self.planningProviderLabel = resolvedPlanningClient.providerLabel
         self.activePlanningPrompt = initialState.planMessages.first(where: { $0.role == .user })?.text
 
         if let injectedEngine {
             self.engine = injectedEngine
+            self.canWrite = true
+            self.startupErrorMessage = nil
+            self.errorMessage = nil
+        } else if isEmptyUITestMode {
+            self.engine = V2Engine()
             self.canWrite = true
             self.startupErrorMessage = nil
             self.errorMessage = nil
@@ -73,13 +154,19 @@ final class V2AppStore: ObservableObject {
             }
         }
 
+        self.engine.moduleRuntime = V2PluginStore.shared.runtime
+
         if let injectedMemoryEngine {
             self.memoryEngine = injectedMemoryEngine
             self.canWriteMemory = true
             self.memoryIssueMessage = nil
+        } else if isEmptyUITestMode {
+            self.memoryEngine = V2MemoryEngine()
+            self.canWriteMemory = true
+            self.memoryIssueMessage = nil
         } else {
             do {
-                let url = try V2MemoryJSONStore.defaultFileURL()
+                let url = try memoryStoreURL ?? V2MemoryJSONStore.defaultFileURL()
                 self.memoryEngine = try V2MemoryEngine.load(from: V2MemoryJSONStore(fileURL: url))
                 self.canWriteMemory = true
                 self.memoryIssueMessage = nil
@@ -89,29 +176,273 @@ final class V2AppStore: ObservableObject {
                 self.memoryIssueMessage = "记忆数据无法读取，原文件已保留。修复前不会覆盖。"
             }
         }
+        self.memoryEngine.moduleRuntime = self.engine.moduleRuntime
         self.memoryRecords = self.memoryEngine.activeRecords()
+
+        self.engine.onCommandCommitted = { descriptor in
+            Task { @MainActor in
+                V2UsageTrace.shared.record(.init(kind: .commandApplied, moduleID: descriptor.moduleID, commandID: descriptor.id))
+            }
+        }
+        recallStopGuardID = V2PluginStore.shared.registerStopGuard(moduleID: "core.recall") { [weak self] in
+            guard let self, self.isRecallDirty else { return }
+            guard self.saveRecall() else { throw V2CaptureError.persistenceFailure }
+        }
 
         refreshProjection(at: Date())
         loadRecallDay(Date(), now: Date())
         syncLiveActivityForFocusedSession()
     }
 
-    func openPlanAgent() { isPlanPresented = true }
-    func closePlanAgent() { isPlanPresented = false }
-
-    var planDraftCount: Int {
-        let durableIDs = Set(pendingPlanDrafts.map(\.id))
-        guard let currentID = state.currentPlanDraft?.id else { return durableIDs.count }
-        return durableIDs.contains(currentID) ? durableIDs.count : durableIDs.count + 1
+    deinit {
+        let token = recallStopGuardID
+        Task { @MainActor in if let token { V2PluginStore.shared.removeStopGuard(token) } }
     }
 
-    func setPlanScope(_ scope: String?) {
-        state.setPlanScope(scope)
+    @Published var assistantReturnTaskID: String?
+
+    func openPlanAgent() {
+        guard V2PluginStore.shared.enabled("assistant") else { errorMessage = "助手已停用，可在功能与插件中开启。"; return }
+        if planningSourceTask != nil || state.planConversationPhase == .complete {
+            resetPlanConversation()
+        }
+        planningSourceTask = nil
+        isPlanPresented = true
+    }
+
+    func openPlanAgent(for task: V2TaskNode) {
+        guard V2PluginStore.shared.enabled("assistant") else { errorMessage = "助手已停用，可在功能与插件中开启。"; return }
+        if planningSourceTask?.id != task.id || state.planConversationPhase == .complete {
+            resetPlanConversation()
+        }
+        state.selectedTaskID = task.id
+        planningSourceTask = task
+        isPlanPresented = true
+    }
+
+    func closePlanAgent() {
+        isPlanPresented = false
+    }
+
+    func startNewPlanConversation() {
+        planningSourceTask = nil
+        resetPlanConversation()
+    }
+
+    func resumePlanDraft(_ record: V2PlanDraftRecord) {
+        let draft = record.editableDraft()
+        planningSourceTask = nil
+        activePlanningPrompt = draft.userPrompt
+        activePlanningConversationID = "plan-draft-\(record.id)"
+        planningSuggestedReplies = []
+        planningFailureMessage = nil
+        state.planScope = nil
+        state.currentPlanDraft = draft
+        state.planConversationPhase = .reviewingDraft
+        state.planMessages = [
+            V2PlanMessage(
+                id: "plan-user-restored-\(record.id)",
+                role: .user,
+                text: draft.userPrompt
+            ),
+            V2PlanMessage(
+                id: "plan-agent-restored-\(record.id)",
+                role: .agent,
+                text: "已恢复这份未完成的计划。你可以直接修改，或者继续告诉我怎么调整。"
+            ),
+        ]
+    }
+
+    func updateCurrentPlanScheduleItem(
+        _ updatedItem: V2PlanDraftScheduleItem,
+        at date: Date = Date()
+    ) {
+        guard var draft = state.currentPlanDraft,
+              let index = draft.scheduleItems.firstIndex(where: { $0.id == updatedItem.id })
+        else { return }
+
+        draft.scheduleItems[index] = updatedItem
+        state.currentPlanDraft = draft
+        saveCurrentPlanDraft(at: date)
+    }
+
+    var visibleAIModels: [V2AIModel] {
+        guard isUsingSiliconFlow else { return [] }
+        return aiModelCatalog.visibleModels
+    }
+
+    var selectedAIModelID: String? {
+        guard isUsingSiliconFlow else {
+            return aiProviderSettings.isEnabled ? aiProviderSettings.model : nil
+        }
+        return aiModelCatalog.isSelectedModelAvailable
+            ? aiModelCatalog.selectedModelID
+            : nil
+    }
+
+    var hasConnectedAIService: Bool {
+        let hasKey = !aiProviderSettings.apiKey
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty
+        if isUsingSiliconFlow {
+            return hasLoadedSiliconFlowModels
+                && aiProviderSettings.isEnabled
+                && aiModelCatalog.isSelectedModelAvailable
+        }
+        return hasKey && aiProviderSettings.isEnabled
+    }
+
+    var hasLoadedSiliconFlowModels: Bool {
+        let hasKey = !aiProviderSettings.apiKey
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty
+        return isUsingSiliconFlow
+            && hasKey
+            && aiModelCatalog.lastSuccessfulSyncAt != nil
+            && !aiModelCatalog.models.isEmpty
+    }
+
+    var canUsePlanningAI: Bool {
+        hasConnectedAIService || allowsPlanningWithoutSavedAIService
+    }
+
+    var isUsingSiliconFlow: Bool {
+        aiProviderSettings.provider == .siliconFlow
+    }
+
+    func aiProviderProfile(for provider: V2AIProviderPreset) -> V2AIProviderSettings {
+        aiProviderProfiles[provider] ?? provider.defaultSettings()
+    }
+
+    func updatePlanningSettings(_ settings: V2AIProviderSettings) throws {
+        let basePlanningClient = try Self.makePlanningClient(settings: settings)
+        try V2AIProviderSettingsStore.save(settings)
+        let resolvedPlanningClient = V2ValidatedPlanningClient(client: basePlanningClient)
+        aiProviderSettings = settings
+        aiProviderProfiles[settings.provider] = settings
+        planningClient = resolvedPlanningClient
+        planningProviderLabel = resolvedPlanningClient.providerLabel
+        planningFailureMessage = nil
+        errorMessage = nil
+    }
+
+    func fetchConfigurationModels(apiKey: String) async throws -> [V2AIModel] {
+        try await aiModelCatalogClient.fetchModels(apiKey: apiKey)
+    }
+
+    func saveConfigurationCatalog(_ catalog: V2AIModelCatalogState) throws {
+        try V2AIModelCatalogStore.save(catalog)
+        aiModelCatalog = catalog
+    }
+
+    func connectSiliconFlow(apiKey: String, at date: Date = Date()) async throws {
+        let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty else {
+            throw V2AIModelCatalogClientError.missingAPIKey
+        }
+        guard !isRefreshingAIModels else { return }
+
+        isRefreshingAIModels = true
+        defer { isRefreshingAIModels = false }
+
+        let models = try await aiModelCatalogClient.fetchModels(apiKey: key)
+        var catalog = aiModelCatalog
+        catalog.applySuccessfulSync(models: models, at: date)
+
+        var settings = aiProviderProfile(for: .siliconFlow)
+        let previousModel = settings.model
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if catalog.selectedModelID == nil,
+           models.contains(where: { $0.id == previousModel }) {
+            try catalog.selectModel(id: previousModel)
+        }
+
+        settings.apiKey = key
+        settings.provider = .siliconFlow
+        settings.baseURL = V2AIProviderSettings.siliconFlowBaseURL
+        if catalog.isSelectedModelAvailable, let selectedModelID = catalog.selectedModelID {
+            settings.model = selectedModelID
+            settings.isEnabled = true
+        } else {
+            settings.isEnabled = false
+        }
+
+        let basePlanningClient = try Self.makePlanningClient(settings: settings)
+        try V2AIProviderSettingsStore.save(settings)
+        try V2AIModelCatalogStore.save(catalog)
+
+        aiProviderSettings = settings
+        aiProviderProfiles[settings.provider] = settings
+        aiModelCatalog = catalog
+        let resolvedPlanningClient = V2ValidatedPlanningClient(client: basePlanningClient)
+        planningClient = resolvedPlanningClient
+        planningProviderLabel = resolvedPlanningClient.providerLabel
+        planningFailureMessage = nil
+        errorMessage = nil
+    }
+
+    func refreshSiliconFlowModels(at date: Date = Date()) async throws {
+        try await connectSiliconFlow(
+            apiKey: aiProviderProfile(for: .siliconFlow).apiKey,
+            at: date
+        )
+    }
+
+    func selectAIModel(id: String) throws {
+        var catalog = aiModelCatalog
+        try catalog.selectModel(id: id)
+
+        var settings = aiProviderProfile(for: .siliconFlow)
+        settings.isEnabled = true
+        settings.provider = .siliconFlow
+        settings.baseURL = V2AIProviderSettings.siliconFlowBaseURL
+        settings.model = id
+
+        let basePlanningClient = try Self.makePlanningClient(settings: settings)
+        try V2AIProviderSettingsStore.save(settings)
+        try V2AIModelCatalogStore.save(catalog)
+
+        aiProviderSettings = settings
+        aiProviderProfiles[settings.provider] = settings
+        aiModelCatalog = catalog
+        let resolvedPlanningClient = V2ValidatedPlanningClient(client: basePlanningClient)
+        planningClient = resolvedPlanningClient
+        planningProviderLabel = resolvedPlanningClient.providerLabel
+        planningFailureMessage = nil
+        errorMessage = nil
+    }
+
+    func setAIModelVisible(id: String, isVisible: Bool) throws {
+        var catalog = aiModelCatalog
+        try catalog.setModelHidden(id: id, isHidden: !isVisible)
+        try V2AIModelCatalogStore.save(catalog)
+        aiModelCatalog = catalog
+    }
+
+    func disconnectAIService() throws {
+        let settings = aiProviderSettings.provider.defaultSettings()
+        let basePlanningClient = try Self.makePlanningClient(settings: settings)
+        try V2AIProviderSettingsStore.save(settings)
+        aiProviderSettings = settings
+        aiProviderProfiles[settings.provider] = settings
+        let resolvedPlanningClient = V2ValidatedPlanningClient(client: basePlanningClient)
+        planningClient = resolvedPlanningClient
+        planningProviderLabel = resolvedPlanningClient.providerLabel
+        planningFailureMessage = nil
+        errorMessage = nil
     }
 
     func submitPlanPrompt(_ prompt: String, at date: Date = Date()) async {
         let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !isPlanning else { return }
+        guard canUsePlanningAI else {
+            planningFailureMessage = "请先配置 AI 服务。"
+            return
+        }
+
+        if state.planConversationPhase == .complete {
+            resetPlanConversation()
+        }
 
         if let draft = state.currentPlanDraft {
             await requestPlan(
@@ -137,6 +468,10 @@ final class V2AppStore: ObservableObject {
     func submitPlanClarification(_ response: String, at date: Date = Date()) async {
         let trimmed = response.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !isPlanning else { return }
+        guard canUsePlanningAI else {
+            planningFailureMessage = "请先配置 AI 服务。"
+            return
+        }
         guard let prompt = activePlanningPrompt
             ?? state.planMessages.first(where: { $0.role == .user })?.text
         else {
@@ -186,6 +521,399 @@ final class V2AppStore: ObservableObject {
                     ?? error.localizedDescription
             }
         }
+    }
+
+    func makeBaseAssistantDependencies() -> V2AssistantDependencies {
+        let environment = ProcessInfo.processInfo.environment
+        let isUITestMode = environment["TOUGH_TRIAL_UI_TEST_EMPTY"] == "1"
+            || environment["TOUGH_TRIAL_UI_TESTING"] == "1"
+        let usesBrowserFixture = environment["TOUGH_TRIAL_UI_TEST_BROWSER_FIXTURE"] == "1"
+
+        if isUITestMode {
+            let webFailure = V2WebUITestFailureState()
+            return V2AssistantDependencies(
+                modelSnapshot: { [weak self] in
+                    guard let self else { throw V2AssistantAppStoreError.storeUnavailable }
+                    let planningClient = self.planningClient
+                    return V2AssistantModelSnapshot(
+                        identity: V2AssistantProviderIdentity(
+                            key: "ui-test-agent",
+                            label: "UI 测试 Agent",
+                            model: "deterministic-ui-test"
+                        ),
+                        respond: { request in
+                            let action: V2AgentAction
+                            if let observation = request.observations.last(where: { $0.tool == .plan }) {
+                                action = .answer(text: observation.summary)
+                            } else if !request.observations.isEmpty {
+                                action = .answer(text: "测试回复已根据工具结果生成。")
+                            } else if request.userText.contains("网页") || request.userText.contains("搜索") {
+                                action = .webSearch(query: "Tough Trial 测试搜索")
+                            } else if request.userText.contains("资料") {
+                                action = .localSearch(query: request.userText)
+                            } else if request.userText.contains("计划") || request.userText.contains("安排") {
+                                action = .plan(query: request.userText)
+                            } else {
+                                action = .answer(text: "测试回复：\(request.userText)")
+                            }
+                            return V2AgentModelResult(
+                                action: action,
+                                providerLabel: "UI 测试 Agent",
+                                model: "deterministic-ui-test"
+                            )
+                        },
+                        generatePlan: { [weak self] session, query, date in
+                            guard let self else { throw V2AssistantAppStoreError.storeUnavailable }
+                            return try await self.assistantPlanningOutcome(
+                                session: session,
+                                query: query,
+                                at: date,
+                                using: planningClient
+                            )
+                        }
+                    )
+                },
+                webSearch: { _, limit in
+                    if environment["TOUGH_TRIAL_UI_WEB_FAIL_ONCE"] == "1", !webFailure.hasFailed {
+                        webFailure.hasFailed = true
+                        throw URLError(.timedOut)
+                    }
+                    var results = [
+                        V2WebSearchResult(
+                            title: "Tough Trial 测试来源",
+                            url: URL(string: "https://example.com/tough-trial")!,
+                            snippet: "仅用于 UI 自动化的确定性搜索结果。",
+                            siteName: "example.com"
+                        )
+                    ]
+                    if usesBrowserFixture {
+                        results.append(
+                            V2WebSearchResult(
+                                title: "Tough Trial 第二测试来源",
+                                url: URL(string: "https://example.com/tough-trial/second")!,
+                                snippet: "用于验证多个内嵌网页会话。",
+                                siteName: "example.com"
+                            )
+                        )
+                    }
+                    return Array(results.prefix(limit))
+                },
+                webRead: { url, maxCharacters in
+                    String("UI 自动化读取：\(url.host ?? "example.com")".prefix(maxCharacters))
+                },
+                localSearch: { [weak self] query in
+                    self?.assistantLocalSearchSummary(query: query) ?? "未找到相关本地资料。"
+                },
+                planAcceptance: { [weak self] draft, date in
+                    guard let self else { throw V2AssistantAppStoreError.storeUnavailable }
+                    return try self.acceptAssistantPlan(draft, at: date)
+                },
+                planDraftStatus: { [weak self] id in self?.assistantPlanDraftStatus(id: id) },
+                providerStatus: { [weak self] in
+                    let isConfigured = self?.canUsePlanningAI == true
+                    return V2AssistantProviderStatus(
+                        isConfigured: isConfigured,
+                        providerLabel: isConfigured ? "UI 测试 Agent" : "AI 未连接",
+                        message: isConfigured ? nil : "请先配置 AI 服务。"
+                    )
+                }
+            )
+        }
+
+        let searchClient = V2DuckDuckGoSearchClient()
+        let pageReader = V2URLSessionWebPageReader()
+        return V2AssistantDependencies(
+            modelSnapshot: { [weak self] in
+                guard let self else { throw V2AssistantAppStoreError.storeUnavailable }
+                let settings = self.aiProviderSettings
+                let client = try settings.agentClient()
+                let planningClient = self.planningClient
+                let model = settings.model.trimmingCharacters(in: .whitespacesAndNewlines)
+                let baseURL = settings.baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+                return V2AssistantModelSnapshot(
+                    identity: V2AssistantProviderIdentity(
+                        key: "\(settings.provider.rawValue)|\(baseURL)|\(model)|\(settings.thinking.rawValue)|\(planningClient.providerLabel)",
+                        label: client.providerLabel,
+                        model: model
+                    ),
+                    respond: { request in try await client.respond(request) },
+                    generatePlan: { [weak self] session, query, date in
+                        guard let self else { throw V2AssistantAppStoreError.storeUnavailable }
+                        return try await self.assistantPlanningOutcome(
+                            session: session,
+                            query: query,
+                            at: date,
+                            using: planningClient
+                        )
+                    }
+                )
+            },
+            webSearch: { query, limit in
+                try await searchClient.search(query: query, limit: limit)
+            },
+            webRead: { url, maxCharacters in
+                try await pageReader.read(url: url, maxCharacters: maxCharacters)
+            },
+            localSearch: { [weak self] query in
+                self?.assistantLocalSearchSummary(query: query) ?? "未找到相关本地资料。"
+            },
+            planAcceptance: { [weak self] draft, date in
+                guard let self else { throw V2AssistantAppStoreError.storeUnavailable }
+                return try self.acceptAssistantPlan(draft, at: date)
+            },
+            planDraftStatus: { [weak self] id in self?.assistantPlanDraftStatus(id: id) },
+            providerStatus: { [weak self] in
+                guard let self else {
+                    return V2AssistantProviderStatus(
+                        isConfigured: false,
+                        providerLabel: "AI 未连接",
+                        message: "助手状态不可用。"
+                    )
+                }
+                return V2AssistantProviderStatus(
+                    isConfigured: self.hasConnectedAIService,
+                    providerLabel: self.hasConnectedAIService
+                        ? self.planningProviderLabel
+                        : "AI 未连接",
+                    message: self.hasConnectedAIService ? nil : "请先配置 AI 服务。"
+                )
+            }
+        )
+    }
+
+    func assistantPlanningOutcome(
+        session: V2AgentSession,
+        query: String,
+        at date: Date = Date(),
+        using planningClient: any V2PlanningClient
+    ) async throws -> V2PlanningOutcome {
+        let request = V2PlanningRequest(
+            agentSession: session,
+            query: query,
+            tasks: assistantPlanningTasks(session: session, query: query),
+            memoryStatements: assistantPlanningMemories(session: session, query: query, at: date),
+            referenceDate: date,
+            timeZoneIdentifier: calendar.timeZone.identifier
+        )
+        return try await planningClient.generate(request)
+    }
+
+    func assistantPlanDraftStatus(id: String) -> V2PlanDraftRecord.Status? {
+        engine.snapshot.planDrafts.first(where: { $0.id == id })?.status
+    }
+
+    @discardableResult
+    func acceptAssistantPlan(
+        _ draft: V2PlanDraft,
+        at date: Date = Date()
+    ) throws -> V2PlanDraftRecord.Status {
+        guard canWrite else {
+            throw V2AssistantAppStoreError.storageUnavailable(
+                startupErrorMessage ?? "本地数据当前不可写。"
+            )
+        }
+        if let status = assistantPlanDraftStatus(id: draft.id) {
+            switch status {
+            case .accepted:
+                return .accepted
+            case .discarded:
+                throw V2AssistantTurnError.planDiscarded
+            case .draft:
+                break
+            }
+        }
+        let record = draft.durableRecord(at: date)
+        _ = try engine.savePlanDraft(record, at: date, calendar: calendar)
+        let acceptance = try engine.acceptPlanDraft(id: record.id, at: date, calendar: calendar)
+        errorMessage = nil
+        refreshProjection(at: date)
+        Task {
+            do {
+                _ = try await notificationService.scheduleIfAuthorized(
+                    planItems: acceptance.createdPlanItems,
+                    now: date,
+                    calendar: calendar
+                )
+            } catch {
+                errorMessage = (error as? LocalizedError)?.errorDescription
+                    ?? error.localizedDescription
+            }
+        }
+        return .accepted
+    }
+
+    func assistantPlanningTasks(
+        session: V2AgentSession,
+        query: String
+    ) -> [V2PlanningTaskContext] {
+        let activeTasks = engine.snapshot.tasks.filter { $0.status != .archived }
+        let byID = Dictionary(uniqueKeysWithValues: activeTasks.map { ($0.id, $0) })
+        var selected: [V2Task] = []
+        var selectedIDs = Set<String>()
+
+        func append(_ task: V2Task?) {
+            guard let task, selectedIDs.insert(task.id).inserted, selected.count < 24 else { return }
+            selected.append(task)
+        }
+
+        if let sourceID = session.sourceTask?.id, let source = byID[sourceID] {
+            append(source)
+            var parentID = source.parentID
+            while let id = parentID, let parent = byID[id], selected.count < 12 {
+                append(parent)
+                parentID = parent.parentID
+            }
+            activeTasks.filter { $0.parentID == source.id }
+                .sorted { $0.updatedAt > $1.updatedAt }
+                .prefix(6)
+                .forEach { append($0) }
+            if let parentID = source.parentID {
+                activeTasks.filter { $0.parentID == parentID && $0.id != source.id }
+                    .sorted { $0.updatedAt > $1.updatedAt }
+                    .prefix(4)
+                    .forEach { append($0) }
+            }
+        }
+
+        let terms = Self.assistantSpecificTerms(query)
+        activeTasks.filter { task in
+            guard !selectedIDs.contains(task.id) else { return false }
+            let value = "\(task.title) \(Self.assistantStatusLabel(task.status))".lowercased()
+            return terms.contains(where: value.contains)
+        }
+        .sorted { $0.updatedAt > $1.updatedAt }
+        .forEach { append($0) }
+
+        return selected.prefix(24).map {
+            V2PlanningTaskContext(
+                id: $0.id,
+                title: $0.title,
+                parentID: $0.parentID,
+                contextID: $0.contextID,
+                kind: $0.kind,
+                status: $0.status
+            )
+        }
+    }
+
+    func assistantPlanningMemories(
+        session: V2AgentSession,
+        query: String,
+        at date: Date
+    ) -> [String] {
+        let normalized = query.lowercased()
+        let terms = Self.assistantSpecificTerms(query)
+        let asksForSchedule = ["安排", "计划", "时间", "日程", "空闲", "routine", "schedule", "plan"]
+            .contains(where: normalized.contains)
+        let constraintTerms = ["可用", "时间", "工作日", "周末", "每天", "每周", "习惯", "例行", "通常",
+                               "available", "availability", "weekday", "weekend", "daily", "weekly", "routine"]
+
+        var selected: [String] = []
+        var selectedIDs = Set<String>()
+        let records = memoryEngine.activeRecords(at: date)
+        func append(_ record: V2UserMemoryRecord) {
+            guard selected.count < 12, selectedIDs.insert(record.id).inserted else { return }
+            selected.append(String(record.statement.prefix(500)))
+        }
+
+        if let source = session.sourceTask {
+            records.filter { record in
+                (record.scope == .task && record.scopeID == source.id)
+                    || (record.scope == .context && record.scopeID == source.contextID)
+            }
+            .forEach { append($0) }
+        }
+        records.filter { record in
+            let value = record.statement.lowercased()
+            if terms.contains(where: value.contains) { return true }
+            return asksForSchedule && constraintTerms.contains(where: value.contains)
+        }
+        .forEach { append($0) }
+        return selected
+    }
+
+    static func assistantSpecificTerms(_ query: String) -> [String] {
+        let genericTerms = [
+            "查找", "搜索", "看看", "告诉我", "显示", "列出", "我的", "相关", "资料", "记录",
+            "有哪些", "是什么", "怎么样", "一下", "任务", "计划", "记忆", "状态", "安排",
+            "show", "list", "find", "what", "which", "are", "is", "my", "me",
+            "task", "tasks", "plan", "plans", "memory", "schedule"
+        ]
+        let normalized = genericTerms.reduce(query.lowercased()) {
+            $0.replacingOccurrences(of: $1, with: " ")
+        }
+        return normalized
+            .split(whereSeparator: { $0.isWhitespace || $0.isPunctuation })
+            .map(String.init)
+            .filter { !$0.isEmpty }
+    }
+
+    func assistantLocalSearchSummary(
+        query: String,
+        at date: Date = Date()
+    ) -> String {
+        let normalizedQuery = query.lowercased()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedQuery.isEmpty else { return "未找到相关本地资料。" }
+
+        let genericTerms = [
+            "查找", "搜索", "看看", "告诉我", "显示", "列出", "我的", "相关", "资料", "记录",
+            "有哪些", "是什么", "怎么样", "一下", "任务", "计划", "记忆", "状态",
+            "show", "list", "find", "what", "which", "are", "is", "my", "me",
+            "task", "tasks", "plan", "plans", "memory"
+        ]
+        let specificQuery = genericTerms.reduce(normalizedQuery) {
+            $0.replacingOccurrences(of: $1, with: " ")
+        }
+        let terms = specificQuery
+            .split(whereSeparator: { $0.isWhitespace || $0.isPunctuation })
+            .map(String.init)
+            .filter { !$0.isEmpty }
+        func matches(_ value: String, categoryTerms: [String]) -> Bool {
+            let candidate = value.lowercased()
+            if !terms.isEmpty {
+                return terms.contains(where: candidate.contains)
+            }
+            return categoryTerms.contains(where: normalizedQuery.contains)
+        }
+
+        let taskLines = (V2PluginStore.shared.enabled("tasks") ? engine.snapshot.tasks : [])
+            .filter {
+                $0.status != .archived
+                    && matches(
+                        "\($0.title) \(Self.assistantStatusLabel($0.status))",
+                        categoryTerms: ["任务", "task"]
+                    )
+            }
+            .sorted { $0.updatedAt > $1.updatedAt }
+            .prefix(5)
+            .map { "- \(String($0.title.prefix(180))) [\(Self.assistantStatusLabel($0.status))]" }
+
+        let planLines = (V2PluginStore.shared.enabled("tasks") ? engine.snapshot.planItems : [])
+            .filter {
+                $0.status != .canceled
+                    && matches(
+                        "\($0.title) \(Self.assistantDateLabel($0.date, calendar: calendar))",
+                        categoryTerms: ["计划", "plan"]
+                    )
+            }
+            .sorted { $0.date > $1.date }
+            .prefix(5)
+            .map {
+                "- \(String($0.title.prefix(180))) [\(Self.assistantDateLabel($0.date, calendar: calendar))]"
+            }
+
+        let memoryLines = memoryEngine.activeStatements(at: date)
+            .filter { matches($0, categoryTerms: ["记忆", "memory", "资料"]) }
+            .prefix(5)
+            .map { "- \(String($0.prefix(240)))" }
+
+        var sections: [String] = []
+        if !taskLines.isEmpty { sections.append("任务\n" + taskLines.joined(separator: "\n")) }
+        if !planLines.isEmpty { sections.append("计划\n" + planLines.joined(separator: "\n")) }
+        if !memoryLines.isEmpty { sections.append("Memory\n" + memoryLines.joined(separator: "\n")) }
+        guard !sections.isEmpty else { return "未找到相关本地资料。" }
+        return String(sections.joined(separator: "\n\n").prefix(4_000))
     }
 
     @discardableResult
@@ -263,6 +991,19 @@ final class V2AppStore: ObservableObject {
         isRecallDirty = true
     }
 
+    func validateCaptureRecallDate(_ date: Date) throws {
+        let day = calendar.startOfDay(for: date)
+        if (calendar.isDate(recallDate, inSameDayAs: day) && isRecallDirty)
+            || recallWorkingDrafts[day]?.isDirty == true { throw V2CaptureError.staleTarget }
+    }
+
+    func refreshAfterCapture() {
+        // A clean UI cache must not mask newly appended domain data or later overwrite it.
+        recallWorkingDrafts = recallWorkingDrafts.filter { $0.value.isDirty }
+        if !isRecallDirty { loadRecallDay(recallDate, now: Date()) }
+        refreshProjection(at: Date())
+    }
+
     func refreshRecallEvidence(now: Date = Date()) {
         cacheCurrentRecallWork()
         loadRecallDay(recallDate, now: now)
@@ -282,12 +1023,13 @@ final class V2AppStore: ObservableObject {
     }
 
     @discardableResult
-    func saveRecall(at date: Date = Date()) -> Bool {
+    func saveRecall(hasHandwriting: Bool = false, at date: Date = Date()) -> Bool {
         let references = selectedRecallReferences()
         guard let entry = mutate(at: date, {
             try engine.saveRecallEntry(
                 date: recallDate,
                 text: recallText,
+                hasHandwriting: hasHandwriting,
                 references: references,
                 at: date,
                 calendar: calendar
@@ -310,13 +1052,15 @@ final class V2AppStore: ObservableObject {
     }
 
     func runClock() async {
-        while !Task.isCancelled {
+        while !Task.isCancelled && !isStoppingServices {
             do {
                 try await Task.sleep(for: .seconds(1))
             } catch {
                 return
             }
+            guard !Task.isCancelled, !isStoppingServices else { return }
             refreshProjection(at: Date())
+            await drainModuleOutbox()
         }
     }
 
@@ -340,6 +1084,46 @@ final class V2AppStore: ObservableObject {
                 : "已为 \(count) 个带具体时间的计划开启提醒。"
         } catch {
             errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    /// Running sessions retain projection order; the focused session is the head.
+    var todayRunningSessions: [V2ActiveSession] {
+        state.activeSessions.filter { $0.status == .running }
+    }
+
+    var todayPlannedItems: [V2TimelineItem] {
+        let running = todayRunningSessions
+        return state.timelineItems.filter { item in
+            !running.contains { session in
+                if let taskID = item.taskID { return session.taskID == taskID }
+                if let planID = item.planItemID { return session.planItemID == planID }
+                return item.id.hasPrefix("execution-session-\(session.id)-")
+            }
+        }
+    }
+
+    func lifetimeSeconds(for session: V2ActiveSession, at date: Date = Date()) -> Int {
+        let segments = engine.snapshot.executionSegments.filter {
+            if let taskID = session.taskID { return $0.taskID == taskID }
+            return $0.logicalSessionID == session.id
+        }
+        return Int(segments.reduce(0) { $0 + $1.duration(through: date) })
+    }
+
+    /// Today pause closes the time segment; continuing creates a fresh one.
+    func pauseTodaySession(_ id: String, at date: Date = Date()) {
+        _ = endSession(id, at: date)
+    }
+
+    func completeTodaySession(_ session: V2ActiveSession, at date: Date = Date()) {
+        if let item = state.timelineItems.first(where: {
+            if let taskID = session.taskID { return $0.taskID == taskID }
+            return session.planItemID != nil && $0.planItemID == session.planItemID
+        }), item.kind == .task {
+            completeTodayItem(item, at: date)
+        } else {
+            _ = endSession(session.id, at: date)
         }
     }
 
@@ -369,9 +1153,9 @@ final class V2AppStore: ObservableObject {
     }
 
     @discardableResult
-    func quickAddTodayTask(title: String, at date: Date = Date()) -> Bool {
+    func quickAddTodayTask(title: String, note: String = "", at date: Date = Date()) -> Bool {
         guard let created = mutate(at: date, {
-            try engine.quickInsertTodayTask(title: title, at: date, calendar: calendar)
+            try engine.quickInsertTodayTask(title: title, note: note, at: date, calendar: calendar)
         }) else {
             return false
         }
@@ -381,13 +1165,34 @@ final class V2AppStore: ObservableObject {
     }
 
     @discardableResult
-    func quickAddScheduledTask(title: String, on date: Date) -> Bool {
+    func quickAddScheduledTask(title: String, note: String = "", on date: Date) -> Bool {
         guard let created = mutate(at: Date(), {
-            try engine.quickInsertScheduledTask(title: title, on: date, calendar: calendar)
+            try engine.quickInsertScheduledTask(title: title, note: note, on: date, calendar: calendar)
         }) else {
             return false
         }
         state.selectedTaskID = created.task.id
+        return true
+    }
+
+    @discardableResult
+    func createTaskFromTasks(
+        title: String,
+        note: String = "",
+        parentTaskID: String?,
+        at date: Date = Date()
+    ) -> Bool {
+        guard let task = mutate(at: date, {
+            try engine.createTask(
+                title: title,
+                parentID: parentTaskID,
+                note: note,
+                at: date
+            )
+        }) else {
+            return false
+        }
+        state.selectedTaskID = task.id
         return true
     }
 
@@ -397,6 +1202,13 @@ final class V2AppStore: ObservableObject {
         at date: Date = Date()
     ) {
         guard item.kind == .task else { return }
+        if let paused = state.activeSessions.first(where: { session in
+            session.status == .paused && (item.taskID != nil ? session.taskID == item.taskID : session.planItemID == item.planItemID && item.planItemID != nil)
+        }) {
+            focusedSessionID = paused.id
+            toggleSession(paused.id, at: date)
+            return
+        }
         guard let segment = mutate(at: date, {
             try engine.startExecution(
                 taskID: item.taskID,
@@ -449,12 +1261,22 @@ final class V2AppStore: ObservableObject {
 
     func completeTodayItem(_ item: V2TimelineItem, at date: Date = Date()) {
         guard item.kind == .task else { return }
-        _ = mutate(at: date) {
+        let ending = todayRunningSessions.filter { session in
+            item.taskID.map { session.taskID == $0 } ?? (item.planItemID != nil && session.planItemID == item.planItemID)
+        }
+        let result: Void? = mutate(at: date) {
             try engine.completeTodayItem(
                 planItemID: item.planItemID,
                 taskID: item.taskID,
-                at: date
+                at: date,
+                finishExecution: true
             )
+        }
+        if result != nil {
+            Task {
+                for session in ending { await liveActivityService.end(session: session) }
+                if let next = todayRunningSessions.first { try? await liveActivityService.sync(session: next) }
+            }
         }
     }
 
@@ -481,7 +1303,12 @@ final class V2AppStore: ObservableObject {
             if let planItemID {
                 return $0.planItemID == planItemID
             }
-            return taskID != nil && $0.taskID == taskID
+            if let taskID {
+                return $0.taskID == taskID
+            }
+            return $0.planItemID == nil
+                && $0.taskID == nil
+                && $0.title == title
         }) {
             focusedSessionID = existing.id
             zenSessionID = existing.id
@@ -525,6 +1352,7 @@ final class V2AppStore: ObservableObject {
     }
 
     private func syncLiveActivityForFocusedSession() {
+        guard engine.moduleRuntime.availability("core.tasks").isActive else { return }
         guard let session = state.activeSessions.first else { return }
         Task {
             do {
@@ -536,21 +1364,36 @@ final class V2AppStore: ObservableObject {
         }
     }
 
-    private func refreshProjection(at now: Date) {
+    func stopAllLiveActivities() async {
+        await liveActivityService.endAll()
+    }
+
+    func refreshProjection(at now: Date) {
+        if let expiry = scheduleHighlightExpiresAt, now >= expiry {
+            withAnimation(.easeOut(duration: 0.4)) { highlightedScheduleIDs = [] }
+        }
         let today = engine.todaySnapshot(date: now, now: now, calendar: calendar)
         pendingPlanDrafts = engine.snapshot.planDrafts
             .filter { $0.status == .draft }
             .sorted { $0.updatedAt > $1.updatedAt }
         var next = state
         next.tasks = projectedTasks(through: now)
+        let taskTitles = Dictionary(uniqueKeysWithValues: engine.snapshot.tasks.map { ($0.id, $0.title) })
         next.timelineItems = today.items.map { item in
             V2TimelineItem(
                 id: item.id,
                 kind: item.kind == .task ? .task : .executionRecord,
                 planItemID: item.planItemID,
                 timeLabel: item.plannedAt.map(Self.shortTime) ?? "今天",
-                title: item.title,
-                detail: Self.todayDetail(for: item),
+                title: item.kind == .task ? (item.taskID.flatMap { taskTitles[$0] } ?? item.title) : item.title,
+                detail: item.taskID.map { taskID in
+                    let todaySeconds = engine.executionSegments(on: now, calendar: calendar)
+                        .filter { $0.taskID == taskID }
+                        .reduce(0.0) { total, segment in
+                            total + max(0, min(segment.endAt ?? now, now).timeIntervalSince(max(segment.startAt, calendar.startOfDay(for: now))))
+                        }
+                    return "累计 \(Self.durationText(engine.spentDuration(taskID: taskID, through: now))) · 今日 \(Self.durationText(todaySeconds))"
+                } ?? Self.todayDetail(for: item),
                 taskID: item.taskID,
                 isDone: item.isDone
             )
@@ -573,8 +1416,9 @@ final class V2AppStore: ObservableObject {
                 status: session.status == .running ? .running : .paused
             )
         }
+        sessions = sessions.filter { $0.status == .running } + sessions.filter { $0.status == .paused }
         if let focusedSessionID,
-           let focusedIndex = sessions.firstIndex(where: { $0.id == focusedSessionID }) {
+           let focusedIndex = sessions.firstIndex(where: { $0.id == focusedSessionID && $0.status == .running }) {
             let focused = sessions.remove(at: focusedIndex)
             sessions.insert(focused, at: 0)
         } else {
@@ -728,7 +1572,7 @@ final class V2AppStore: ObservableObject {
             }
             return V2ScheduledTask(
                 id: item.id,
-                title: item.title,
+                title: task?.title ?? item.title,
                 detail: item.startAt == nil ? "仅确定日期，时间可以之后再安排。" : "已放在时间轴。",
                 taskID: item.taskID,
                 date: item.date,
@@ -746,6 +1590,7 @@ final class V2AppStore: ObservableObject {
         do {
             let result = try operation()
             errorMessage = nil
+            V2UsageTrace.shared.record(.init(kind: .manualEdit, source: .manual, at: date))
             refreshProjection(at: date)
             return result
         } catch {
@@ -761,6 +1606,9 @@ final class V2AppStore: ObservableObject {
         currentDraft: V2PlanDraft?,
         at date: Date
     ) async {
+        let ticket: V2ModuleTicket
+        do { ticket = try V2PluginStore.shared.ticket(["assistant", "tasks"]) }
+        catch { planningFailureMessage = error.localizedDescription; return }
         let previousPhase = state.planConversationPhase
         state.planMessages.append(
             V2PlanMessage(
@@ -773,13 +1621,15 @@ final class V2AppStore: ObservableObject {
             state.planConversationPhase = .clarifying
         }
         planningSuggestedReplies = []
+        planningFailureMessage = nil
         isPlanning = true
         defer { isPlanning = false }
 
         let request = V2PlanningRequest(
             userPrompt: userPrompt,
             clarificationResponse: clarificationResponse,
-            scope: state.planScope,
+            scope: planningRequestScope,
+            conversationIdentifier: activePlanningConversationID,
             referenceDate: date,
             timeZoneIdentifier: calendar.timeZone.identifier,
             tasks: engine.snapshot.tasks
@@ -796,11 +1646,15 @@ final class V2AppStore: ObservableObject {
                     )
                 },
             memoryStatements: memoryEngine.activeStatements(at: date),
+            conversation: state.planMessages.suffix(40).map {
+                V2PlanningConversationMessage(role: $0.role, text: $0.text)
+            },
             currentDraft: currentDraft
         )
 
         do {
             let outcome = try await planningClient.generate(request)
+            try V2PluginStore.shared.validate(ticket)
             switch outcome {
             case .clarification(let clarification):
                 state.currentPlanDraft = nil
@@ -812,13 +1666,23 @@ final class V2AppStore: ObservableObject {
                 state.planConversationPhase = .reviewingDraft
                 planningSuggestedReplies = []
                 appendPlanAgentMessage(proposal.message)
+                saveCurrentPlanDraft(at: date)
             }
+            planningFailureMessage = nil
             errorMessage = nil
         } catch {
             state.planConversationPhase = previousPhase == .empty ? .complete : previousPhase
             planningSuggestedReplies = []
-            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            planningFailureMessage = (error as? LocalizedError)?.errorDescription
+                ?? error.localizedDescription
         }
+    }
+
+    private var planningRequestScope: String? {
+        guard let task = planningSourceTask else {
+            return state.planScope
+        }
+        return "聚焦任务：\(task.title)（task_id: \(task.id)）"
     }
 
     private func appendPlanAgentMessage(_ text: String) {
@@ -831,28 +1695,60 @@ final class V2AppStore: ObservableObject {
         )
     }
 
-    private static func configuredPlanningClient() -> any V2PlanningClient {
+    private func resetPlanConversation() {
+        activePlanningPrompt = nil
+        activePlanningConversationID = UUID().uuidString
+        planningSuggestedReplies = []
+        planningFailureMessage = nil
+        state.planMessages = []
+        state.planConversationPhase = .empty
+        state.planScope = nil
+        state.currentPlanDraft = nil
+    }
+
+    private static func configuredPlanningClient(
+        settings: V2AIProviderSettings
+    ) -> any V2PlanningClient {
+        #if DEBUG
         let environment = ProcessInfo.processInfo.environment
-        guard let apiKey = environment["TOUGH_TRIAL_AI_API_KEY"], !apiKey.isEmpty else {
-            return V2DeterministicPlanningClient()
-        }
-
-        let endpoint: URL
-        if let value = environment["TOUGH_TRIAL_AI_ENDPOINT"] {
-            guard let configuredURL = URL(string: value) else {
-                return V2UnavailablePlanningClient(message: "TOUGH_TRIAL_AI_ENDPOINT 不是有效 URL")
+        if let apiKey = environment["TOUGH_TRIAL_AI_API_KEY"], !apiKey.isEmpty {
+            let endpoint: URL
+            if let value = environment["TOUGH_TRIAL_AI_ENDPOINT"] {
+                guard let configuredURL = URL(string: value) else {
+                    return V2UnavailablePlanningClient(message: "TOUGH_TRIAL_AI_ENDPOINT 不是有效 URL")
+                }
+                endpoint = configuredURL
+            } else {
+                endpoint = URL(string: "https://api.openai.com/v1/responses")!
             }
-            endpoint = configuredURL
-        } else {
-            endpoint = URL(string: "https://api.openai.com/v1/responses")!
-        }
 
-        let configuration = V2RemotePlanningConfiguration(
-            endpoint: endpoint,
-            apiKey: apiKey,
-            model: environment["TOUGH_TRIAL_AI_MODEL"] ?? "gpt-5-mini"
+            let configuration = V2RemotePlanningConfiguration(
+                endpoint: endpoint,
+                apiKey: apiKey,
+                model: environment["TOUGH_TRIAL_AI_MODEL"] ?? "gpt-5-mini"
+            )
+            return V2RemotePlanningClient(configuration: configuration)
+        }
+        #endif
+
+        do {
+            return try makePlanningClient(settings: settings)
+        } catch {
+            return V2UnavailablePlanningClient(
+                message: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            )
+        }
+    }
+
+    private static func makePlanningClient(
+        settings: V2AIProviderSettings
+    ) throws -> any V2PlanningClient {
+        guard settings.isEnabled else {
+            return V2UnavailablePlanningClient(message: "请先配置 AI 服务")
+        }
+        return V2OpenAICompatiblePlanningClient(
+            configuration: try settings.planningConfiguration()
         )
-        return V2RemotePlanningClient(configuration: configuration)
     }
 
     private func mutateMemory<Result>(
@@ -896,6 +1792,31 @@ final class V2AppStore: ObservableObject {
         case .done:
             .done
         }
+    }
+
+    private static func assistantStatusLabel(_ status: V2Task.Status) -> String {
+        switch status {
+        case .notStarted:
+            "未开始"
+        case .active:
+            "进行中"
+        case .paused:
+            "已暂停"
+        case .done:
+            "已完成"
+        case .archived:
+            "已归档"
+        }
+    }
+
+    private static func assistantDateLabel(_ date: Date, calendar: Calendar) -> String {
+        let components = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(
+            format: "%04d-%02d-%02d",
+            components.year ?? 0,
+            components.month ?? 0,
+            components.day ?? 0
+        )
     }
 
     private static func shortTime(_ date: Date) -> String {
@@ -967,9 +1888,26 @@ final class V2AppStore: ObservableObject {
         case V2EngineError.blankTitle:
             return "任务名称不能为空。"
         case V2EngineError.blankRecallText:
-            return "写下一点内容后再保存。"
+            return "写下一点内容或手写后再完成。"
         default:
             return "操作没有保存，请稍后再试。"
+        }
+    }
+}
+
+private enum V2AssistantAppStoreError: LocalizedError {
+    case aiNotConfigured
+    case storageUnavailable(String)
+    case storeUnavailable
+
+    var errorDescription: String? {
+        switch self {
+        case .aiNotConfigured:
+            "请先配置 AI 服务。"
+        case let .storageUnavailable(message):
+            message
+        case .storeUnavailable:
+            "助手依赖的 App 状态已不可用。"
         }
     }
 }
@@ -979,6 +1917,19 @@ private struct V2RecallWorkingDraft {
     var selectedCandidateIDs: Set<String>
     var baseReferences: V2RecallReferences
     var isDirty: Bool
+}
+
+private struct V2UITestAIModelCatalogClient: V2AIModelCatalogClient {
+    func fetchModels(apiKey: String) async throws -> [V2AIModel] {
+        guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw V2AIModelCatalogClientError.missingAPIKey
+        }
+        return [
+            V2AIModel(id: "Qwen/Qwen3-32B"),
+            V2AIModel(id: "deepseek-ai/DeepSeek-V3"),
+            V2AIModel(id: "moonshotai/Kimi-K2"),
+        ]
+    }
 }
 
 private struct V2UnavailablePlanningClient: V2PlanningClient {

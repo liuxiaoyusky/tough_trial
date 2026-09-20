@@ -1,0 +1,6 @@
+interface:
+  display_name: "Frontend Page Review"
+  short_description: "跨 Web、桌面与移动端创建可批注页面评审与交互验收工作流"
+  default_prompt: "Use $frontend-page-review to build an annotation-first review workspace for the current UI and carry feedback through implementation and interaction acceptance."
+policy:
+  allow_implicit_invocation: true

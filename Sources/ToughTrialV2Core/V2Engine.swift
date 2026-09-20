@@ -23,16 +23,39 @@ public enum V2EngineError: Error, Equatable, Sendable {
     case planExecutionMismatch(String)
     case recallEntryNotFound(String)
     case blankRecallText
+    case invalidScheduleRequestID
+    case invalidScheduleOperation(String)
+    case duplicateScheduleLocalID(String)
+    case scheduleTooManyOperations(Int)
+    case scheduleReceiptNotFound(String)
+    case scheduleReceiptAlreadyUndone(String)
+    case scheduleReceiptConflict(String)
+    case scheduleReceiptDanglingReference(String)
+    case staleScheduleProposal(String)
 }
 
 public final class V2Engine {
     public private(set) var snapshot: V2AppSnapshot
 
     private let store: V2JSONSnapshotStore?
+    private let commitLock = NSRecursiveLock()
+    public var moduleRuntime: V2ModuleRuntime
+    /// Host integration hook for trace projection. It is called only after a
+    /// successful business snapshot save, so staged engines and failed writes
+    /// never emit a committed operation event.
+    public var onCommandCommitted: ((V2NativeCommandDescriptor) -> Void)?
 
-    public init(snapshot: V2AppSnapshot = .empty, store: V2JSONSnapshotStore? = nil) {
-        self.snapshot = Self.reconcilingOpenExecutions(in: snapshot)
+    public init(
+        snapshot: V2AppSnapshot = .empty,
+        store: V2JSONSnapshotStore? = nil,
+        moduleRuntime: V2ModuleRuntime = .init(),
+        onCommandCommitted: ((V2NativeCommandDescriptor) -> Void)? = nil,
+        reconcileExecutions: Bool = true
+    ) {
+        self.moduleRuntime = moduleRuntime
+        self.snapshot = reconcileExecutions ? Self.reconcilingOpenExecutions(in: snapshot) : snapshot
         self.store = store
+        self.onCommandCommitted = onCommandCommitted
     }
 
     public static func load(from store: V2JSONSnapshotStore) throws -> V2Engine {
@@ -57,7 +80,7 @@ public final class V2Engine {
             updatedAt: date
         )
 
-        return try commit { snapshot in
+        return try commit(modules: ["core.tasks"], commandID: "core.tasks.createContext") { snapshot in
             snapshot.taskContexts.append(context)
             return context
         }
@@ -70,11 +93,12 @@ public final class V2Engine {
         contextID: String? = nil,
         kind: V2Task.Kind? = nil,
         note: String = "",
+        sourceReference: V2TaskSourceReference? = nil,
         at date: Date = Date()
     ) throws -> V2Task {
         let title = try normalizedTitle(title)
 
-        return try commit { snapshot in
+        return try commit(modules: ["core.tasks"], commandID: "core.tasks.create") { snapshot in
             let effectiveContextID = try Self.validatePlacement(
                 parentID: parentID,
                 contextID: contextID,
@@ -89,7 +113,8 @@ public final class V2Engine {
                 note: note,
                 kind: kind,
                 createdAt: date,
-                updatedAt: date
+                updatedAt: date,
+                sourceReference: sourceReference
             )
             snapshot.tasks.append(task)
             return task
@@ -108,7 +133,7 @@ public final class V2Engine {
     ) throws -> V2Task {
         let title = try normalizedTitle(title)
 
-        return try commit { snapshot in
+        return try commit(modules: ["core.tasks"], commandID: "core.tasks.update") { snapshot in
             guard let index = snapshot.tasks.firstIndex(where: { $0.id == id }) else {
                 throw V2EngineError.taskNotFound(id)
             }
@@ -165,7 +190,7 @@ public final class V2Engine {
     }
 
     public func archiveTask(id: String, at date: Date = Date()) throws {
-        try commit { snapshot in
+        try commit(modules: ["core.tasks"], commandID: "core.tasks.archive") { snapshot in
             guard let task = snapshot.tasks.first(where: { $0.id == id }) else {
                 throw V2EngineError.taskNotFound(id)
             }
@@ -208,7 +233,7 @@ public final class V2Engine {
         date: Date,
         calendar: Calendar = .current
     ) throws -> V2PlanItem {
-        try commit { snapshot in
+        try commit(modules: ["core.tasks"], commandID: "core.tasks.schedule") { snapshot in
             guard let task = snapshot.tasks.first(where: { $0.id == taskID }) else {
                 throw V2EngineError.taskNotFound(taskID)
             }
@@ -235,7 +260,7 @@ public final class V2Engine {
 
     @discardableResult
     public func completePlanItem(id: String) throws -> V2PlanItem {
-        try commit { snapshot in
+        try commit(modules: ["core.tasks"], commandID: "core.tasks.complete") { snapshot in
             guard let index = snapshot.planItems.firstIndex(where: { $0.id == id }) else {
                 throw V2EngineError.planItemNotFound(id)
             }
@@ -249,7 +274,7 @@ public final class V2Engine {
 
     @discardableResult
     public func restorePlanItem(id: String) throws -> V2PlanItem {
-        try commit { snapshot in
+        try commit(modules: ["core.tasks"], commandID: "core.tasks.restore") { snapshot in
             guard let index = snapshot.planItems.firstIndex(where: { $0.id == id }) else {
                 throw V2EngineError.planItemNotFound(id)
             }
@@ -264,9 +289,10 @@ public final class V2Engine {
     public func completeTodayItem(
         planItemID: String?,
         taskID: String?,
-        at date: Date = Date()
+        at date: Date = Date(),
+        finishExecution: Bool = false
     ) throws {
-        try commit { snapshot in
+        try commit(modules: ["core.tasks"], commandID: "core.tasks.complete") { snapshot in
             if let planItemID {
                 guard let index = snapshot.planItems.firstIndex(where: {
                     $0.id == planItemID && $0.status != .canceled
@@ -277,6 +303,20 @@ public final class V2Engine {
                     throw V2EngineError.planExecutionMismatch(planItemID)
                 }
                 snapshot.planItems[index].status = .completed
+            }
+
+            if finishExecution {
+                for index in snapshot.executionSegments.indices {
+                    let segment = snapshot.executionSegments[index]
+                    let matches = taskID.map { segment.taskID == $0 }
+                        ?? (planItemID != nil && segment.createdFromPlanItemID == planItemID)
+                    guard matches, segment.endAt == nil || segment.endReason == .paused else { continue }
+                    if segment.endAt == nil {
+                        guard date >= segment.startAt else { throw V2EngineError.invalidSegmentEnd }
+                        snapshot.executionSegments[index].endAt = date
+                    }
+                    snapshot.executionSegments[index].endReason = .stopped
+                }
             }
 
             if let taskID {
@@ -295,7 +335,7 @@ public final class V2Engine {
         taskID: String?,
         at date: Date = Date()
     ) throws {
-        try commit { snapshot in
+        try commit(modules: ["core.tasks"], commandID: "core.tasks.restore") { snapshot in
             if let planItemID {
                 guard let index = snapshot.planItems.firstIndex(where: {
                     $0.id == planItemID && $0.status != .canceled
@@ -325,21 +365,24 @@ public final class V2Engine {
     @discardableResult
     public func quickInsertTodayTask(
         title: String,
+        note: String = "",
         at date: Date = Date(),
         calendar: Calendar = .current
     ) throws -> (task: V2Task, planItem: V2PlanItem) {
         let title = try normalizedTitle(title)
-        return try commit { snapshot in
+        let startAt = Self.explicitTodayStartAt(in: title, on: date, calendar: calendar)
+        return try commit(modules: ["core.tasks"], commandID: "core.tasks.create") { snapshot in
             let task = V2Task(
                 id: UUID().uuidString,
                 title: title,
+                note: note,
                 createdAt: date,
                 updatedAt: date
             )
             let item = V2PlanItem(
                 id: UUID().uuidString,
                 date: calendar.startOfDay(for: date),
-                startAt: date,
+                startAt: startAt,
                 taskID: task.id,
                 title: title
             )
@@ -352,15 +395,17 @@ public final class V2Engine {
     @discardableResult
     public func quickInsertScheduledTask(
         title: String,
+        note: String = "",
         on date: Date,
         calendar: Calendar = .current
     ) throws -> (task: V2Task, planItem: V2PlanItem) {
         let title = try normalizedTitle(title)
-        return try commit { snapshot in
+        return try commit(modules: ["core.tasks"], commandID: "core.tasks.schedule") { snapshot in
             let createdAt = Date()
             let task = V2Task(
                 id: UUID().uuidString,
                 title: title,
+                note: note,
                 createdAt: createdAt,
                 updatedAt: createdAt
             )
@@ -385,7 +430,7 @@ public final class V2Engine {
         createdFromPlanItemID: String? = nil,
         note: String = ""
     ) throws -> V2ExecutionSegment {
-        try commit { snapshot in
+        try commit(modules: ["core.tasks"], commandID: "core.tasks.startExecution") { snapshot in
             if let createdFromPlanItemID {
                 guard let planItem = snapshot.planItems.first(where: {
                     $0.id == createdFromPlanItemID && $0.status != .canceled
@@ -463,7 +508,7 @@ public final class V2Engine {
         after segmentID: String,
         at date: Date = Date()
     ) throws -> V2ExecutionSegment {
-        try commit { snapshot in
+        try commit(modules: ["core.tasks"], commandID: "core.tasks.resumeExecution") { snapshot in
             guard let previous = snapshot.executionSegments.first(where: { $0.id == segmentID }) else {
                 throw V2EngineError.segmentNotFound(segmentID)
             }
@@ -510,7 +555,7 @@ public final class V2Engine {
     }
 
     public func stopExecutionSession(sessionID: String, at date: Date = Date()) throws {
-        try commit { snapshot in
+        try commit(modules: ["core.tasks"], commandID: "core.tasks.stopExecution") { snapshot in
             guard let index = snapshot.executionSegments.indices
                 .filter({ snapshot.executionSegments[$0].logicalSessionID == sessionID })
                 .max(by: {
@@ -582,6 +627,215 @@ public final class V2Engine {
         try store?.save(snapshot)
     }
 
+    /// Execute a registered, bounded read projection for host and assistant
+    /// adapters.  The returned JSON is the encoding of one of the typed
+    /// `V2Native*Read` values; callers select the type from the query
+    /// descriptor's stable ID rather than inspecting arbitrary snapshot keys.
+    public func nativeQueryData(
+        _ request: V2NativeQueryRequest,
+        traceEvents: [V2UsageEvent] = [],
+        fieldDefinitions: [V2NativeFieldDefinition] = [],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) throws -> Data {
+        let descriptor = try moduleRuntime.requireQuery(request, now: now)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+
+        func encode<Projection: Encodable>(_ projection: Projection) throws -> Data {
+            try encoder.encode(projection)
+        }
+
+        let anchor = request.to ?? now
+        if let from = request.from {
+            guard from <= anchor else { throw V2NativeQueryError.invalidDateRange }
+            if let days = descriptor.maxDays, anchor.timeIntervalSince(from) > Double(days) * 86_400 { throw V2NativeQueryError.invalidDateRange }
+        }
+        let lowerBound: Date? = {
+            if let from = request.from { return from }
+            guard let maxDays = descriptor.maxDays else { return nil }
+            return anchor.addingTimeInterval(-Double(maxDays) * 86_400)
+        }()
+        let upperBound = request.to ?? now
+        let matchesDate: (Date) -> Bool = { date in
+            if let lowerBound, date < lowerBound { return false }
+            if date > upperBound { return false }
+            return true
+        }
+        let limit = request.limit
+
+        switch request.id {
+        case "core.tasks.today":
+            let dayStart = calendar.startOfDay(for: request.from ?? anchor)
+            guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else {
+                throw V2NativeQueryError.invalidDateRange
+            }
+            let items = snapshot.planItems
+                .filter { $0.date >= dayStart && $0.date < dayEnd && $0.status != .canceled }
+                .sorted { ($0.startAt ?? $0.date, $0.id) < ($1.startAt ?? $1.date, $1.id) }
+            let boundedItems = Array(items.prefix(limit))
+            let taskIDs = Set(boundedItems.compactMap(\.taskID))
+            let tasks = snapshot.tasks.filter { taskIDs.contains($0.id) }
+            return try encode(V2NativeTasksTodayRead(date: dayStart, planItems: boundedItems, tasks: tasks))
+
+        case "core.tasks.workspace":
+            let contexts = Array(snapshot.taskContexts
+                .filter { $0.archivedAt == nil }
+                .sorted { ($0.updatedAt, $0.id) > ($1.updatedAt, $1.id) }
+                .prefix(limit))
+            let tasks = Array(snapshot.tasks
+                .filter { $0.status != .archived }
+                .sorted { ($0.updatedAt, $0.id) > ($1.updatedAt, $1.id) }
+                .prefix(limit))
+            let drafts = Array(snapshot.planDrafts
+                .sorted { ($0.updatedAt, $0.id) > ($1.updatedAt, $1.id) }
+                .prefix(limit))
+            let items = Array(snapshot.planItems
+                .sorted { ($0.date, $0.id) > ($1.date, $1.id) }
+                .prefix(limit))
+            return try encode(V2NativeTasksWorkspaceRead(contexts: contexts, tasks: tasks, planDrafts: drafts, planItems: items))
+
+        case "core.tasks.execution":
+            let segments = Array(snapshot.executionSegments
+                .filter { segment in
+                    if let lowerBound, segment.startAt < lowerBound,
+                       let endAt = segment.endAt, endAt < lowerBound { return false }
+                    if segment.startAt > upperBound { return false }
+                    return true
+                }
+                .sorted { ($0.startAt, $0.id) > ($1.startAt, $1.id) }
+                .prefix(limit))
+            return try encode(V2NativeExecutionRead(segments: segments))
+
+        case "core.capture.recent":
+            let entries = Array(snapshot.capture.latestEntries
+                .filter { matchesDate($0.recordedAt) }
+                .sorted { ($0.recordedAt, $0.id) > ($1.recordedAt, $1.id) }
+                .prefix(limit))
+            let entryIDs = Set(entries.map(\.id))
+            let batches = Array(snapshot.capture.batches
+                .filter { matchesDate($0.createdAt) }
+                .sorted { ($0.createdAt, $0.id) > ($1.createdAt, $1.id) }
+                .prefix(limit))
+            let batchIDs = Set(batches.map(\.id))
+            let receipts = Array(snapshot.capture.receipts
+                .filter { receipt in
+                    batchIDs.contains(receipt.batchID) || entryIDs.contains(receipt.targetID ?? "")
+                }
+                .prefix(limit))
+            return try encode(V2NativeCaptureRead(entries: entries, batches: batches, receipts: receipts))
+
+        case "core.ledger.recent":
+            let entries = Array(snapshot.capture.ledger
+                .filter { matchesDate($0.recordedAt) }
+                .sorted { ($0.recordedAt, $0.id) > ($1.recordedAt, $1.id) }
+                .prefix(limit))
+            let categories = Array(snapshot.capture.categories
+                .sorted { ($0.name, $0.id) < ($1.name, $1.id) }
+                .prefix(limit))
+            return try encode(V2NativeLedgerRead(entries: entries, categories: categories))
+
+        case "core.finance.plans":
+            let finance = snapshot.capture.finance ?? V2FinanceState()
+            let plans = Array(finance.plans
+                .sorted { ($0.dueDate, $0.id) < ($1.dueDate, $1.id) }
+                .prefix(limit))
+            let payments = Array(finance.payments
+                .filter { matchesDate($0.paidAt) }
+                .sorted { ($0.paidAt, $0.id) > ($1.paidAt, $1.id) }
+                .prefix(limit))
+            return try encode(V2NativeFinanceRead(plans: plans, payments: payments))
+
+        case "core.budget.queryProgress":
+            let budgets = Array((snapshot.capture.finance?.budgets ?? []).prefix(limit))
+            let progress = budgets.map { budgetProgress(for: $0) }
+            return try encode(V2NativeBudgetProgressRead(budgets: budgets, progress: Array(progress.prefix(limit))))
+
+        case "core.recall.recent":
+            let entries = Array(snapshot.recallEntries
+                .filter { matchesDate($0.date) }
+                .sorted { ($0.date, $0.id) > ($1.date, $1.id) }
+                .prefix(limit))
+            return try encode(V2NativeRecallRead(entries: entries))
+
+        case "core.notes.recent":
+            let entries = Array(snapshot.capture.notes
+                .filter { matchesDate($0.recordedAt) }
+                .sorted { ($0.recordedAt, $0.id) > ($1.recordedAt, $1.id) }
+                .prefix(limit))
+            return try encode(V2NativeNotesRead(entries: entries))
+
+        case "core.imports.recent":
+            let receipts = Array((snapshot.capture.imports ?? [])
+                .filter { matchesDate($0.importedAt) }
+                .sorted { ($0.importedAt, $0.id) > ($1.importedAt, $1.id) }
+                .prefix(limit))
+            return try encode(V2NativeImportRead(receipts: receipts))
+
+        case "core.attachments.recent":
+            let assets = Array(snapshot.capture.assets.prefix(limit))
+            return try encode(V2NativeAssetRead(assets: assets))
+
+        case "core.trace.recent":
+            let events = Array(traceEvents
+                .filter { matchesDate($0.at) }
+                .sorted { ($0.at, $0.id) > ($1.at, $1.id) }
+                .prefix(limit))
+            return try encode(V2NativeTraceRead(events: events))
+
+        case let id where id.hasSuffix(".fields"):
+            let moduleID = String(id.dropLast(".fields".count))
+            let definitions = Array(fieldDefinitions
+                .filter { $0.domainID == moduleID }
+                .sorted { ($0.id, $0.revision) < ($1.id, $1.revision) }
+                .prefix(limit))
+            return try encode(V2NativeFieldRead(definitions: definitions))
+
+        default:
+            throw V2NativeQueryError.unsupportedProjection(request.id)
+        }
+    }
+
+    public func nativeQueryData(
+        id: String,
+        limit: Int = 100,
+        from: Date? = nil,
+        to: Date? = nil,
+        fields: Set<String> = [],
+        traceEvents: [V2UsageEvent] = [],
+        fieldDefinitions: [V2NativeFieldDefinition] = [],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) throws -> Data {
+        try nativeQueryData(
+            V2NativeQueryRequest(id: id, limit: limit, from: from, to: to, fields: fields),
+            traceEvents: traceEvents,
+            fieldDefinitions: fieldDefinitions,
+            now: now,
+            calendar: calendar
+        )
+    }
+
+    public func nativeQuery<Projection: Decodable>(
+        _ type: Projection.Type,
+        request: V2NativeQueryRequest,
+        traceEvents: [V2UsageEvent] = [],
+        fieldDefinitions: [V2NativeFieldDefinition] = [],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) throws -> Projection {
+        try JSONDecoder().decode(
+            Projection.self,
+            from: nativeQueryData(
+                request,
+                traceEvents: traceEvents,
+                fieldDefinitions: fieldDefinitions,
+                now: now,
+                calendar: calendar
+            )
+        )
+    }
+
     @discardableResult
     private func closeExecution(
         segmentID: String,
@@ -589,7 +843,7 @@ public final class V2Engine {
         endReason: V2ExecutionSegment.EndReason,
         taskStatus: V2Task.Status
     ) throws -> V2ExecutionSegment {
-        try commit { snapshot in
+        try commit(modules: ["core.tasks"], commandID: endReason == .paused ? "core.tasks.pauseExecution" : "core.tasks.endExecution") { snapshot in
             guard let segmentIndex = snapshot.executionSegments.firstIndex(where: { $0.id == segmentID }) else {
                 throw V2EngineError.segmentNotFound(segmentID)
             }
@@ -622,7 +876,7 @@ public final class V2Engine {
         archivedAt: Date?,
         at date: Date
     ) throws -> V2Task {
-        try commit { snapshot in
+        try commit(modules: ["core.tasks"], commandID: status == .done ? "core.tasks.complete" : "core.tasks.restore") { snapshot in
             guard let index = snapshot.tasks.firstIndex(where: { $0.id == id }) else {
                 throw V2EngineError.taskNotFound(id)
             }
@@ -639,8 +893,33 @@ public final class V2Engine {
 
     @discardableResult
     func commit<Result>(
+        modules: [String],
+        commandID: String,
         _ mutation: (inout V2AppSnapshot) throws -> Result
     ) throws -> Result {
+        commitLock.lock(); defer { commitLock.unlock() }
+        try moduleRuntime.requireCommand(commandID, modules: modules)
+        guard let descriptor = moduleRuntime.commandDescriptor(commandID) else {
+            throw V2ModuleRuntimeError.commandNotRegistered(commandID)
+        }
+        var next = snapshot
+        let result = try mutation(&next)
+        try moduleRuntime.requireCommand(commandID, modules: modules)
+        V2OutboxPolicy.enqueueChanges(from: snapshot, into: &next, at: Date())
+        try store?.save(next)
+        snapshot = next
+        onCommandCommitted?(descriptor)
+        return result
+    }
+
+    /// Host-only maintenance commits are allowed to finish durable cleanup
+    /// after a module has been stopped. They never enter a plugin/module
+    /// context and are intentionally unavailable to the public module client.
+    @discardableResult
+    func commitHost<Result>(
+        _ mutation: (inout V2AppSnapshot) throws -> Result
+    ) throws -> Result {
+        commitLock.lock(); defer { commitLock.unlock() }
         var next = snapshot
         let result = try mutation(&next)
         try store?.save(next)
@@ -654,6 +933,56 @@ public final class V2Engine {
             throw V2EngineError.blankTitle
         }
         return normalized
+    }
+
+    private static func explicitTodayStartAt(
+        in title: String,
+        on date: Date,
+        calendar: Calendar
+    ) -> Date? {
+        let futureMarkers = [
+            "明天", "后天", "大后天", "下周", "下星期", "下礼拜",
+            "下个月", "下月", "明年", "未来",
+        ]
+        guard !futureMarkers.contains(where: { title.contains($0) }) else {
+            return nil
+        }
+
+        if let time = explicit24HourTime(in: title) {
+            return calendar.date(
+                bySettingHour: time.hour,
+                minute: time.minute,
+                second: 0,
+                of: date
+            )
+        }
+        if title.contains("下午三点半") {
+            return calendar.date(bySettingHour: 15, minute: 30, second: 0, of: date)
+        }
+        if title.contains("下午三点") {
+            return calendar.date(bySettingHour: 15, minute: 0, second: 0, of: date)
+        }
+        return nil
+    }
+
+    private static func explicit24HourTime(in title: String) -> (hour: Int, minute: Int)? {
+        let candidates = title.split { character in
+            !character.isNumber && character != ":"
+        }
+        for candidate in candidates {
+            let components = candidate.split(separator: ":", omittingEmptySubsequences: false)
+            guard components.count == 2,
+                  (1...2).contains(components[0].count),
+                  components[1].count == 2,
+                  let hour = Int(components[0]),
+                  let minute = Int(components[1]),
+                  (0...23).contains(hour),
+                  (0...59).contains(minute) else {
+                continue
+            }
+            return (hour, minute)
+        }
+        return nil
     }
 
     private static func executableTaskIndex(

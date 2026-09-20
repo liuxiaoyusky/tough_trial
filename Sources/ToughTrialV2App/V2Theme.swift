@@ -34,6 +34,7 @@ enum V2Theme {
         static let goalTeal = Color(red: 0.12, green: 0.58, blue: 0.55)
         static let goalOrange = Color(red: 0.86, green: 0.48, blue: 0.20)
         static let goalViolet = Color(red: 0.48, green: 0.39, blue: 0.74)
+        static let goalRose = Color(red: 0.76, green: 0.31, blue: 0.47)
     }
 
     enum TypeRole {
@@ -75,6 +76,8 @@ enum V2Theme {
             ColorRole.goalOrange
         case "violet", "growth", "learning":
             ColorRole.goalViolet
+        case "rose", "social":
+            ColorRole.goalRose
         default:
             ColorRole.textSecondary
         }

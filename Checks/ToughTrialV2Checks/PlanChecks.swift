@@ -100,6 +100,43 @@ func checkSchedulePlanDraftLifecycle() throws {
     }
 }
 
+func checkPlanDraftCanResumeAsEditableArtifact() {
+    let base = Date(timeIntervalSince1970: 1_802_500_000)
+    let draft = V2PlanDraft(
+        id: "resumable-plan",
+        userPrompt: "下周推进论文",
+        title: "下周论文安排",
+        summary: "先完成结构，再补充材料",
+        decisions: ["保留周末弹性"],
+        taskChanges: [
+            V2PlanDraftTaskChange(
+                id: "outline-task",
+                title: "整理论文结构",
+                kind: .goal
+            ),
+        ],
+        scheduleItems: [
+            V2PlanDraftScheduleItem(
+                id: "outline-plan",
+                date: base,
+                startAt: base.addingTimeInterval(9 * 3_600),
+                endAt: base.addingTimeInterval(10 * 3_600),
+                proposedTaskID: "outline-task",
+                title: "整理论文结构"
+            ),
+        ]
+    )
+
+    let restored = draft.durableRecord(at: base).editableDraft()
+
+    require(restored.id == draft.id, "Resumed draft should keep its stable ID")
+    require(restored.userPrompt == draft.userPrompt, "Resumed draft should keep the original prompt")
+    require(restored.title == draft.title, "Resumed draft should restore its title")
+    require(restored.summary == draft.summary, "Resumed draft should restore its summary")
+    require(restored.taskChanges == draft.taskChanges, "Resumed draft should preserve task proposals")
+    require(restored.scheduleItems == draft.scheduleItems, "Resumed draft should preserve editable schedule items")
+}
+
 func checkBreakdownPlanDraftCreatesTreeAtomically() throws {
     let engine = V2Engine()
     let base = Date(timeIntervalSince1970: 1_802_000_000)

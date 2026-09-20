@@ -166,19 +166,25 @@ public struct V2MemoryJSONStore: Sendable {
 
 public final class V2MemoryEngine {
     public private(set) var snapshot: V2MemorySnapshot
+    /// Optional for compatibility with callers that use the standalone
+    /// memory store. The app wires this to the shared runtime so notes writes
+    /// receive the same command and lifecycle gate as other modules.
+    public var moduleRuntime: V2ModuleRuntime?
 
     private let store: V2MemoryJSONStore?
 
     public init(
         snapshot: V2MemorySnapshot = .empty,
-        store: V2MemoryJSONStore? = nil
+        store: V2MemoryJSONStore? = nil,
+        moduleRuntime: V2ModuleRuntime? = nil
     ) {
         self.snapshot = snapshot
         self.store = store
+        self.moduleRuntime = moduleRuntime
     }
 
-    public static func load(from store: V2MemoryJSONStore) throws -> V2MemoryEngine {
-        V2MemoryEngine(snapshot: try store.loadOrCreateEmpty(), store: store)
+    public static func load(from store: V2MemoryJSONStore, moduleRuntime: V2ModuleRuntime? = nil) throws -> V2MemoryEngine {
+        V2MemoryEngine(snapshot: try store.loadOrCreateEmpty(), store: store, moduleRuntime: moduleRuntime)
     }
 
     @discardableResult
@@ -207,7 +213,7 @@ public final class V2MemoryEngine {
             expiresAt: expiresAt,
             availability: availability
         )
-        return try commit { snapshot in
+        return try commit(commandID: "core.notes.create") { snapshot in
             snapshot.records.append(record)
             return record
         }
@@ -225,7 +231,7 @@ public final class V2MemoryEngine {
         at date: Date = Date()
     ) throws -> V2UserMemoryRecord {
         let statement = try normalized(statement)
-        return try commit { snapshot in
+        return try commit(commandID: "core.notes.update") { snapshot in
             guard let original = snapshot.records.first(where: { $0.id == id }) else {
                 throw V2MemoryError.recordNotFound(id)
             }
@@ -256,7 +262,7 @@ public final class V2MemoryEngine {
     }
 
     public func forget(id: String) throws {
-        try commit { snapshot in
+        try commit(commandID: "core.notes.delete") { snapshot in
             guard snapshot.records.contains(where: { $0.id == id }) else {
                 throw V2MemoryError.recordNotFound(id)
             }
@@ -316,10 +322,17 @@ public final class V2MemoryEngine {
     }
 
     private func commit<Result>(
+        commandID: String,
         _ mutation: (inout V2MemorySnapshot) throws -> Result
     ) throws -> Result {
+        if let moduleRuntime {
+            try moduleRuntime.requireCommand(commandID, modules: ["core.notes"])
+        }
         var next = snapshot
         let result = try mutation(&next)
+        if let moduleRuntime {
+            try moduleRuntime.requireCommand(commandID, modules: ["core.notes"])
+        }
         try store?.save(next)
         snapshot = next
         return result

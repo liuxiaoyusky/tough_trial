@@ -253,6 +253,48 @@ func checkTaskCompletionSignalUsesLeafDoneAndChildAverage() {
     require(!plannedLeaf.containsTask(id: "done-leaf"), "Leaf task lookup should not match sibling nodes")
 }
 
+func checkTaskTreeLayoutKeepsExpandedSubtreesSeparate() {
+    let state = V2PrototypeState.sample()
+    guard let root = state.tasks.first else {
+        preconditionFailure("Sample task tree should have a root")
+    }
+
+    let expandedNodeIDs = Set(
+        state.flattenTasks()
+            .filter { !$0.children.isEmpty }
+            .map(\.id)
+    )
+    let layout = V2TaskTreeLayout(
+        root: root,
+        expandedNodeIDs: expandedNodeIDs
+    )
+    let branches = layout.entries
+        .filter { $0.depth == 1 }
+        .sorted { $0.centerY < $1.centerY }
+
+    require(branches.count >= 3, "Layout fixture should expose multiple parent branches")
+    for pair in zip(branches, branches.dropFirst()) {
+        require(
+            pair.0.subtreeBottom < pair.1.subtreeTop,
+            "Expanded parent subtrees should receive non-overlapping vertical ranges"
+        )
+    }
+    require(layout.contentHeight > 650, "Large expanded trees should grow into a vertically scrollable canvas")
+    require(
+        layout.entries.contains { $0.node.id == "leaf-hit-retention" },
+        "Expanded parents should expose their leaf nodes"
+    )
+
+    let collapsedLayout = V2TaskTreeLayout(
+        root: root,
+        expandedNodeIDs: expandedNodeIDs.subtracting(["branch-topic-bank"])
+    )
+    require(
+        !collapsedLayout.entries.contains { $0.node.id == "leaf-hit-retention" },
+        "Collapsing a parent should remove its descendants from the visible layout"
+    )
+}
+
 func checkQuickAddTodayTask() {
     var state = V2PrototypeState.sample()
     let originalTaskCount = state.flattenTasks().count
@@ -387,6 +429,7 @@ checkFocusingActiveSessionMovesItToPrimary()
 checkSampleSupportsTodayLiveTrayPrototype()
 checkSampleSupportsTaskStructureMap()
 checkTaskCompletionSignalUsesLeafDoneAndChildAverage()
+checkTaskTreeLayoutKeepsExpandedSubtreesSeparate()
 checkQuickAddTodayTask()
 checkScheduledTaskModelAndQuickAddIsolation()
 checkPlanPromptDraftIsolation()
@@ -395,23 +438,113 @@ checkAcceptPlanDraft()
 checkSaveThenAcceptPlanDraftDoesNotDuplicate()
 checkRecallReferenceAndFullscreen()
 checkRecallDatesAreIsolated()
+checkAgentSessionsStayIsolated()
+try checkAgentBrowserStateRoundTrips()
+try checkAgentProviderStateStaysIsolatedAndPersists()
+try checkAgentTraceSubjectValueBoundaries()
+try checkAgentTraceAPIShapeAndRoundTrips()
+checkWebSourceStringInitializerRejectsInvalidURL()
+checkAgentWorkspaceTitleAndSelectionRules()
+try checkAgentWorkspaceCodableAndCorruptionBoundary()
 try checkEngineTaskTreeAndCompletion()
 try checkEngineExecutionFacts()
 try checkEnginePersistenceAndRecovery()
+try checkTaskImportIsIdempotentAndBuildsHierarchy()
+try checkTaskImportPreservesCompletionAndRollsBackInvalidHierarchy()
+try checkLegacyTaskWithoutSourceReferenceStillDecodes()
 try checkTodayProjectionUsesDurableFacts()
 try checkSchedulePlanDraftLifecycle()
+checkPlanDraftCanResumeAsEditableArtifact()
 try checkBreakdownPlanDraftCreatesTreeAtomically()
 try checkPlanDraftFailureRollsBackAndDiscardStaysClean()
 try checkMixedPlanDraftCreatesLinkedTreeAndScheduleAtomically()
 try checkRecallEvidenceAndDeviation()
 try checkRecallEntryPersistenceAndReferenceValidation()
+try checkHandwritingOnlyRecallAndLegacyDecoding()
 try checkRecallEvidenceClipsCrossDayExecution()
 try checkRecallDeviationWaitsUntilPlansAreDue()
 try checkRecallReferenceCandidatesStayEvidenceBacked()
 try checkWeeklyRunningPlanExecutionRecallLoop()
 try await checkAIPlanningClients()
+try await checkAgentClientRequestsAToolWithoutExposingReasoning()
+try await checkAgentClientRejectsInvalidOutputAndHandlesOptionalMetadata()
+checkAgentTurnPolicyStopsAfterThreeTools()
+checkAgentTurnPolicyDoesNotChargeAnswers()
+checkAgentAutomaticActionsCannotAcceptPlans()
+checkAgentPlanningRequestUsesSessionContext()
+try await checkAIModelCatalog()
 try checkMemoryPersistenceCorrectionAndForget()
 try checkTemporaryMemoryExpiryAndCorruptionBoundary()
 try checkDreamingEligibilityAndDraftOnlySuggestions()
+try await checkExternalConnectorFixtureProtocol()
+try checkDuckDuckGoResultsBecomeSources()
+try checkDuckDuckGoRedirectsResolveToDestination()
+try checkDuckDuckGoRedirectRejectsNonHTTPDestination()
+try checkWebRedirectPolicyValidatesEveryDestination()
+try checkDuckDuckGoParserFailsUnsupportedMarkup()
+try checkDuckDuckGoParserRejectsLookalikeAttributes()
+try checkDuckDuckGoParserHonorsResultLimits()
+await checkWebReaderRejectsUnsafeSchemes()
+try await checkWebReaderBoundsAndHTMLExtraction()
+try await checkWebReaderRejectsNonHTMLResponsesAndUnsafeRedirects()
+try checkWebPayloadBoundsStopCollection()
+try await checkDuckDuckGoSearchClientUsesEncodedGETAndCapsResults()
+
+try checkUsageTracePersistenceAndBounds()
+
+try checkScheduleCommandAtomicRollback()
+try checkScheduleCommandAppliesAndPersistsReceipt()
+try checkScheduleCommandUndoPreservesUnrelatedAndRejectsConflict()
+try checkScheduleCommandArchiveUndoRestoresDescendantsAndKeepsExecution()
+try checkScheduleCommandReschedulePreservesPlanIdentityAndExecutionEvidence()
+try checkScheduleCommandRejectsStaleExpectedSnapshotButAllowsUnrelatedChanges()
+try checkScheduleCommandLoadsLegacySnapshotWithoutReceipts()
+
+try checkScheduleCommandContextBaselineAndDSTRules()
+try checkScheduleCommandPreservesOvernightDelayAndRejectsAliasCollisions()
+try checkScheduleCommandUndoRejectsLaterContextChild()
+
+try await checkGitHubScheduleVersionedWrites()
+
+try await checkScheduleClientRequestShapeAndProposal()
+try checkScheduleClientDecodesEveryOperation()
+try checkScheduleClientDecodesClarification()
+try checkScheduleClientParsesWallClockTime()
+try checkScheduleGLMCodingCompatibility()
+try await checkScheduleClientRejectsInvalidOutputAndHTTPFailures()
+try await checkScheduleClientRejectsInvalidConfigurationAndBounds()
+try checkScheduleClientProviderMetadataAndCoreValidation()
+
+try checkScheduleMarkdownRoundTripPreservesDocumentIdentity()
+try checkScheduleMarkdownRoundTripPreservesAllOwnedFields()
+try checkScheduleMarkdownPreservesLiteralProtocolText()
+try checkScheduleMarkdownTextEncodingCompatibility()
+try checkScheduleMarkdownHumanFieldsAreEditable()
+try checkScheduleMarkdownAssignsStableIDsToNewRows()
+try checkScheduleMarkdownRejectsBrokenDocumentsWithoutPartialResults()
+try checkScheduleMergeCombinesIndependentEdits()
+try checkScheduleMergeRetainsConcurrentFieldCandidates()
+try checkScheduleMergeRetainsMissingRowsAndAppendsExecutionFacts()
+try checkScheduleMergeConflictsWhenExecutionFactChanges()
+try checkScheduleMergeValidatesDocumentIdentityAndHierarchy()
+try checkScheduleMergePreservesConcurrentUnknown正文()
+try checkScheduleMarkdownOvernightAndExecutionIntegrity()
+
+try await checkRemoteRequestsRoundTripMergeAndProcessing()
+
+try await checkRemoteRunnerRereadsConcurrentCompletion()
+
+try checkDocumentImportAtomicityAndRecovery()
+
+try checkDocumentPreservesSubmillisecondExecutionTimes()
+
+try await checkScheduleSyncOfflineRetryAndLateLocalEdits()
+try await checkScheduleSyncConcurrentFieldsAndStaleConfiguration()
+
+try await checkScheduleConflictAIContractApplyUndoAndStaleProtection()
+
+try checkScheduleConflictCannotRewriteExecutionFacts()
 
 print("ToughTrialV2Checks passed")
+
+checkDirectCreationRoutingIsConservative()

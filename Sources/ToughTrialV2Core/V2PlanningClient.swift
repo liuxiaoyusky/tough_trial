@@ -25,34 +25,90 @@ public struct V2PlanningTaskContext: Codable, Equatable, Sendable {
     }
 }
 
+public struct V2PlanningConversationMessage: Codable, Equatable, Sendable {
+    public var role: V2PlanMessage.Role
+    public var text: String
+
+    public init(role: V2PlanMessage.Role, text: String) {
+        self.role = role
+        self.text = text
+    }
+}
+
 public struct V2PlanningRequest: Equatable, Sendable {
     public var userPrompt: String
     public var clarificationResponse: String?
     public var scope: String?
+    public var conversationIdentifier: String?
     public var referenceDate: Date
     public var timeZoneIdentifier: String
     public var tasks: [V2PlanningTaskContext]
     public var memoryStatements: [String]
+    public var conversation: [V2PlanningConversationMessage]
     public var currentDraft: V2PlanDraft?
 
     public init(
         userPrompt: String,
         clarificationResponse: String? = nil,
         scope: String? = nil,
+        conversationIdentifier: String? = nil,
         referenceDate: Date,
         timeZoneIdentifier: String,
         tasks: [V2PlanningTaskContext] = [],
         memoryStatements: [String] = [],
+        conversation: [V2PlanningConversationMessage] = [],
         currentDraft: V2PlanDraft? = nil
     ) {
         self.userPrompt = userPrompt
         self.clarificationResponse = clarificationResponse
         self.scope = scope
+        self.conversationIdentifier = conversationIdentifier
         self.referenceDate = referenceDate
         self.timeZoneIdentifier = timeZoneIdentifier
         self.tasks = tasks
         self.memoryStatements = memoryStatements
+        self.conversation = conversation
         self.currentDraft = currentDraft
+    }
+
+    public init(
+        agentSession: V2AgentSession,
+        query: String,
+        tasks: [V2PlanningTaskContext],
+        memoryStatements: [String],
+        referenceDate: Date,
+        timeZoneIdentifier: String
+    ) {
+        let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let pendingPrompt = agentSession.pendingPlanPrompt?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let draftPrompt = agentSession.pendingPlan?.userPrompt
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let originalPrompt = [pendingPrompt, draftPrompt]
+            .compactMap { $0 }
+            .first { !$0.isEmpty }
+
+        self.init(
+            userPrompt: originalPrompt ?? normalizedQuery,
+            clarificationResponse: originalPrompt == nil ? nil : normalizedQuery,
+            scope: agentSession.sourceTask.map {
+                "聚焦任务：\($0.title)（task_id: \($0.id)）"
+            },
+            conversationIdentifier: agentSession.id,
+            referenceDate: referenceDate,
+            timeZoneIdentifier: timeZoneIdentifier,
+            tasks: tasks,
+            memoryStatements: memoryStatements,
+            conversation: agentSession.messages.suffix(40).compactMap { message in
+                let text = message.plainText.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !text.isEmpty else { return nil }
+                return V2PlanningConversationMessage(
+                    role: message.role == .user ? .user : .agent,
+                    text: String(text.prefix(4_000))
+                )
+            },
+            currentDraft: agentSession.pendingPlan
+        )
     }
 }
 
@@ -263,7 +319,181 @@ public extension V2RemotePlanningClient where Transport == V2URLSessionPlanningT
     }
 }
 
-private extension V2RemotePlanningClient {
+public struct V2OpenAICompatiblePlanningConfiguration: Equatable, Sendable {
+    public var endpoint: URL
+    public var apiKey: String
+    public var model: String
+    public var providerLabel: String
+    public var usesPromptCacheKey: Bool
+    public var thinking: V2AIThinking
+
+    public init(
+        endpoint: URL,
+        apiKey: String,
+        model: String,
+        providerLabel: String = "在线 AI",
+        usesPromptCacheKey: Bool = false,
+        thinking: V2AIThinking? = nil
+    ) {
+        self.endpoint = endpoint
+        self.apiKey = apiKey
+        self.model = model
+        self.providerLabel = providerLabel
+        self.usesPromptCacheKey = usesPromptCacheKey
+        self.thinking = thinking ?? V2AIThinking.defaultSelection(endpoint: endpoint, model: model)
+    }
+}
+
+public struct V2OpenAICompatiblePlanningClient<Transport: V2PlanningHTTPTransport>: V2PlanningClient {
+    public var providerLabel: String {
+        let label = configuration.providerLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+        return label.isEmpty ? "在线 AI" : label
+    }
+
+    private let configuration: V2OpenAICompatiblePlanningConfiguration
+    private let transport: Transport
+
+    public init(
+        configuration: V2OpenAICompatiblePlanningConfiguration,
+        transport: Transport
+    ) {
+        self.configuration = configuration
+        self.transport = transport
+    }
+
+    public func generate(_ request: V2PlanningRequest) async throws -> V2PlanningOutcome {
+        let urlRequest = try makeURLRequest(for: request)
+        let (data, response) = try await transport.data(for: urlRequest)
+        guard (200..<300).contains(response.statusCode) else {
+            throw V2PlanningClientError.requestFailed(
+                statusCode: response.statusCode,
+                message: V2RemotePlanningClient<Transport>.serverErrorMessage(from: data)
+            )
+        }
+        return try decodeResponse(data, request: request)
+    }
+
+    public func makeURLRequest(for request: V2PlanningRequest) throws -> URLRequest {
+        let key = configuration.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let model = configuration.model.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty else {
+            throw V2PlanningClientError.invalidConfiguration("缺少 API key")
+        }
+        guard !model.isEmpty else {
+            throw V2PlanningClientError.invalidConfiguration("缺少模型名称")
+        }
+
+        var urlRequest = URLRequest(url: configuration.endpoint)
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        urlRequest.httpBody = try JSONSerialization.data(
+            withJSONObject: try Self.requestBody(configuration: configuration, request: request),
+            options: [.sortedKeys]
+        )
+        return urlRequest
+    }
+
+    public func decodeResponse(
+        _ data: Data,
+        request: V2PlanningRequest
+    ) throws -> V2PlanningOutcome {
+        let response: ResponseEnvelope
+        do {
+            response = try JSONDecoder().decode(ResponseEnvelope.self, from: data)
+        } catch {
+            throw V2PlanningClientError.invalidOutput("响应结构无法解析")
+        }
+
+        for choice in response.choices {
+            if let refusal = choice.message.refusal?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+               !refusal.isEmpty {
+                throw V2PlanningClientError.refused(refusal)
+            }
+            guard let content = choice.message.content?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+                !content.isEmpty
+            else {
+                continue
+            }
+            return try V2RemotePlanningClient<Transport>.decodeStructuredOutput(
+                content,
+                request: request
+            )
+        }
+        throw V2PlanningClientError.missingOutput
+    }
+}
+
+public extension V2OpenAICompatiblePlanningClient where Transport == V2URLSessionPlanningTransport {
+    init(configuration: V2OpenAICompatiblePlanningConfiguration) {
+        self.init(configuration: configuration, transport: V2URLSessionPlanningTransport())
+    }
+}
+
+private extension V2OpenAICompatiblePlanningClient {
+    struct ResponseEnvelope: Decodable {
+        var choices: [Choice]
+    }
+
+    struct Choice: Decodable {
+        var message: Message
+    }
+
+    struct Message: Decodable {
+        var content: String?
+        var refusal: String?
+    }
+
+    static func requestBody(
+        configuration: V2OpenAICompatiblePlanningConfiguration,
+        request: V2PlanningRequest
+    ) throws -> [String: Any] {
+        let userPayload: [String: Any] = [
+            "request": V2RemotePlanningClient<Transport>.planningInput(request),
+            "output_schema": V2RemotePlanningClient<Transport>.structuredOutputSchema,
+        ]
+        let userContent = String(
+            data: try! JSONSerialization.data(withJSONObject: userPayload, options: [.sortedKeys]),
+            encoding: .utf8
+        )!
+
+        var body: [String: Any] = [
+            "model": configuration.model,
+            "messages": [
+                [
+                    "role": "system",
+                    "content": """
+                    \(V2RemotePlanningClient<Transport>.systemInstructions)
+                    你必须只返回符合 output_schema 的 JSON 对象，不要使用 Markdown 代码块。
+                    """,
+                ],
+                [
+                    "role": "user",
+                    "content": userContent,
+                ],
+            ],
+            "response_format": ["type": "json_object"],
+            "stream": false,
+            "max_tokens": 4_096,
+        ]
+        if configuration.usesPromptCacheKey,
+           let cacheKey = request.conversationIdentifier?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !cacheKey.isEmpty {
+            body["prompt_cache_key"] = cacheKey
+        }
+        return try V2OpenAIRequestCompatibility.makeBody(
+            body,
+            endpoint: configuration.endpoint,
+            model: configuration.model,
+            thinking: configuration.thinking
+        )
+    }
+}
+
+fileprivate extension V2RemotePlanningClient {
     struct ResponseEnvelope: Decodable {
         var output: [Output]
     }
@@ -478,7 +708,26 @@ private extension V2RemotePlanningClient {
         configuration: V2RemotePlanningConfiguration,
         request: V2PlanningRequest
     ) -> [String: Any] {
-        let input: [String: Any] = [
+        let input = planningInput(request)
+
+        return [
+            "model": configuration.model,
+            "store": false,
+            "instructions": systemInstructions,
+            "input": String(data: try! JSONSerialization.data(withJSONObject: input, options: [.sortedKeys]), encoding: .utf8)!,
+            "text": [
+                "format": [
+                    "type": "json_schema",
+                    "name": "tough_trial_plan",
+                    "strict": true,
+                    "schema": structuredOutputSchema,
+                ],
+            ],
+        ]
+    }
+
+    static func planningInput(_ request: V2PlanningRequest) -> [String: Any] {
+        [
             "user_prompt": request.userPrompt,
             "clarification_response": request.clarificationResponse ?? NSNull(),
             "scope": request.scope ?? NSNull(),
@@ -495,6 +744,12 @@ private extension V2RemotePlanningClient {
                 ] as [String: Any]
             },
             "memory_statements": Array(request.memoryStatements.prefix(30)),
+            "conversation": request.conversation.suffix(40).map { message in
+                [
+                    "role": message.role.rawValue,
+                    "text": message.text,
+                ]
+            },
             "current_draft": request.currentDraft.map { draft in
                 [
                     "title": draft.title,
@@ -521,26 +776,15 @@ private extension V2RemotePlanningClient {
                 ] as [String: Any]
             } ?? NSNull(),
         ]
+    }
 
-        return [
-            "model": configuration.model,
-            "store": false,
-            "instructions": """
-            你是 Tough Trial 的轻量计划助手。先判断是否需要澄清，再返回候选计划。
-            不替用户决定如何执行，不做容量冲突或任务替换，不把任何内容视为已保存。
-            可以同时建议拆解任务与安排日期；已有任务只能使用输入中给出的 ID。
-            day_offset 从 reference_date 的当天算起。没有明确时间时使用 null。
-            """,
-            "input": String(data: try! JSONSerialization.data(withJSONObject: input, options: [.sortedKeys]), encoding: .utf8)!,
-            "text": [
-                "format": [
-                    "type": "json_schema",
-                    "name": "tough_trial_plan",
-                    "strict": true,
-                    "schema": structuredOutputSchema,
-                ],
-            ],
-        ]
+    static var systemInstructions: String {
+        """
+        你是 Tough Trial 的轻量计划助手。先判断是否需要澄清，再返回候选计划。
+        不替用户决定如何执行，不做容量冲突或任务替换，不把任何内容视为已保存。
+        可以同时建议拆解任务与安排日期；已有任务只能使用输入中给出的 ID。
+        day_offset 从 reference_date 的当天算起。没有明确时间时使用 null。
+        """
     }
 
     static var structuredOutputSchema: [String: Any] {

@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="844" viewBox="0 0 390 844">
+<title>回想</title>
+<rect width="390" height="844" fill="#F6F7F9"/>
+<style>
+text{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',Arial,sans-serif;fill:#111827}
+.muted{fill:#7A8493} .blue{fill:#1467E8} .green{fill:#18885A} .orange{fill:#C46A18}
+.small{font-size:12px} .body{font-size:15px} .label{font-size:13px;font-weight:600}
+.title{font-size:28px;font-weight:750} .h2{font-size:20px;font-weight:700} .h3{font-size:17px;font-weight:650}
+.white{fill:#fff} .mono{font-family:'SF Mono',Menlo,monospace}
+</style>
+<text x="24" y="34" class="small muted">20:38</text>
+
+<circle cx="42" cy="76" r="18" fill="#FFFFFF" stroke="#E7E9ED"/><text x="42" y="81" text-anchor="middle" class="body">⛶</text><text x="72" y="73" class="h2">回想</text><text x="72" y="94" class="small muted">9月20日 · 星期日</text>
+<rect x="238" y="54" width="128" height="38" rx="9" fill="#E9EDF2"/><rect x="241" y="57" width="60" height="36" rx="9" fill="#FFFFFF" stroke="#E7E9ED"/><text x="271.0" y="80" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">文字</text><text x="333.0" y="80" text-anchor="middle" font-size="13" font-weight="600" fill="#7A8493">手写</text>
+<rect x="20" y="122" width="48" height="554" rx="18" fill="#F0F2F5"/>
+<text x="44" y="164" text-anchor="middle" class="small muted">五</text><text x="44" y="184" text-anchor="middle" class="body">18</text><rect x="25" y="204" width="38" height="58" rx="19" fill="#111827"/><text x="44" y="226" text-anchor="middle" class="small white">日</text><text x="44" y="247" text-anchor="middle" class="body white">20</text><text x="44" y="294" text-anchor="middle" class="small muted">一</text><text x="44" y="315" text-anchor="middle" class="body muted">21</text>
+<rect x="84" y="122" width="286" height="554" rx="20" fill="#FFFFFF" stroke="#E7E9ED"/><text x="106" y="160" class="body muted">今天发生了什么？</text><text x="106" y="197" class="body">把真实发生的事情写下来。</text><text x="106" y="227" class="body">可以引用任务、日程和随手记作为线索。</text><line x1="106" y1="256" x2="348" y2="256" stroke="#E7E9ED"/>
+<text x="106" y="296" class="small muted">今天的线索</text><text x="106" y="326" class="body">完成 3 个任务 · 专注 2h 10m</text><text x="106" y="354" class="body">2 条随手记 · 1 笔支出</text>
+<rect x="84" y="698" width="286" height="44" rx="14" fill="#111827"/><text x="227" y="726" text-anchor="middle" class="body white">保存今天的回想</text>
+
+</svg>

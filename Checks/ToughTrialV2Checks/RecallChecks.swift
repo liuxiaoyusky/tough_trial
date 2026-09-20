@@ -200,6 +200,54 @@ func checkRecallEntryPersistenceAndReferenceValidation() throws {
     require(reopened.snapshot == snapshotBeforeFailure, "Blank text must roll back the recall update")
 }
 
+func checkHandwritingOnlyRecallAndLegacyDecoding() throws {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+    let base = calendar.date(from: DateComponents(
+        year: 2027,
+        month: 3,
+        day: 10,
+        hour: 8
+    ))!
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("tough-trial-handwriting-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let store = V2JSONSnapshotStore(fileURL: directory.appendingPathComponent("snapshot.json"))
+    let engine = try V2Engine.load(from: store)
+    let entry = try engine.saveRecallEntry(
+        date: base,
+        text: " \n",
+        hasHandwriting: true,
+        at: base,
+        calendar: calendar
+    )
+
+    require(entry.text.isEmpty, "A handwriting-only recall should normalize whitespace text")
+    require(entry.hasHandwriting, "A handwriting-only recall should persist its media signal")
+
+    let reopened = try V2Engine.load(from: store)
+    let persisted = reopened.recallEntry(on: base, calendar: calendar)
+    require(persisted?.hasHandwriting == true, "The handwriting signal should survive restart")
+    require(persisted?.text.isEmpty == true, "Handwriting-only recall should reopen without fake text")
+
+    let legacyObject: [String: Any] = [
+        "id": "legacy-recall",
+        "date": base.timeIntervalSince1970,
+        "text": "Legacy text",
+        "referencedTaskIDs": [],
+        "referencedSegmentIDs": [],
+        "referencedPlanItemIDs": [],
+        "createdAt": base.timeIntervalSince1970,
+        "updatedAt": base.timeIntervalSince1970
+    ]
+    let legacyData = try JSONSerialization.data(withJSONObject: legacyObject)
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .secondsSince1970
+    let legacyEntry = try decoder.decode(V2RecallEntry.self, from: legacyData)
+    require(!legacyEntry.hasHandwriting, "Legacy recall JSON should default handwriting to false")
+}
+
 func checkRecallEvidenceClipsCrossDayExecution() throws {
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = TimeZone(secondsFromGMT: 0)!

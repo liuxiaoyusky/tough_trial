@@ -3,8 +3,10 @@ import ToughTrialV2Core
 
 @main
 struct ToughTrialV2App: App {
+    init() { _ = V2FinanceNotifications.shared }
     var body: some Scene {
         WindowGroup {
+            Group {
 #if DEBUG
             if let snapshotMode = V2PlanSnapshotMode.current {
                 V2PlanSnapshotHost(mode: snapshotMode)
@@ -16,6 +18,16 @@ struct ToughTrialV2App: App {
 #else
             V2RootView()
 #endif
+            }
+            .task {
+#if DEBUG
+                guard ProcessInfo.processInfo.environment["TOUGH_TRIAL_DEVICE_KEEP_AWAKE"] == "1" else { return }
+                let previous = UIApplication.shared.isIdleTimerDisabled
+                UIApplication.shared.isIdleTimerDisabled = true
+                defer { UIApplication.shared.isIdleTimerDisabled = previous }
+                try? await Task.sleep(for: .seconds(600))
+#endif
+            }
         }
     }
 }

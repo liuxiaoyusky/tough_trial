@@ -124,17 +124,22 @@ public extension V2Engine {
     func saveRecallEntry(
         date: Date,
         text: String,
+        hasHandwriting: Bool = false,
         references: V2RecallReferences = V2RecallReferences(),
         at timestamp: Date = Date(),
         calendar: Calendar = .current
     ) throws -> V2RecallEntry {
-        try commit { snapshot in
-            let validatedText = try Self.validatedRecallText(text)
+        try commit(modules: ["core.recall"], commandID: "core.recall.append") { snapshot in
+            let validatedText = try Self.validatedRecallText(
+                text,
+                hasHandwriting: hasHandwriting
+            )
             let validatedReferences = try Self.validatedRecallReferences(references, snapshot: snapshot)
             let day = calendar.startOfDay(for: date)
 
             if let index = Self.latestRecallEntryIndex(on: day, snapshot: snapshot, calendar: calendar) {
                 snapshot.recallEntries[index].text = validatedText
+                snapshot.recallEntries[index].hasHandwriting = hasHandwriting
                 snapshot.recallEntries[index].referencedTaskIDs = validatedReferences.taskIDs
                 snapshot.recallEntries[index].referencedSegmentIDs = validatedReferences.segmentIDs
                 snapshot.recallEntries[index].referencedPlanItemIDs = validatedReferences.planItemIDs
@@ -146,6 +151,7 @@ public extension V2Engine {
                 id: UUID().uuidString,
                 date: day,
                 text: validatedText,
+                hasHandwriting: hasHandwriting,
                 referencedTaskIDs: validatedReferences.taskIDs,
                 referencedSegmentIDs: validatedReferences.segmentIDs,
                 referencedPlanItemIDs: validatedReferences.planItemIDs,
@@ -162,15 +168,22 @@ public extension V2Engine {
         id: String,
         text: String,
         references: V2RecallReferences,
+        hasHandwriting: Bool? = nil,
         at timestamp: Date = Date()
     ) throws -> V2RecallEntry {
-        try commit { snapshot in
+        try commit(modules: ["core.recall"], commandID: "core.recall.update") { snapshot in
             guard let index = snapshot.recallEntries.firstIndex(where: { $0.id == id }) else {
                 throw V2EngineError.recallEntryNotFound(id)
             }
-            let validatedText = try Self.validatedRecallText(text)
+            let resolvedHasHandwriting =
+                hasHandwriting ?? snapshot.recallEntries[index].hasHandwriting
+            let validatedText = try Self.validatedRecallText(
+                text,
+                hasHandwriting: resolvedHasHandwriting
+            )
             let validatedReferences = try Self.validatedRecallReferences(references, snapshot: snapshot)
             snapshot.recallEntries[index].text = validatedText
+            snapshot.recallEntries[index].hasHandwriting = resolvedHasHandwriting
             snapshot.recallEntries[index].referencedTaskIDs = validatedReferences.taskIDs
             snapshot.recallEntries[index].referencedSegmentIDs = validatedReferences.segmentIDs
             snapshot.recallEntries[index].referencedPlanItemIDs = validatedReferences.planItemIDs
@@ -305,8 +318,14 @@ private extension V2Engine {
         return "\(components.month ?? 1)月\(components.day ?? 1)日"
     }
 
-    static func validatedRecallText(_ text: String) throws -> String {
+    static func validatedRecallText(
+        _ text: String,
+        hasHandwriting: Bool = false
+    ) throws -> String {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            if hasHandwriting {
+                return ""
+            }
             throw V2EngineError.blankRecallText
         }
         return text

@@ -45,7 +45,7 @@ public extension V2Engine {
         at date: Date = Date(),
         calendar: Calendar = .current
     ) throws -> V2PlanDraftRecord {
-        try commit { snapshot in
+        try commit(modules: ["core.tasks"], commandID: "core.tasks.planDraft.save") { snapshot in
             let existingIndex = snapshot.planDrafts.firstIndex(where: { $0.id == draft.id })
             if let existingIndex,
                snapshot.planDrafts[existingIndex].status != .draft {
@@ -75,7 +75,7 @@ public extension V2Engine {
         at date: Date = Date(),
         calendar: Calendar = .current
     ) throws -> V2PlanDraftAcceptance {
-        try commit { snapshot in
+        try commit(modules: ["core.tasks"], commandID: "core.tasks.planDraft.accept") { snapshot in
             guard let draftIndex = snapshot.planDrafts.firstIndex(where: { $0.id == id }) else {
                 throw V2EngineError.planDraftNotFound(id)
             }
@@ -151,7 +151,7 @@ public extension V2Engine {
 
     @discardableResult
     func discardPlanDraft(id: String, at date: Date = Date()) throws -> V2PlanDraftRecord {
-        try commit { snapshot in
+        try commit(modules: ["core.tasks"], commandID: "core.tasks.planDraft.discard") { snapshot in
             guard let index = snapshot.planDrafts.firstIndex(where: { $0.id == id }) else {
                 throw V2EngineError.planDraftNotFound(id)
             }

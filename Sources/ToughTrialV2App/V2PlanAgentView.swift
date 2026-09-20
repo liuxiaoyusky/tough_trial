@@ -8,6 +8,8 @@ struct V2PlanAgentView: View {
     @State private var speechPrefix = ""
     @State private var showHistory = false
     @State private var showMemory = false
+    @State private var showAISettings = false
+    @State private var editingScheduleItem: V2PlanDraftScheduleItem?
     @FocusState private var isComposerFocused: Bool
 
     private let quickReplies = ["可以", "想分两次", "先看看时间"]
@@ -19,11 +21,17 @@ struct V2PlanAgentView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 16) {
-                        if store.state.planConversationPhase == .empty {
+                        if !store.canUsePlanningAI {
+                            V2PlanAISetupPrompt {
+                                showAISettings = true
+                            }
+                        } else if store.state.planConversationPhase == .empty {
                             V2PlanOpeningPrompt(
-                                suggestions: store.dreamingCandidates,
+                                suggestion: store.dreamingCandidates.first,
+                                usesOnlineAI: store.hasConnectedAIService,
                                 onSelect: beginConversation,
-                                onOpenSuggestion: store.openDreamingCandidate
+                                onOpenSuggestion: store.openDreamingCandidate,
+                                onConnectAI: { showAISettings = true }
                             )
                         } else {
                             conversation
@@ -31,7 +39,12 @@ struct V2PlanAgentView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 18)
-                    .padding(.top, store.state.planConversationPhase == .empty ? 112 : 22)
+                    .padding(
+                        .top,
+                        !store.canUsePlanningAI || store.state.planConversationPhase == .empty
+                            ? 112
+                            : 22
+                    )
                     .padding(.bottom, 24)
                 }
                 .scrollDismissesKeyboard(.interactively)
@@ -44,25 +57,55 @@ struct V2PlanAgentView: View {
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            V2PlanComposer(
-                scope: Binding(
-                    get: { store.state.planScope },
-                    set: { store.setPlanScope($0) }
-                ),
-                promptText: $promptText,
-                placeholder: composerPlaceholder,
-                isFocused: $isComposerFocused,
-                isBusy: store.isPlanning,
-                isListening: speech.isListening,
-                onMic: toggleSpeech,
-                onSend: sendPrompt
+            if store.canUsePlanningAI {
+                V2PlanComposer(
+                    promptText: $promptText,
+                    placeholder: composerPlaceholder,
+                    isFocused: $isComposerFocused,
+                    isBusy: store.isPlanning,
+                    isListening: speech.isListening,
+                    onMic: toggleSpeech,
+                    onSend: sendPrompt
+                )
+            }
+        }
+        .v2Sheet(isPresented: $showHistory) {
+            V2PlanHistorySheet(
+                drafts: store.pendingPlanDrafts,
+                onResume: { draft in
+                    store.resumePlanDraft(draft)
+                    showHistory = false
+                },
+                onNew: {
+                    store.startNewPlanConversation()
+                    showHistory = false
+                },
+                onOpenAISettings: {
+                    showHistory = false
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(350))
+                        showAISettings = true
+                    }
+                },
+                onOpenMemory: {
+                    showHistory = false
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(350))
+                        showMemory = true
+                    }
+                }
             )
         }
-        .sheet(isPresented: $showHistory) {
-            V2PlanHistorySheet(drafts: store.pendingPlanDrafts)
-        }
-        .sheet(isPresented: $showMemory) {
+        .v2Sheet(isPresented: $showMemory) {
             V2MemorySheet(store: store)
+        }
+        .v2Sheet(isPresented: $showAISettings) {
+            V2AIProviderSettingsView(store: store)
+        }
+        .v2Sheet(item: $editingScheduleItem) { item in
+            V2PlanScheduleItemEditor(item: item) { updatedItem in
+                store.updateCurrentPlanScheduleItem(updatedItem)
+            }
         }
         .alert("操作未完成", isPresented: errorBinding) {
             Button("知道了") {
@@ -128,7 +171,8 @@ struct V2PlanAgentView: View {
                         .foregroundStyle(V2Theme.tertiary)
                 }
                 .id("plan-loading")
-            } else if store.state.planConversationPhase == .clarifying {
+            } else if store.state.planConversationPhase == .clarifying,
+                      store.planningFailureMessage == nil {
                 V2PlanQuickReplies(replies: displayedQuickReplies) { reply in
                     Task { @MainActor in
                         await store.submitPlanClarification(reply)
@@ -137,13 +181,17 @@ struct V2PlanAgentView: View {
                 .id("plan-quick-replies")
             }
 
+            if let failure = store.planningFailureMessage {
+                V2PlanFailureRow(message: failure) {
+                    showAISettings = true
+                }
+                .id("plan-failure")
+            }
+
             if let draft = store.state.currentPlanDraft {
                 V2PlanInlineDraft(
                     draft: draft,
-                    onSave: { store.saveCurrentPlanDraft() },
-                    onContinue: {
-                        isComposerFocused = true
-                    },
+                    onEdit: { editingScheduleItem = $0 },
                     onAccept: { store.acceptCurrentPlanDraft() }
                 )
                 .id("current-plan-draft")
@@ -167,30 +215,28 @@ struct V2PlanAgentView: View {
                     Text(detail)
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(V2Theme.tertiary)
+                        .accessibilityIdentifier(
+                            store.planningSourceTask == nil
+                                ? "plan.context.general"
+                                : "plan.context.task"
+                        )
                 }
             }
 
             Spacer()
 
-            Menu {
-                Button {
-                    showHistory = true
-                } label: {
-                    Label("草稿历史", systemImage: "clock")
-                }
-                Button {
-                    showMemory = true
-                } label: {
-                    Label("记忆", systemImage: "brain")
-                }
+            Button {
+                showHistory = true
             } label: {
-                Image(systemName: "ellipsis")
+                Image(systemName: "clock.arrow.circlepath")
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(V2Theme.secondary)
                     .frame(width: 40, height: 40)
                     .contentShape(Rectangle())
             }
-            .accessibilityLabel("计划选项")
+            .buttonStyle(.plain)
+            .accessibilityLabel("计划历史")
+            .accessibilityIdentifier("plan.history")
         }
         .padding(.horizontal, 18)
         .padding(.top, 10)
@@ -200,9 +246,12 @@ struct V2PlanAgentView: View {
 
     private var headerDetail: String? {
         if store.state.planConversationPhase == .reviewingDraft {
-            return "\(max(1, store.planDraftCount))个草稿"
+            return "草稿已自动保存"
         }
-        return store.state.planScope ?? store.planningProviderLabel
+        if let task = store.planningSourceTask {
+            return "来自任务：\(task.title)"
+        }
+        return nil
     }
 
     private var displayedQuickReplies: [String] {
@@ -267,95 +316,144 @@ struct V2PlanAgentView: View {
     }
 }
 
-private struct V2PlanOpeningPrompt: View {
-    let suggestions: [V2DreamingCandidate]
-    let onSelect: (String) -> Void
-    let onOpenSuggestion: (V2DreamingCandidate) -> Void
-
-    private let firstRow = ["这周想跑 10 公里", "明天安排得轻一点"]
-    private let secondRow = ["帮我拆解论文写作"]
+private struct V2PlanAISetupPrompt: View {
+    let onConfigure: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            Text("想怎么安排？")
-                .font(.system(size: 30, weight: .bold))
-                .foregroundStyle(V2Theme.ink)
+        VStack(alignment: .leading, spacing: 18) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(V2Theme.violet)
+                .frame(width: 44, height: 44)
+                .background(V2Theme.violet.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
-            VStack(alignment: .leading, spacing: 9) {
-                HStack(spacing: 8) {
-                    ForEach(firstRow, id: \.self) { prompt in
-                        promptButton(prompt)
-                    }
-                }
+            VStack(alignment: .leading, spacing: 8) {
+                Text("先连接 AI")
+                    .font(V2Theme.TypeRole.displayMedium)
+                    .foregroundStyle(V2Theme.ink)
 
-                HStack(spacing: 8) {
-                    ForEach(secondRow, id: \.self) { prompt in
-                        promptButton(prompt)
-                    }
-                }
+                Text("配置一个 AI 服务后，才能开始规划。")
+                    .font(V2Theme.TypeRole.bodyMedium)
+                    .foregroundStyle(V2Theme.secondary)
             }
 
-            if !suggestions.isEmpty {
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("可以顺手看看")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(V2Theme.tertiary)
-                        .padding(.bottom, 5)
-
-                    ForEach(suggestions) { suggestion in
-                        Button {
-                            onOpenSuggestion(suggestion)
-                        } label: {
-                            HStack(spacing: 11) {
-                                Image(systemName: suggestion.kind == .schedule
-                                    ? "calendar.badge.clock"
-                                    : "arrow.triangle.branch")
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundStyle(V2Theme.violet)
-                                    .frame(width: 28)
-
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(suggestion.title)
-                                        .font(.system(size: 14, weight: .semibold))
-                                        .foregroundStyle(V2Theme.ink)
-                                    Text(suggestion.summary)
-                                        .font(.system(size: 12, weight: .medium))
-                                        .foregroundStyle(V2Theme.tertiary)
-                                        .lineLimit(1)
-                                }
-
-                                Spacer(minLength: 4)
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .foregroundStyle(V2Theme.tertiary)
-                            }
-                            .frame(minHeight: 52)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.top, 10)
+            Button(action: onConfigure) {
+                Label("配置 AI 服务", systemImage: "arrow.right")
+                    .font(V2Theme.TypeRole.labelMedium)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .frame(height: 46)
+                    .background(V2Theme.blue)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("plan.configureAI")
+
+            Text("支持 SiliconFlow、Kimi、GLM 和 OpenAI 兼容服务")
+                .font(V2Theme.TypeRole.bodySmall)
+                .foregroundStyle(V2Theme.tertiary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
+}
 
-    private func promptButton(_ prompt: String) -> some View {
-        Button(prompt) {
-            onSelect(prompt)
+private struct V2PlanOpeningPrompt: View {
+    let suggestion: V2DreamingCandidate?
+    let usesOnlineAI: Bool
+    let onSelect: (String) -> Void
+    let onOpenSuggestion: (V2DreamingCandidate) -> Void
+    let onConnectAI: () -> Void
+
+    private let prompts = ["这周想跑 10 公里", "明天安排得轻一点"]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 28) {
+            Text("想怎么安排？")
+                .font(V2Theme.TypeRole.displayMedium)
+                .foregroundStyle(V2Theme.ink)
+
+            VStack(spacing: 0) {
+                ForEach(Array(prompts.enumerated()), id: \.element) { index, prompt in
+                    Button {
+                        onSelect(prompt)
+                    } label: {
+                        HStack(spacing: 12) {
+                            Text(prompt)
+                                .font(V2Theme.TypeRole.bodyMedium)
+                                .foregroundStyle(V2Theme.secondary)
+                            Spacer(minLength: 12)
+                            Image(systemName: "arrow.up.right")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(V2Theme.tertiary)
+                        }
+                        .frame(minHeight: 48)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+
+                    if index < prompts.count - 1 {
+                        Divider().overlay(V2Theme.line.opacity(0.75))
+                    }
+                }
+            }
+
+            if let suggestion {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("一个建议")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(V2Theme.tertiary)
+
+                    Button {
+                        onOpenSuggestion(suggestion)
+                    } label: {
+                        HStack(spacing: 11) {
+                            Image(systemName: suggestion.kind == .schedule
+                                ? "calendar.badge.clock"
+                                : "arrow.triangle.branch")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(V2Theme.violet)
+                                .frame(width: 26)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(suggestion.title)
+                                    .font(V2Theme.TypeRole.labelMedium)
+                                    .foregroundStyle(V2Theme.ink)
+                                Text(suggestion.summary)
+                                    .font(V2Theme.TypeRole.bodySmall)
+                                    .foregroundStyle(V2Theme.tertiary)
+                                    .lineLimit(1)
+                            }
+
+                            Spacer(minLength: 4)
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(V2Theme.tertiary)
+                        }
+                        .frame(minHeight: 48)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            if !usesOnlineAI {
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(V2Theme.orange)
+                        .frame(width: 6, height: 6)
+                    Text("当前使用基础规划")
+                        .font(V2Theme.TypeRole.bodySmall)
+                        .foregroundStyle(V2Theme.tertiary)
+                    Spacer()
+                    Button("连接在线 AI", action: onConnectAI)
+                        .font(V2Theme.TypeRole.labelMedium)
+                        .foregroundStyle(V2Theme.blue)
+                        .accessibilityIdentifier("plan.connectAI")
+                }
+            }
         }
-        .font(.system(size: 13, weight: .semibold))
-        .foregroundStyle(V2Theme.secondary)
-        .lineLimit(1)
-        .padding(.horizontal, 13)
-        .frame(height: 38)
-        .background(V2Theme.ColorRole.surfaceRaised)
-        .clipShape(Capsule())
-        .overlay {
-            Capsule().stroke(V2Theme.line, lineWidth: 1)
-        }
-        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -426,25 +524,56 @@ private struct V2PlanQuickReplies: View {
     }
 }
 
-private struct V2PlanInlineDraft: View {
-    let draft: V2PlanDraft
-    let onSave: () -> Void
-    let onContinue: () -> Void
-    let onAccept: () -> Void
+private struct V2PlanFailureRow: View {
+    let message: String
+    let onOpenSettings: () -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            RoundedRectangle(cornerRadius: 2, style: .continuous)
-                .fill(V2Theme.violet)
-                .frame(width: 3)
+        VStack(alignment: .leading, spacing: 10) {
+            Label("没有收到可用回复", systemImage: "exclamationmark.bubble")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(V2Theme.ink)
 
-            VStack(alignment: .leading, spacing: 12) {
-                VStack(alignment: .leading, spacing: 3) {
+            Text(message)
+                .font(.system(size: 13))
+                .foregroundStyle(V2Theme.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button("检查 AI 服务", action: onOpenSettings)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(V2Theme.blue)
+                .accessibilityIdentifier("plan.failure.settings")
+        }
+        .padding(.leading, 13)
+        .overlay(alignment: .leading) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(V2Theme.orange)
+                .frame(width: 3)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct V2PlanInlineDraft: View {
+    let draft: V2PlanDraft
+    var isAccepted = false
+    let onEdit: (V2PlanDraftScheduleItem) -> Void
+    let onAccept: () -> Void
+    @State private var showsReasons = false
+
+    var body: some View {
+        Group {
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("计划草稿 · 自动保存")
+                        .font(V2Theme.TypeRole.labelSmall)
+                        .foregroundStyle(V2Theme.blue)
+
                     Text(draft.title)
-                        .font(.system(size: 18, weight: .bold))
+                        .font(V2Theme.TypeRole.titleLarge)
                         .foregroundStyle(V2Theme.ink)
                     Text(draft.summary)
-                        .font(.system(size: 13, weight: .medium))
+                        .font(V2Theme.TypeRole.bodySmall)
                         .foregroundStyle(V2Theme.tertiary)
                 }
 
@@ -459,73 +588,145 @@ private struct V2PlanInlineDraft: View {
 
                 VStack(spacing: 0) {
                     ForEach(Array(draft.scheduleItems.enumerated()), id: \.element.id) { index, item in
-                        V2PlanDraftRow(item: item)
-                        if index < draft.scheduleItems.count - 1 {
-                            Divider()
-                                .overlay(V2Theme.line)
-                        }
+                        V2PlanDraftRow(
+                            item: item,
+                            isLast: index == draft.scheduleItems.count - 1,
+                            isEditable: !isAccepted,
+                            onEdit: { onEdit(item) }
+                        )
                     }
                 }
 
+                if !draft.decisions.isEmpty {
+                    DisclosureGroup(isExpanded: $showsReasons) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(draft.decisions, id: \.self) { decision in
+                                Text(decision)
+                                    .font(V2Theme.TypeRole.bodySmall)
+                                    .foregroundStyle(V2Theme.secondary)
+                            }
+                        }
+                        .padding(.top, 8)
+                    } label: {
+                        Text("为什么这样安排")
+                            .font(V2Theme.TypeRole.labelMedium)
+                            .foregroundStyle(V2Theme.secondary)
+                    }
+                    .tint(V2Theme.tertiary)
+                }
+
                 HStack(spacing: 10) {
-                    Button("存草稿", action: onSave)
-                        .foregroundStyle(V2Theme.tertiary)
-
                     Spacer(minLength: 8)
-
-                    Button("继续聊", action: onContinue)
-                        .foregroundStyle(V2Theme.ink)
-
-                    Button("加入计划", action: onAccept)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 16)
-                        .frame(height: 42)
-                        .background(V2Theme.blue)
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    if isAccepted {
+                        Label("已加入计划", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(V2Theme.mint)
+                            .accessibilityIdentifier("assistant.plan.accepted")
+                    } else {
+                        Button("加入计划", action: onAccept)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 18)
+                            .frame(height: 44)
+                            .background(V2Theme.blue)
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .accessibilityIdentifier("assistant.plan.accept")
+                    }
                 }
                 .font(.system(size: 14, weight: .semibold))
                 .buttonStyle(.plain)
             }
         }
+        .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .background(V2Theme.ColorRole.surfaceRaised, in: RoundedRectangle(cornerRadius: 22))
+        .overlay(RoundedRectangle(cornerRadius: 22).stroke(V2Theme.line.opacity(0.65)))
     }
 }
 
 private struct V2PlanDraftRow: View {
     let item: V2PlanDraftScheduleItem
+    let isLast: Bool
+    var isEditable = true
+    let onEdit: () -> Void
 
     var body: some View {
-        HStack(spacing: 10) {
-            Text(Self.weekdayFormatter.string(from: item.date))
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(V2Theme.tertiary)
-                .frame(width: 44, alignment: .leading)
+        Button(action: onEdit) {
+            HStack(alignment: .top, spacing: 10) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(Self.weekdayFormatter.string(from: item.date))
+                        .font(V2Theme.TypeRole.labelMedium)
+                        .foregroundStyle(V2Theme.secondary)
+                    Text(Self.dateFormatter.string(from: item.date))
+                        .font(V2Theme.TypeRole.labelSmall)
+                        .foregroundStyle(V2Theme.tertiary)
+                }
+                .frame(width: 48, alignment: .leading)
 
-            Text(item.title)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(V2Theme.ink)
-                .lineLimit(2)
+                timelineMarker
 
-            Spacer(minLength: 8)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(item.title)
+                        .font(V2Theme.TypeRole.labelLarge)
+                        .foregroundStyle(V2Theme.ink)
+                        .lineLimit(2)
+                    Text(timeLabel)
+                        .font(V2Theme.TypeRole.bodySmall)
+                        .foregroundStyle(V2Theme.tertiary)
+                        .monospacedDigit()
+                }
 
-            Text(timeLabel)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(V2Theme.tertiary)
-                .monospacedDigit()
+                Spacer(minLength: 8)
+
+                if isEditable {
+                    Image(systemName: "pencil")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(V2Theme.tertiary)
+                        .frame(width: 26, height: 26)
+                }
+            }
+            .frame(minHeight: 62, alignment: .top)
+            .contentShape(Rectangle())
         }
-        .frame(minHeight: 44)
+        .buttonStyle(.plain)
+        .disabled(!isEditable)
+        .accessibilityLabel(isEditable ? "编辑安排：\(item.title)" : item.title)
+        .accessibilityIdentifier("assistant.plan.item.\(item.id)")
+    }
+
+    private var timelineMarker: some View {
+        ZStack(alignment: .top) {
+            if !isLast {
+                Rectangle()
+                    .fill(V2Theme.violet.opacity(0.28))
+                    .frame(width: 1.5, height: 62)
+                    .offset(y: 9)
+            }
+            Circle()
+                .fill(V2Theme.page)
+                .frame(width: 11, height: 11)
+                .overlay {
+                    Circle().stroke(V2Theme.violet, lineWidth: 2)
+                }
+                .padding(.top, 4)
+        }
+        .frame(width: 12, height: 62, alignment: .top)
     }
 
     private var timeLabel: String {
-        guard let startAt = item.startAt else { return "待定" }
-        let hour = Calendar.current.component(.hour, from: startAt)
-        return hour < 12 ? "上午" : Self.timeFormatter.string(from: startAt)
+        guard let startAt = item.startAt else { return "时间待定" }
+        return Self.timeFormatter.string(from: startAt)
     }
 
     private static let weekdayFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")
         formatter.dateFormat = "EEE"
+        return formatter
+    }()
+
+    private static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M.d"
         return formatter
     }()
 
@@ -537,7 +738,6 @@ private struct V2PlanDraftRow: View {
 }
 
 private struct V2PlanComposer: View {
-    @Binding var scope: String?
     @Binding var promptText: String
     let placeholder: String
     var isFocused: FocusState<Bool>.Binding
@@ -546,42 +746,26 @@ private struct V2PlanComposer: View {
     let onMic: () -> Void
     let onSend: () -> Void
 
-    private let scopes = ["今天", "明天", "近三日", "本周", "本月"]
-
     private var canSend: Bool {
         !isBusy && !promptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 9) {
-            Menu {
-                Button("不指定") { scope = nil }
-                ForEach(scopes, id: \.self) { item in
-                    Button(item) { scope = item }
-                }
-            } label: {
-                HStack(spacing: 3) {
-                    Text(scope ?? "选项")
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 9, weight: .bold))
-                }
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(V2Theme.secondary)
-                .padding(.horizontal, 10)
-                .frame(height: 32)
-                .background(V2Theme.panel)
-                .clipShape(Capsule())
-                .overlay {
-                    Capsule().stroke(V2Theme.line, lineWidth: 1)
-                }
-            }
-
-            TextField(placeholder, text: $promptText, axis: .vertical)
+            TextField(
+                "",
+                text: $promptText,
+                prompt: Text(placeholder).foregroundColor(V2Theme.tertiary),
+                axis: .vertical
+            )
                 .lineLimit(1...4)
                 .font(.system(size: 15))
+                .foregroundStyle(V2Theme.ink)
+                .tint(V2Theme.blue)
                 .focused(isFocused)
                 .disabled(isBusy)
                 .padding(.vertical, 8)
+                .accessibilityIdentifier("plan.composer")
 
             Button(action: onMic) {
                 Image(systemName: isListening ? "waveform" : "mic")
@@ -632,7 +816,106 @@ private struct V2PlanComposer: View {
     }
 }
 
-private struct V2MemorySheet: View {
+struct V2PlanScheduleItemEditor: View {
+    let item: V2PlanDraftScheduleItem
+    let onSave: (V2PlanDraftScheduleItem) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var title: String
+    @State private var date: Date
+    @State private var hasTime: Bool
+    @State private var time: Date
+
+    init(
+        item: V2PlanDraftScheduleItem,
+        onSave: @escaping (V2PlanDraftScheduleItem) -> Void
+    ) {
+        self.item = item
+        self.onSave = onSave
+        _title = State(initialValue: item.title)
+        _date = State(initialValue: item.date)
+        _hasTime = State(initialValue: item.startAt != nil)
+        _time = State(initialValue: item.startAt ?? item.date)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("安排") {
+                    TextField("任务名称", text: $title, axis: .vertical)
+                        .lineLimit(1...3)
+                        .accessibilityIdentifier("assistant.plan.editor.title")
+                }
+
+                Section("日期与时间") {
+                    DatePicker("日期", selection: $date, displayedComponents: .date)
+                        .accessibilityIdentifier("assistant.plan.editor.date")
+
+                    Toggle("指定时间", isOn: $hasTime)
+                        .accessibilityIdentifier("assistant.plan.editor.hasTime")
+
+                    if hasTime {
+                        DatePicker("开始", selection: $time, displayedComponents: .hourAndMinute)
+                            .accessibilityIdentifier("assistant.plan.editor.time")
+                    }
+                }
+            }
+            .navigationTitle("修改安排")
+            .v2InlineNavigationTitle()
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("保存") {
+                        onSave(updatedItem)
+                        dismiss()
+                    }
+                    .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .accessibilityIdentifier("assistant.plan.editor.save")
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private var updatedItem: V2PlanDraftScheduleItem {
+        var calendar = Calendar.current
+        calendar.timeZone = .current
+        let day = calendar.startOfDay(for: date)
+        let startAt: Date?
+        let endAt: Date?
+
+        if hasTime {
+            let components = calendar.dateComponents([.hour, .minute], from: time)
+            startAt = calendar.date(
+                bySettingHour: components.hour ?? 9,
+                minute: components.minute ?? 0,
+                second: 0,
+                of: day
+            )
+            let originalDuration = item.startAt.flatMap { start in
+                item.endAt.map { max(15 * 60, $0.timeIntervalSince(start)) }
+            } ?? 30 * 60
+            endAt = startAt?.addingTimeInterval(originalDuration)
+        } else {
+            startAt = nil
+            endAt = nil
+        }
+
+        return V2PlanDraftScheduleItem(
+            id: item.id,
+            date: day,
+            startAt: startAt,
+            endAt: endAt,
+            taskID: item.taskID,
+            proposedTaskID: item.proposedTaskID,
+            title: title.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+    }
+}
+
+struct V2MemorySheet: View {
     @ObservedObject var store: V2AppStore
     @Environment(\.dismiss) private var dismiss
     @State private var editingRecord: V2UserMemoryRecord?
@@ -673,7 +956,7 @@ private struct V2MemorySheet: View {
                 }
             }
             .navigationTitle("记忆")
-            .navigationBarTitleDisplayMode(.inline)
+            .v2InlineNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("完成") { dismiss() }
@@ -689,10 +972,10 @@ private struct V2MemorySheet: View {
                 }
             }
         }
-        .sheet(isPresented: $isAdding) {
+        .v2Sheet(isPresented: $isAdding) {
             V2MemoryEditorSheet(store: store, record: nil)
         }
-        .sheet(item: $editingRecord) { record in
+        .v2Sheet(item: $editingRecord) { record in
             V2MemoryEditorSheet(store: store, record: record)
         }
         .presentationDetents([.medium, .large])
@@ -841,7 +1124,7 @@ private struct V2MemoryEditorSheet: View {
                 }
             }
             .navigationTitle(record == nil ? "新增记忆" : "纠正记忆")
-            .navigationBarTitleDisplayMode(.inline)
+            .v2InlineNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }
@@ -890,6 +1173,10 @@ private struct V2MemoryEditorSheet: View {
 
 private struct V2PlanHistorySheet: View {
     let drafts: [V2PlanDraftRecord]
+    let onResume: (V2PlanDraftRecord) -> Void
+    let onNew: () -> Void
+    let onOpenAISettings: () -> Void
+    let onOpenMemory: () -> Void
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -903,24 +1190,58 @@ private struct V2PlanHistorySheet: View {
                     )
                 } else {
                     List(drafts) { draft in
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text(draft.userPrompt)
-                                .font(.headline)
-                            Text(draft.summary)
-                                .font(.subheadline)
-                                .foregroundStyle(V2Theme.secondary)
-                                .lineLimit(2)
-                            Text(Self.dateFormatter.string(from: draft.updatedAt))
-                                .font(.caption)
-                                .foregroundStyle(V2Theme.tertiary)
+                        Button {
+                            onResume(draft)
+                        } label: {
+                            HStack(spacing: 12) {
+                                VStack(alignment: .leading, spacing: 5) {
+                                    Text(draft.userPrompt)
+                                        .font(.headline)
+                                        .foregroundStyle(V2Theme.ink)
+                                    Text(draft.summary)
+                                        .font(.subheadline)
+                                        .foregroundStyle(V2Theme.secondary)
+                                        .lineLimit(2)
+                                    Text(Self.dateFormatter.string(from: draft.updatedAt))
+                                        .font(.caption)
+                                        .foregroundStyle(V2Theme.tertiary)
+                                }
+
+                                Spacer(minLength: 8)
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(V2Theme.tertiary)
+                            }
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
                         .padding(.vertical, 4)
+                        .accessibilityLabel("继续计划：\(draft.userPrompt)")
+                        .accessibilityIdentifier("plan.history.resume.\(draft.id)")
                     }
                 }
             }
             .navigationTitle("草稿历史")
-            .navigationBarTitleDisplayMode(.inline)
+            .v2InlineNavigationTitle()
             .toolbar {
+                ToolbarItem(placement: .v2Leading) {
+                    Menu {
+                        Button(action: onOpenAISettings) {
+                            Label("AI 服务", systemImage: "server.rack")
+                        }
+                        Button(action: onOpenMemory) {
+                            Label("记忆", systemImage: "brain")
+                        }
+                    } label: {
+                        Image(systemName: "slider.horizontal.3")
+                    }
+                    .accessibilityLabel("计划设置")
+                    .accessibilityIdentifier("plan.history.settings")
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button("新计划", action: onNew)
+                        .accessibilityIdentifier("plan.history.new")
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("完成") { dismiss() }
                 }

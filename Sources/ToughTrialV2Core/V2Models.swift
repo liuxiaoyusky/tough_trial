@@ -53,6 +53,147 @@ public extension V2TaskNode {
     }
 }
 
+public struct V2TaskTreeLayout: Equatable, Sendable {
+    public struct Entry: Identifiable, Equatable, Sendable {
+        public let node: V2TaskNode
+        public let parentID: String?
+        public let depth: Int
+        public let centerY: Double
+        public let subtreeTop: Double
+        public let subtreeBottom: Double
+
+        public var id: String { node.id }
+
+        public init(
+            node: V2TaskNode,
+            parentID: String?,
+            depth: Int,
+            centerY: Double,
+            subtreeTop: Double,
+            subtreeBottom: Double
+        ) {
+            self.node = node
+            self.parentID = parentID
+            self.depth = depth
+            self.centerY = centerY
+            self.subtreeTop = subtreeTop
+            self.subtreeBottom = subtreeBottom
+        }
+    }
+
+    public let entries: [Entry]
+    public let contentHeight: Double
+    public let maxDepth: Int
+
+    public init(
+        root: V2TaskNode,
+        expandedNodeIDs: Set<String>,
+        minimumNodeHeight: Double = 44,
+        siblingGap: Double = 18,
+        verticalPadding: Double = 44
+    ) {
+        let measurement = Self.measure(
+            node: root,
+            expandedNodeIDs: expandedNodeIDs,
+            minimumNodeHeight: minimumNodeHeight,
+            siblingGap: siblingGap
+        )
+        var entries: [Entry] = []
+        Self.place(
+            measurement,
+            parentID: nil,
+            depth: 0,
+            top: verticalPadding,
+            siblingGap: siblingGap,
+            entries: &entries
+        )
+
+        self.entries = entries
+        self.contentHeight = measurement.height + verticalPadding * 2
+        self.maxDepth = entries.map(\.depth).max() ?? 0
+    }
+
+    public func entry(id: String) -> Entry? {
+        entries.first { $0.node.id == id }
+    }
+}
+
+private extension V2TaskTreeLayout {
+    struct Measurement {
+        let node: V2TaskNode
+        let children: [Measurement]
+        let height: Double
+    }
+
+    static func measure(
+        node: V2TaskNode,
+        expandedNodeIDs: Set<String>,
+        minimumNodeHeight: Double,
+        siblingGap: Double
+    ) -> Measurement {
+        let visibleChildren: [Measurement]
+        if expandedNodeIDs.contains(node.id) {
+            visibleChildren = node.children.map {
+                measure(
+                    node: $0,
+                    expandedNodeIDs: expandedNodeIDs,
+                    minimumNodeHeight: minimumNodeHeight,
+                    siblingGap: siblingGap
+                )
+            }
+        } else {
+            visibleChildren = []
+        }
+
+        let childrenHeight = visibleChildren.reduce(0) { $0 + $1.height }
+            + siblingGap * Double(max(visibleChildren.count - 1, 0))
+        return Measurement(
+            node: node,
+            children: visibleChildren,
+            height: max(minimumNodeHeight, childrenHeight)
+        )
+    }
+
+    static func place(
+        _ measurement: Measurement,
+        parentID: String?,
+        depth: Int,
+        top: Double,
+        siblingGap: Double,
+        entries: inout [Entry]
+    ) {
+        let bottom = top + measurement.height
+        entries.append(
+            Entry(
+                node: measurement.node,
+                parentID: parentID,
+                depth: depth,
+                centerY: top + measurement.height / 2,
+                subtreeTop: top,
+                subtreeBottom: bottom
+            )
+        )
+
+        guard !measurement.children.isEmpty else { return }
+
+        let childrenHeight = measurement.children.reduce(0) { $0 + $1.height }
+            + siblingGap * Double(max(measurement.children.count - 1, 0))
+        var childTop = top + (measurement.height - childrenHeight) / 2
+
+        for child in measurement.children {
+            place(
+                child,
+                parentID: measurement.node.id,
+                depth: depth + 1,
+                top: childTop,
+                siblingGap: siblingGap,
+                entries: &entries
+            )
+            childTop += child.height + siblingGap
+        }
+    }
+}
+
 public struct V2TimelineItem: Equatable, Sendable {
     public enum Kind: Equatable, Sendable {
         case task
@@ -165,7 +306,7 @@ public struct V2ActiveSession: Equatable, Sendable {
 }
 
 public struct V2PlanMessage: Equatable, Sendable {
-    public enum Role: String, Equatable, Sendable {
+    public enum Role: String, Codable, Equatable, Sendable {
         case user
         case agent
     }
@@ -188,7 +329,7 @@ public enum V2PlanConversationPhase: String, Equatable, Sendable {
     case complete
 }
 
-public struct V2PlanDraftScheduleItem: Identifiable, Equatable, Sendable {
+public struct V2PlanDraftScheduleItem: Identifiable, Codable, Equatable, Sendable {
     public var id: String
     public var date: Date
     public var startAt: Date?
@@ -216,7 +357,7 @@ public struct V2PlanDraftScheduleItem: Identifiable, Equatable, Sendable {
     }
 }
 
-public struct V2PlanDraftTaskChange: Identifiable, Equatable, Sendable {
+public struct V2PlanDraftTaskChange: Identifiable, Codable, Equatable, Sendable {
     public var id: String
     public var title: String
     public var parentID: String?
@@ -238,7 +379,7 @@ public struct V2PlanDraftTaskChange: Identifiable, Equatable, Sendable {
     }
 }
 
-public struct V2PlanDraft: Equatable, Sendable {
+public struct V2PlanDraft: Codable, Equatable, Sendable {
     public var id: String
     public var userPrompt: String
     public var title: String

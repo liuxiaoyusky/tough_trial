@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="844" viewBox="0 0 390 844">
+<title>财务 · 理账计划</title>
+<rect width="390" height="844" fill="#F6F7F9"/>
+<style>
+text{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',Arial,sans-serif;fill:#111827}
+.muted{fill:#7A8493} .blue{fill:#1467E8} .green{fill:#18885A} .orange{fill:#C46A18}
+.small{font-size:12px} .body{font-size:15px} .label{font-size:13px;font-weight:600}
+.title{font-size:28px;font-weight:750} .h2{font-size:20px;font-weight:700} .h3{font-size:17px;font-weight:650}
+.white{fill:#fff} .mono{font-family:'SF Mono',Menlo,monospace}
+</style>
+<text x="24" y="34" class="small muted">20:38</text>
+
+<text x="24" y="78" class="title">理账计划</text><text x="366" y="76" text-anchor="end" class="body blue">统计</text>
+<text x="24" y="124" class="h2">订阅与还款</text><text x="366" y="124" text-anchor="end" class="body blue">＋ 添加</text><text x="24" y="150" class="small muted">到期提醒；确认已支付后才记入流水。</text>
+<rect x="20" y="170" width="350" height="82" rx="18" fill="#FFFFFF" stroke="#E7E9ED"/><text x="38" y="200" class="body">ChatGPT Pro</text><text x="38" y="225" class="small muted">订阅 · 每月 23 日</text><text x="350" y="208" text-anchor="end" class="h3">USD 200</text>
+<rect x="20" y="264" width="350" height="82" rx="18" fill="#FFFFFF" stroke="#E7E9ED"/><text x="38" y="294" class="body">房租</text><text x="38" y="319" class="small muted">还款 · 每月 1 日</text><text x="350" y="302" text-anchor="end" class="h3">USD 1,850</text>
+<text x="24" y="396" class="h2">月度预算</text><text x="366" y="396" text-anchor="end" class="body blue">新增预算</text><text x="24" y="422" class="small muted">只统计同币种实际支出。</text>
+<rect x="20" y="442" width="350" height="104" rx="18" fill="#FFFFFF" stroke="#E7E9ED"/><text x="38" y="472" class="body">餐饮</text><text x="350" y="472" text-anchor="end" class="body">USD 600</text><rect x="38" y="490" width="304" height="8" rx="4" fill="#E7E9ED"/><rect x="38" y="490" width="176" height="8" rx="4" fill="#1467E8"/><text x="38" y="523" class="small muted">已花 347 · 剩余 253</text>
+
+</svg>
