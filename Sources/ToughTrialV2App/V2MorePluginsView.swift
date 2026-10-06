@@ -23,11 +23,12 @@ struct V2MorePluginsView: View {
                     }
                     .accessibilityIdentifier("morePlugins.editNavigation")
                 }
+                .listRowBackground(V2Theme.ColorRole.surfaceRaised)
 
                 Section("已启用") {
                     if hiddenModules.isEmpty {
                         Text("所有可用模块都已经放到底栏。")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(V2Theme.secondary)
                     } else {
                         ForEach(hiddenModules) { item in
                             Button {
@@ -35,11 +36,12 @@ struct V2MorePluginsView: View {
                             } label: {
                                 HStack(spacing: 12) {
                                     Image(systemName: item.systemImage)
+                                        .foregroundStyle(V2Theme.secondary)
                                         .frame(width: 28)
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text(item.title).foregroundStyle(.primary)
+                                        Text(item.title).foregroundStyle(V2Theme.ink)
                                         Text("点按打开，不会自动加入底栏")
-                                            .font(.caption).foregroundStyle(.secondary)
+                                            .font(.caption).foregroundStyle(V2Theme.secondary)
                                     }
                                     Spacer()
                                     Image(systemName: "chevron.right")
@@ -51,12 +53,15 @@ struct V2MorePluginsView: View {
                         }
                     }
                 }
+                .listRowBackground(V2Theme.ColorRole.surfaceRaised)
 
                 Section("已放到底栏") {
                     ForEach(navigation.orderedTabs.filter { $0 != .morePlugins }) { item in
                         Label(item.title, systemImage: item.systemImage)
+                            .foregroundStyle(V2Theme.secondary)
                     }
                 }
+                .listRowBackground(V2Theme.ColorRole.surfaceRaised)
 
                 Section {
                     NavigationLink {
@@ -67,10 +72,15 @@ struct V2MorePluginsView: View {
                     .accessibilityIdentifier("morePlugins.settings")
                 } footer: {
                     Text("这里负责启用、停用、安装与权限；底栏只决定常用入口。")
+                        .foregroundStyle(V2Theme.secondary)
                 }
+                .listRowBackground(V2Theme.ColorRole.surfaceRaised)
             }
+            .v2GroupedList()
             .scrollContentBackground(.hidden)
             .background(V2Theme.page)
+            .foregroundStyle(V2Theme.ink)
+            .tint(V2Theme.blue)
             .navigationTitle("更多插件")
         }
     }
@@ -109,8 +119,9 @@ private struct V2EditBottomNavigationView: View {
                     navigation.move(fromOffsets: offsets, toOffset: destination, availableIDs: availableIDs)
                 }
             }
+            .listRowBackground(V2Theme.ColorRole.surfaceRaised)
 
-            Section("可添加") {
+            Section {
                 if addable.isEmpty {
                     Text(navigation.orderedTabs.count >= 5 ? "底栏最多显示 5 个入口。" : "没有其他可添加模块。")
                         .foregroundStyle(.secondary)
@@ -131,8 +142,20 @@ private struct V2EditBottomNavigationView: View {
                         }
                     }
                 }
+            } header: {
+                Text("可添加")
+            } footer: {
+                Text("底栏保留 2–5 个入口，且必须包含「更多插件」。满 5 个时先移除一个，再添加。")
+                    .foregroundStyle(V2Theme.secondary)
+                    .accessibilityIdentifier("navigation.constraints")
             }
+            .listRowBackground(V2Theme.ColorRole.surfaceRaised)
         }
+        .v2GroupedList()
+        .scrollContentBackground(.hidden)
+        .background(V2Theme.page)
+        .foregroundStyle(V2Theme.ink)
+        .tint(V2Theme.blue)
 #if os(iOS)
         .environment(\.editMode, .constant(.active))
 #endif

@@ -4,12 +4,13 @@ import XCTest
 final class V2ModuleRuntimeTests: XCTestCase {
     func testBuiltinsUseCanonicalIDsAndDecoupledDependencies() {
         let descriptors = Dictionary(uniqueKeysWithValues: V2ModuleDescriptor.builtins.map { ($0.id, $0) })
-        XCTAssertEqual(descriptors.count, 14)
+        XCTAssertEqual(descriptors.count, 15)
         XCTAssertEqual(descriptors["core.ledger"]?.dependencies, [])
         XCTAssertEqual(descriptors["core.finance"]?.dependencies, ["core.ledger"])
         XCTAssertEqual(descriptors["core.budget"]?.dependencies, ["core.ledger"])
         XCTAssertEqual(descriptors["core.imports"]?.dependencies, ["core.capture"])
         XCTAssertEqual(descriptors["core.attachments"]?.dependencies, [])
+        XCTAssertEqual(descriptors["core.transcription"]?.dependencies, [])
         XCTAssertEqual(descriptors["core.web"]?.dependencies, ["core.assistant"])
         XCTAssertEqual(descriptors["core.sync"]?.dependencies, ["core.tasks"])
     }

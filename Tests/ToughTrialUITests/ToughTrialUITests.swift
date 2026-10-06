@@ -409,7 +409,7 @@ final class ToughTrialUITests: XCTestCase {
         let fishboneTitle = "鱼骨-\(UUID().uuidString.prefix(6))"
         var app = launchProductionApp()
 
-        app.tabBars.firstMatch.buttons["任务"].tap()
+        app.buttons["root.tab.tasks"].tap()
         XCTAssertTrue(app.buttons["tasks.lens.structure"].waitForExistence(timeout: 5))
 
         app.buttons["tasks.capture.open"].tap()
@@ -427,7 +427,7 @@ final class ToughTrialUITests: XCTestCase {
         document.typeText(structureTitle)
         app.buttons["tasks.capture.submit"].tap()
         XCTAssertTrue(document.waitForNonExistence(timeout: 3))
-        XCTAssertTrue(app.buttons[structureTitle].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["选择任务：\(structureTitle)"].waitForExistence(timeout: 5))
         keepScreenshot(of: app, name: "remediation-task-created-structure")
 
         app.buttons["tasks.lens.fishbone"].tap()
@@ -450,13 +450,16 @@ final class ToughTrialUITests: XCTestCase {
     @MainActor
     func testTaskDetailOpensContextualAssistantAndWritesOnlyOnAccept() {
         let app = launchApp()
-        app.tabBars.firstMatch.buttons["任务"].tap()
+        app.buttons["root.tab.tasks"].tap()
         app.buttons["tasks.lens.structure"].tap()
 
-        let details = app.buttons["查看详情：定位"]
-        let disclosure = app.buttons["定位"]
-        XCTAssertTrue(details.waitForExistence(timeout: 5))
-        XCTAssertTrue(disclosure.exists)
+        let node = app.buttons["选择任务：定位"]
+        let details = app.buttons["tasks.inverted.details"]
+        XCTAssertTrue(node.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["收起子任务：定位"].exists)
+        revealTree(node, in: app)
+        node.tap()
+        XCTAssertTrue(details.waitForExistence(timeout: 3))
         details.tap()
 
         XCTAssertTrue(app.buttons["tasks.detail.title"].waitForExistence(timeout: 3))
@@ -485,11 +488,11 @@ final class ToughTrialUITests: XCTestCase {
         app.buttons["assistant.send"].tap()
         XCTAssertTrue(app.buttons["assistant.plan.accept"].waitForExistence(timeout: 5))
 
-        app.tabBars.firstMatch.buttons["今天"].tap()
-        app.tabBars.firstMatch.buttons["今天"].tap()
+        app.buttons["root.tab.today"].tap()
+        app.buttons["root.tab.today"].tap()
         assertTaskIsMissingFromZenSearch("轻松跑 3 公里", in: app)
 
-        app.tabBars.firstMatch.buttons["任务"].tap()
+        app.buttons["root.tab.tasks"].tap()
         XCTAssertTrue(details.waitForExistence(timeout: 3))
         details.tap()
         app.buttons["tasks.detail.aiPlan"].tap()
@@ -497,9 +500,9 @@ final class ToughTrialUITests: XCTestCase {
         app.buttons["assistant.plan.accept"].tap()
         XCTAssertTrue(app.staticTexts["已加入计划"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["assistant.plan.accept"].exists)
-        app.tabBars.firstMatch.buttons["今天"].tap()
+        app.buttons["root.tab.today"].tap()
 
-        app.tabBars.firstMatch.buttons["今天"].tap()
+        app.buttons["root.tab.today"].tap()
         assertTaskCanBeFoundForZen("轻松跑 3 公里", in: app)
     }
 
@@ -538,7 +541,7 @@ final class ToughTrialUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts["zen.title"].label, linkedTitle)
         keepScreenshot(of: app, name: "remediation-zen-linked")
         app.buttons["zen.finish"].tap()
-        XCTAssertTrue(app.tabBars.firstMatch.buttons["今天"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["root.tab.today"].waitForExistence(timeout: 5))
     }
 
     @MainActor
@@ -570,12 +573,12 @@ final class ToughTrialUITests: XCTestCase {
         XCTAssertEqual(app.buttons.matching(identifier: "zen.finish").count, 1)
         XCTAssertEqual(app.buttons.matching(NSPredicate(format: "label == %@", "暂停")).count, 1)
         XCTAssertEqual(app.buttons.matching(NSPredicate(format: "label == %@", "结束时间段")).count, 1)
-        XCTAssertEqual(app.tabBars.count, 0)
+        XCTAssertFalse(app.buttons["root.tab.today"].exists)
         XCTAssertFalse(app.descendants(matching: .any)["today.quickAdd"].exists)
         keepScreenshot(of: app, name: "remediation-zen-modal")
 
         app.buttons["zen.close"].tap()
-        XCTAssertTrue(app.tabBars.firstMatch.buttons["今天"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["root.tab.today"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.descendants(matching: .any)["today.quickAdd"].exists)
     }
 
@@ -620,36 +623,38 @@ final class ToughTrialUITests: XCTestCase {
 
     @MainActor
     func testTaskMapCollapseAndZoomControls() {
+        continueAfterFailure = false
         let app = launchApp()
-        app.tabBars.firstMatch.buttons["任务"].tap()
+        app.buttons["root.tab.tasks"].tap()
         app.buttons["tasks.lens.structure"].tap()
 
-        let branch = app.buttons["定位"]
-        let completedLeaf = app.descendants(matching: .any)["内容边界"]
-        XCTAssertTrue(branch.waitForExistence(timeout: 3))
+        let completedLeaf = app.buttons["选择任务：内容边界"]
+        let topicChild = app.buttons["选择任务：建立对标账号"]
         XCTAssertTrue(completedLeaf.waitForExistence(timeout: 3))
+        XCTAssertEqual(completedLeaf.value as? String, "已完成")
+        XCTAssertTrue(topicChild.waitForExistence(timeout: 3))
 
-        let topicBranch = app.buttons["选题库"]
-        let topicChild = app.descendants(matching: .any)["建立对标账号"]
-        XCTAssertTrue(topicBranch.waitForExistence(timeout: 3))
-        topicBranch.tap()
+        let topicCollapse = app.buttons["收起子任务：选题库"]
+        revealTree(topicCollapse, in: app); topicCollapse.tap()
+        XCTAssertTrue(topicChild.waitForNonExistence(timeout: 3))
+        let topicExpand = app.buttons["展开子任务：选题库"]
+        revealTree(topicExpand, in: app); topicExpand.tap()
         XCTAssertTrue(topicChild.waitForExistence(timeout: 3))
         XCTAssertTrue(completedLeaf.exists)
         keepScreenshot(of: app, name: "task-map-multiple-branches-expanded")
 
-        branch.tap()
+        let branchCollapse = app.buttons["收起子任务：定位"]
+        revealTree(branchCollapse, in: app); branchCollapse.tap()
         XCTAssertTrue(completedLeaf.waitForNonExistence(timeout: 3))
         XCTAssertTrue(topicChild.exists)
-
-        branch.tap()
+        let branchExpand = app.buttons["展开子任务：定位"]
+        revealTree(branchExpand, in: app); branchExpand.tap()
         XCTAssertTrue(completedLeaf.waitForExistence(timeout: 3))
 
-        let zoomOut = app.buttons["缩小任务地图"]
-        XCTAssertTrue(zoomOut.waitForExistence(timeout: 3))
-        zoomOut.tap()
-        XCTAssertTrue(
-            app.descendants(matching: .any)["建立稳定创作系统"].exists
-        )
+        let root = app.buttons["选择任务：建立稳定创作系统"]
+        let width = root.frame.width
+        app.buttons["tasks.inverted.zoomOut"].tap()
+        XCTAssertLessThan(root.frame.width, width)
         app.buttons["tasks.lens.list"].tap()
         XCTAssertTrue(app.buttons["建立稳定创作系统"].waitForExistence(timeout: 3))
         keepScreenshot(of: app, name: "tasks-root-list")
@@ -796,7 +801,7 @@ final class ToughTrialUITests: XCTestCase {
         app.launchEnvironment["TOUGH_TRIAL_AI_API_KEY"] = ""
         app.launchEnvironment["TOUGH_TRIAL_UI_TESTING"] = "1"
         app.launch()
-        app.tabBars.firstMatch.buttons["今天"].tap()
+        app.buttons["root.tab.today"].tap()
         return app
     }
 
@@ -806,8 +811,8 @@ final class ToughTrialUITests: XCTestCase {
         app.launchEnvironment["TOUGH_TRIAL_AI_API_KEY"] = ""
         app.launchEnvironment["TOUGH_TRIAL_UI_TESTING"] = "0"
         app.launchEnvironment["TOUGH_TRIAL_UI_TEST_EMPTY"] = "1"
-        app.launch()
-        app.tabBars.firstMatch.buttons["今天"].tap()
+        app.terminate(); app.launch()
+        app.buttons["root.tab.today"].tap()
         return app
     }
 
@@ -818,7 +823,7 @@ final class ToughTrialUITests: XCTestCase {
         app.launchEnvironment["TOUGH_TRIAL_UI_TESTING"] = "0"
         app.launchEnvironment["TOUGH_TRIAL_UI_TEST_EMPTY"] = "0"
         app.launch()
-        app.tabBars.firstMatch.buttons["今天"].tap()
+        app.buttons["root.tab.today"].tap()
         return app
     }
 
@@ -876,6 +881,23 @@ final class ToughTrialUITests: XCTestCase {
         )
         app.buttons["today.zenTaskPicker.cancel"].tap()
         XCTAssertTrue(search.waitForNonExistence(timeout: 3), file: file, line: line)
+    }
+
+    @MainActor
+    private func revealTree(_ element: XCUIElement, in app: XCUIApplication) {
+        let canvas = app.scrollViews["tasks.inverted.canvas"]
+        for _ in 0..<12 {
+            guard element.waitForExistence(timeout: 2) else { break }
+            let frame = element.frame
+            let viewport = canvas.frame
+            if element.isHittable && frame.midX > viewport.minX + 15 && frame.midX < viewport.maxX - 15 &&
+                frame.midY > viewport.minY + 15 && frame.midY < viewport.maxY - 85 { return }
+            if frame.midX <= viewport.minX + 15 { canvas.swipeRight() }
+            else if frame.midX >= viewport.maxX - 15 { canvas.swipeLeft() }
+            else if frame.midY < viewport.minY + 15 { canvas.swipeDown() }
+            else { canvas.swipeUp() }
+        }
+        XCTAssertTrue(element.isHittable, app.debugDescription)
     }
 
     @MainActor

@@ -9,6 +9,12 @@ project management:
 - `计划`: turn a low-friction conversation into a reviewable planning draft.
 - `回想`: reflect from actual execution evidence with text or handwriting.
 
+Current progress and delivery priorities are maintained in
+[`docs/roadmap.md`](docs/roadmap.md). The October 6 source checkpoint is
+[`docs/qa/2026-10-06-milestone.md`](docs/qa/2026-10-06-milestone.md); it distinguishes
+local verification from TestFlight delivery. Rebuild the review workspace with
+[`Tools/MobileReview/README.md`](Tools/MobileReview/README.md).
+
 The product direction is documented in
 [`docs/spec.md`](docs/spec.md). The active implementation lives in
 `Sources/ToughTrialV2App/` and `Sources/ToughTrialV2Core/`.
@@ -57,8 +63,10 @@ Draft release and privacy materials live in [`docs/release/`](docs/release/).
 
 ## Repository Boundaries
 
-Generated screenshots, local prototypes, internal task boards, private handoff
-notes, and signing artifacts are intentionally ignored. Run the sensitive
+Generated builds, review packages, internal task boards, private handoff
+notes, and signing artifacts are intentionally ignored. Curated native UI
+review images and clearly labelled historical screenshots referenced by the Feature Map are versioned once under
+`docs/qa/assets/`; review aliases reuse those originals. Run the sensitive
 information check before staging public changes:
 
 ```bash

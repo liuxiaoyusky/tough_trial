@@ -21,6 +21,10 @@ struct MacTaskWorkspaceView: View {
             .sorted { $0.createdAt > $1.createdAt }
     }
 
+    private var startedTaskIDs: Set<String> {
+        Set(workspace.engine.snapshot.executionSegments.compactMap(\.taskID))
+    }
+
     var body: some View {
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 0) {
@@ -40,7 +44,7 @@ struct MacTaskWorkspaceView: View {
                                 .frame(minWidth: 370, minHeight: 280)
                         } else {
                             switch lens {
-                            case .list: ForEach(visible) { task in row(task) }
+                            case .list: groupedList
                             case .structure: ScrollView(.horizontal) { tree }
                             case .time: timeline
                             case .fishbone: ScrollView(.horizontal) { fishbone }
@@ -65,6 +69,27 @@ struct MacTaskWorkspaceView: View {
         } message: { Text("已保存的任务不会删除。") }
     }
 
+    private var groupedList: some View {
+        let started = startedTaskIDs
+        return VStack(alignment: .leading, spacing: 24) {
+            ForEach(V2TaskListGroup.allCases, id: \.rawValue) { group in
+                let items = visible.filter { $0.status.listGroup(hasExecution: started.contains($0.id)) == group }
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("\(group.title) · \(items.count)")
+                        .font(V2Theme.TypeRole.titleMedium)
+                        .foregroundStyle(group == .completed ? V2Theme.secondary : V2Theme.ink)
+                        .accessibilityAddTraits(.isHeader)
+                        .accessibilityIdentifier("mac.tasks.group.\(group.rawValue)")
+                    if items.isEmpty {
+                        Text("暂无\(group.title)的任务")
+                            .font(V2Theme.TypeRole.bodySmall).foregroundStyle(V2Theme.tertiary)
+                    }
+                    ForEach(items) { task in row(task, hasExecution: started.contains(task.id)) }
+                }
+            }
+        }
+    }
+
     private var header: some View {
         VStack(alignment: .leading, spacing: 22) {
             HStack {
@@ -86,7 +111,7 @@ struct MacTaskWorkspaceView: View {
         }.padding(24)
     }
 
-    private func row(_ task: V2Task) -> some View {
+    private func row(_ task: V2Task, hasExecution: Bool = false) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Button { workspace.toggleCompletion(task.id) } label: {
                 Image(systemName: task.status == .done ? "checkmark.circle.fill" : "circle")
@@ -98,12 +123,25 @@ struct MacTaskWorkspaceView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(task.title).font(.system(size: 16, weight: .semibold)).lineLimit(3)
                         .strikethrough(task.status == .done)
+                        .foregroundStyle(lens == .list && task.status == .done ? V2Theme.secondary : V2Theme.ink)
+                    if lens == .list && task.status.listGroup(hasExecution: hasExecution) == .inProgress {
+                        Text(statusLabel(task, hasExecution: hasExecution))
+                            .font(V2Theme.TypeRole.labelSmall)
+                            .foregroundStyle(task.status == .active ? V2Theme.ColorRole.taskActive : V2Theme.ColorRole.taskPaused)
+                    }
                     if !task.note.isEmpty { Text(task.note).font(.system(size: 13)).foregroundStyle(V2Theme.secondary).lineLimit(2) }
                 }.frame(maxWidth: .infinity, minHeight: 36, alignment: .leading).contentShape(Rectangle())
             }.buttonStyle(.plain).accessibilityIdentifier("mac.tasks.open.\(task.id)")
+                .accessibilityValue(statusLabel(task, hasExecution: hasExecution))
         }.padding(14).frame(minWidth: 300, maxWidth: 600, alignment: .leading)
             .background(workspace.selectedID == task.id ? V2Theme.ColorRole.primaryContainer : V2Theme.panel,
                         in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    private func statusLabel(_ task: V2Task, hasExecution: Bool) -> String {
+        if task.status == .paused { return "已暂停" }
+        if task.status == .notStarted && hasExecution { return "待继续" }
+        return task.status.listGroup?.title ?? "已归档"
     }
 
     private var tree: some View {

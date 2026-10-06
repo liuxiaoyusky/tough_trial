@@ -7,7 +7,7 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     MARKETING_VERSION: "1.0"
-    CURRENT_PROJECT_VERSION: "10"
+    CURRENT_PROJECT_VERSION: "23"
 packages:
   FocusTimelineCore:
     path: .
@@ -50,6 +50,7 @@ targets:
     deploymentTarget: "14.0"
     sources:
       - path: Tests/ToughTrialMacAppTests
+      - path: Tests/ToughTrialV2AppTests/V2TranscriptionTests.swift
     dependencies:
       - target: ToughTrialMac
     settings:
@@ -95,8 +96,17 @@ targets:
         CFBundleDisplayName: Tough Trial
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        ITSAppUsesNonExemptEncryption: false
         NSMicrophoneUsageDescription: 用于把你主动录入的语音转成任务或计划文字。
         NSSpeechRecognitionUsageDescription: 用于把你主动录入的语音转成可编辑文字。
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: 转录音视频
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes:
+              - public.audio
+              - public.movie
+        LSSupportsOpeningDocumentsInPlace: true
         NSSupportsLiveActivities: true
         CFBundleURLTypes:
           - CFBundleURLName: com.skyliu.toughtrial

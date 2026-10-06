@@ -76,7 +76,8 @@ public struct V2FeatureModule: Identifiable, Sendable {
         .init("budget", "预算", dependencies: ["ledger"]),
         .init("imports", "外部文件导入", dependencies: ["capture"]),
         .init("attachments", "附件输入"),
-        .init("speech", "语音输入"), .init("sync", "日程同步"), .init("trace", "使用 Trace")
+        .init("speech", "语音输入"), .init("transcription", "转录"),
+        .init("sync", "日程同步"), .init("trace", "使用 Trace")
     ]
     public static func isEnabled(_ id: String, disabled: Set<String>) -> Bool {
         guard !disabled.contains(id) else { return false }

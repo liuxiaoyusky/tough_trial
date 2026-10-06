@@ -1,0 +1,3006 @@
+{
+  "schema_version": 1,
+  "project": "tough-trial",
+  "features": [
+    {
+      "id": "ui.capture",
+      "title": "随手记",
+      "purpose": "定位安装版与设计不一致反馈涉及的源码、原生评审素材和验收来源；实际视觉验收另行执行。",
+      "aliases": [
+        "随手记",
+        "界面不一致",
+        "第三个版本",
+        "标题变白",
+        "安装版与设计不一致"
+      ],
+      "preconditions": [
+        "可信项目根为 tough_trial 仓库；Python 3.11+、Git 可用。",
+        "现有 outputs/contacts-design-review 原生截图和来源说明在本机存在。",
+        "本操作不验证 Apple 账号、远程安装包或手机系统外观。"
+      ],
+      "user_path": [
+        "在 iPhone 打开 Tough Trial → 随手记，查看标题、输入区与底栏。",
+        "开发者通过 Feature Map 定位 ui.capture，doctor → plan → run → verify。",
+        "结合旧原生截图及当前真机截图人工核对；本 CLI 不替代设备交互验收。"
+      ],
+      "operations": [
+        {
+          "id": "inspect-baseline",
+          "kind": "cli",
+          "entry": "python3 Tools/FeatureCLI/capture_ui_audit.py --baseline <项目内PNG路径>",
+          "effect": "write",
+          "authorization": "用户指定 feature-cli 进行当前 UI 差异排查；仅写本机 .runtime 诊断文件和调用记录，不修改业务数据、不上传。",
+          "execution": {
+            "script": "Tools/FeatureCLI/capture_ui_audit.py",
+            "args": [
+              "--baseline",
+              "{baseline}"
+            ],
+            "parameters": {
+              "baseline": {
+                "type": "file"
+              }
+            },
+            "timeout_seconds": 30
+          }
+        }
+      ],
+      "acceptance": [
+        {
+          "source": "docs/spec.md",
+          "expected": "沿用已确认页面职责及输入规范，不将评审提案视为已实现。"
+        },
+        {
+          "source": "docs/design-system.md",
+          "expected": "浅色画布、文字、按钮及底栏遵循当前视觉角色；须通过实际渲染验收。"
+        },
+        {
+          "source": "docs/qa/2026-09-30-testflight-preparation.md",
+          "expected": "分发已完成，但随手记白字/浅底反馈保持开放，未经运行验证不宣称已修复。"
+        },
+        {
+          "source": "Tools/FeatureCLI/README.md",
+          "expected": "正常PNG产生来源报告，非PNG失败且不覆盖成功报告；执行记录可回查，产品验收保持 not_assessed。"
+        }
+      ],
+      "ontology_refs": [
+        "code.capture.save"
+      ],
+      "evidence": [
+        {
+          "path": "docs/spec.md",
+          "sha256": "ef8b89d1d2758ca1df5916ee1dff6bc01db4b28e449b580538171938bbf7ffab"
+        },
+        {
+          "path": "docs/design-system.md",
+          "sha256": "faa63e5dddb6b973cff8ff035a0acbfc79a25dc60ed6539079f20e7ccef47289"
+        },
+        {
+          "path": "docs/superpowers/specs/2026-09-09-unified-capture-and-ledger-design-zh.md",
+          "sha256": "aafa36cdfb23e9022e55febbc9d9bc296c68a9d2314cc6a141b7bfb604e54bdf"
+        },
+        {
+          "path": "docs/qa/2026-09-30-testflight-preparation.md",
+          "sha256": "dd4c0f802f477b3bae67663f936a6be2e67d3f4ad367d5b97b52f41e8ac99500"
+        },
+        {
+          "path": "Tools/FeatureCLI/capture_ui_audit.py",
+          "sha256": "d63b6639cb96ce70be6b19ec9d74fd127a823579f873aa6a414ee25a70f65b25"
+        },
+        {
+          "path": "Tools/FeatureCLI/README.md",
+          "sha256": "ba615f591e6a6907efd39c50bdf638126199d526d6cd6bfa3ff3d1462efd357c"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/ToughTrialV2App.swift",
+          "sha256": "cb6a5f1d13e29d430c7150cbe6b5483b317696962a21338870cdb526312625ad"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2RootView.swift",
+          "sha256": "57f3d5a51262cee6d4f9763707bd2b454957bb9877ea36df1a6992fb76d3387c"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2CaptureView.swift",
+          "sha256": "7d24406e8dbb7eeb520c7045bb3481a35828111261f120044d164e506f63ed8d"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2Theme.swift",
+          "sha256": "e57d5673d075211b271d5949ea4ca269ec832930285097a5b7c3ee071d39522c"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2BottomNavigationBar.swift",
+          "sha256": "d59ae29422b13441f68d20453fd11eb6b7f4fd58939a5156592c3a94af2daeec"
+        },
+        {
+          "path": "outputs/contacts-design-review/README.md",
+          "sha256": "4deb53eb30bb5d766c016f9eceee7b2338485acfe18fe6e33b9ed97bdcfe5aa4"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/capture-native.png",
+          "sha256": "e8dab8de7b9ea1a3e5d33cdeb12a65668c94f836fe960423a858c14c699b966c"
+        },
+        {
+          "path": "ontology/task-workspace.json",
+          "sha256": "9e1fbe32b34e032874af7eaa6110b057b0d761ab2ab760ac0dcbecd44a368bde"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2CaptureStore.swift",
+          "sha256": "a2c7683936898126f1182a6d464df368594a68ba71f920d6b4d999580fae6018"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/capture-testflight-17-20260930.jpg",
+          "sha256": "00e82df01325d721757e48e0d26372049cb96b8bc607e79ff79210a08af2abf6"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/capture.svg",
+          "sha256": "aa4024890b06ad451ed99ca3b2d926d9b9ae7ffe44058965b64a02393c260b2b"
+        }
+      ],
+      "ui": {
+        "route": "随手记",
+        "implementation_status": "已有原生实现；1.0（17）视觉反馈未关闭",
+        "code": [
+          {
+            "path": "Sources/ToughTrialV2App/V2CaptureView.swift",
+            "symbol": "V2CaptureView"
+          },
+          {
+            "path": "Sources/ToughTrialV2App/V2CaptureStore.swift",
+            "symbol": "V2CaptureStore.saveDraft()"
+          }
+        ],
+        "review_pages": [
+          {
+            "id": "capture-testflight-17",
+            "title": "随手记 · 当前 TestFlight",
+            "image": "outputs/contacts-design-review/assets/capture-testflight-17-20260930.jpg",
+            "kind": "device",
+            "provenance": "2026-09-30 · 用户 iPhone 13 Pro · TestFlight 1.0（17）",
+            "verification": "安装启动已确认；标题、底栏对比度反馈待修复。",
+            "review_path": "/#capture-testflight-17"
+          },
+          {
+            "id": "capture-design",
+            "title": "随手记 · 历史设计示意",
+            "image": "outputs/contacts-design-review/assets/capture.svg",
+            "kind": "design",
+            "provenance": "静态设计示意 · 非安装包产物",
+            "verification": "设计参考；不构成原生验收。功能实现状态另见本组说明。",
+            "review_path": "/#capture-design"
+          },
+          {
+            "id": "capture",
+            "title": "随手记",
+            "image": "outputs/contacts-design-review/assets/capture-native.png",
+            "kind": "simulator",
+            "provenance": "2026-09-20 · iPhone 17e 模拟器 · 构建号未锁定",
+            "verification": "历史模拟器截图，合成数据；具体交互范围见原 QA，当前真机未复验。",
+            "review_path": "/#capture"
+          }
+        ]
+      },
+      "delivery": {
+        "assessed_on": "2026-10-02",
+        "implementation": "implemented",
+        "technical_verification": "historical-scoped-pass",
+        "human_acceptance": "pending",
+        "roadmap_stage": "R1",
+        "status_source": "docs/roadmap.md",
+        "open_items": "TestFlight 17 可读性反馈未关闭；当前自然口述、真实整理和文件交互待验收。"
+      }
+    },
+    {
+      "id": "ui.today",
+      "title": "今天执行",
+      "purpose": "今天执行、整页滚动的主卡片、统一规划时间线与提醒时间设置；原生截图和实际操作关联，历史图不替代当前安装版验收。",
+      "aliases": [
+        "今天执行",
+        "主卡片遮挡",
+        "执行中分区",
+        "时间线消失",
+        "完成项弱化"
+      ],
+      "preconditions": [
+        "项目源码和本地评审素材可读；图片中的 App 控件不可操作。"
+      ],
+      "user_path": [
+        "今天",
+        "在评审站按功能筛选，查看来源、实现与同功能画面。",
+        "今天 → 右上角菜单 → 计划提醒 → 选择规划 → 设置日期与时间",
+        "今天 → 整页滚动查看规划时间线 → 已完成项 → 点开恢复"
+      ],
+      "operations": [
+        {
+          "kind": "ui",
+          "entry": "今天",
+          "effect": "read-only",
+          "authorization": "仅导航查看；写入任务、记账、分享或上传需按各业务既有授权执行。"
+        },
+        {
+          "kind": "ui",
+          "entry": "今天 → 右上角菜单 → 计划提醒 → 选择规划 → 设置日期与时间",
+          "effect": "write",
+          "authorization": "用户保存、清除或撤销提醒时间时修改同一条规划；首次系统通知授权由用户选择，通知拒绝时仍保留排期。"
+        }
+      ],
+      "acceptance": [
+        {
+          "source": "docs/qa/2026-09-20-today-queue-native-review.md",
+          "expected": "按原验收来源核对；历史截图和设计示意不证明当前安装版一致。"
+        },
+        {
+          "source": "docs/qa/2026-10-05-plan-reminders-repair.md",
+          "expected": "候选 18 的 11 项提醒专项与 1 项原生操作通过；实际系统入队不等于真机到点提醒，Release 导出和手机更新尚未完成。"
+        },
+        {
+          "source": "docs/qa/2026-10-05-simulator-retest.md",
+          "expected": "10/5 同包模拟器提醒设置、清除、撤销及系统入队通过；到点提醒和当前 iPhone 安装版仍待。"
+        },
+        {
+          "source": "docs/qa/2026-10-05-today-scroll-timeline.md",
+          "expected": "10/5 最新工作区的 7 项原生 UI 与 5 项 App 单元通过；包含长列表、44 点点击区、完成默认收起恢复和原生取消确认；真机和分发仍待。"
+        },
+        {
+          "source": "docs/qa/2026-10-05-phone-ui-refinements.md",
+          "expected": "10/5 手机四处修订：本地 21 号 Debug、限定原生交互通过，系统深色下保持明确浅色；版本分发与人工验收仍待。详见逐项 QA，截图不能代替测试。"
+        },
+        {
+          "source": "docs/qa/2026-10-06-milestone.md",
+          "expected": "10/6 源码阶段收束，按限定验证和保留的失败历史核对；23 号未分发，手机及服务验收仍开放。"
+        }
+      ],
+      "ontology_refs": [],
+      "evidence": [
+        {
+          "path": "docs/spec.md",
+          "sha256": "ef8b89d1d2758ca1df5916ee1dff6bc01db4b28e449b580538171938bbf7ffab"
+        },
+        {
+          "path": "docs/qa/2026-09-20-today-queue-native-review.md",
+          "sha256": "8a8ebd1657547f7b284023193fe6281898df783727993d846ff2a550ec324e48"
+        },
+        {
+          "path": "ontology/task-workspace.json",
+          "sha256": "9e1fbe32b34e032874af7eaa6110b057b0d761ab2ab760ac0dcbecd44a368bde"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2TodayView.swift",
+          "sha256": "b5ce0a849804a1742fcb2db5794ee4817a15e2bcc6455381091cb4dfe0d75d74"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2TodayExecutionBoard.swift",
+          "sha256": "c3b09c992abdd9726da8649f675cbcf478248dcfbed0aab9654bca551c709b00"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/today-native.png",
+          "sha256": "41adf4bd28046fa3e74872cc217b94283c2cde21cbd6f1f53d976ebfb354ea20"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/today-paused-native.png",
+          "sha256": "769ccd97b747da408bc604fa1f82a0871a5ef7265b79392fcbcf94608ab53219"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/today-completed-native.png",
+          "sha256": "da99ae2ede2363e2b53185262ce7e5b8891f67c87f7e9a6fc224667677084c72"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/today-empty-native.png",
+          "sha256": "7f597d89c9c68bda11919001610ae0484ec0b7d4888196770ceabb5acf87682c"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2PlanRemindersView.swift",
+          "sha256": "0c3c76ec6af7ec6093ebbe483c602e0a187f58bab7966d20f501dbf59d2f8174"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2AppStore.swift",
+          "sha256": "9940cfcc0e5440debf21d3721f72d92b71557edd6a06c144414cae12af77b852"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2AppStoreTaskEditing.swift",
+          "sha256": "eb72374a43dc6ee487e42a1cdb2bcd6f8f17905f57ff1e9dfe7c3b3bf1c3fe91"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2NativeServices.swift",
+          "sha256": "b60969e8ec94900ab24ea7c5676c383e7e0f813cfc898663be3b1bc3b8cf4c9f"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2ModuleOutbox.swift",
+          "sha256": "809081bec459b0f700a63dbafca5f0c45b643a4d16678f4aed43307f295e8692"
+        },
+        {
+          "path": "Tests/ToughTrialV2AppTests/V2PlanReminderTests.swift",
+          "sha256": "e3c481f27434aca393028e12b614d1f125a1c0d7b88084a0159afc787d8b40d1"
+        },
+        {
+          "path": "Tests/ToughTrialUITests/V2PlanReminderUITests.swift",
+          "sha256": "3dad5b80572d336650e51c74054f796b33a8abaae76af739081fffd2aafc68b4"
+        },
+        {
+          "path": "docs/superpowers/specs/2026-09-20-today-execution-queue.md",
+          "sha256": "5e5af5799ac1539852414099839d89f2db676590ac053501e3180fb9c4fa2247"
+        },
+        {
+          "path": "docs/qa/2026-10-05-plan-reminders-repair.md",
+          "sha256": "0a8ac24442c7a3b73478849a9e1d66030160a8408647550a1b17bf4b8fc72cff"
+        },
+        {
+          "path": "docs/qa/assets/2026-10-05-plan-reminders/plan-reminder-time-editor.png",
+          "sha256": "50918f31568a0be24e13ba0116c99280c3ea2825cd1d4b4bf6f889576de96064"
+        },
+        {
+          "path": "docs/qa/assets/2026-10-05-plan-reminders/plan-reminder-saved.png",
+          "sha256": "74782520114177698c011182cfe2a8112163b4f3fb097762691ce285e56e0791"
+        },
+        {
+          "path": "docs/qa/assets/2026-10-05-plan-reminders/plan-reminders-empty.png",
+          "sha256": "416637f4af5573571e34a3cce209bd4e462ab5df35bec55a1449ad966a768dac"
+        },
+        {
+          "path": "docs/qa/2026-10-05-simulator-retest.md",
+          "sha256": "d3ebbc86f4beba039e20eab2ec9983bc6477fe601f1d75b487ac0347a61ce5ca"
+        },
+        {
+          "path": "docs/qa/2026-10-05-today-scroll-timeline.md",
+          "sha256": "25369aa0accfc237454871562828575589fd9b40aa36f616c5896620e4721663"
+        },
+        {
+          "path": "Tests/ToughTrialV2AppTests/V2TodayQueueTests.swift",
+          "sha256": "e48f7d9e5181283e8b0cdf1a942fce6a7062a5954f52ef3f7222ce79a3643041"
+        },
+        {
+          "path": "Tests/ToughTrialUITests/V2TodayQueueUITests.swift",
+          "sha256": "043db9ff73009c5c9bea85de0a8ff692be3dcf7554b4453440c9e521767df7aa"
+        },
+        {
+          "path": "Tests/ToughTrialUITests/ToughTrialUITests.swift",
+          "sha256": "750e4972e479f559ea8eb7d93b2b2ede99b7ddf208ea32f8edc07854051394d9"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/today-current-native-20261005.png",
+          "sha256": "b53cbd32871374a756fc2f01191b15f9ef1033207d13ec1956cb644a7847a4af"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/today-scrolled-native-20261005.png",
+          "sha256": "531e8ae01d91a1185961a37bc482b2dbaeaf8b8b3f0ed90b9c7a1fe783eec77c"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/today-quiet-completed-native-20261005.png",
+          "sha256": "4972c5cc58d8553168c576aff34420ed8a7df49b3cc5adfecc24d662bfffb438"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/today-paused-native-20261005.png",
+          "sha256": "b67ae230dc9b065f8148f56dda328089e03d95228cf8ea28d3f71510054a7e01"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/today-completed-native-20261005.png",
+          "sha256": "06d169973b0dca168238d049d21e19130edabe51ee7a34fbfc17942f39abf292"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/today-empty-native-20261005.png",
+          "sha256": "1e8bcebfa3eecfacf1586de1baf36a588804f8fa3e5c86027c70d9b821711973"
+        },
+        {
+          "path": "docs/qa/2026-10-05-testflight-build19.md",
+          "sha256": "807957c57e51aa653e13a8bb6d19b4c0bf594f7ebd13d3a7b05b753832cc4e9b"
+        },
+        {
+          "path": "docs/qa/2026-10-05-phone-ui-refinements.md",
+          "sha256": "3de58f03f18cc482a5aef9620fcb6c96954b9a16d7071cd71e58daba99170be0"
+        },
+        {
+          "path": "docs/design-system.md",
+          "sha256": "faa63e5dddb6b973cff8ff035a0acbfc79a25dc60ed6539079f20e7ccef47289"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2RootView.swift",
+          "sha256": "57f3d5a51262cee6d4f9763707bd2b454957bb9877ea36df1a6992fb76d3387c"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/today-completed-21-native-20261005.png",
+          "sha256": "152a2b4303c3fe3aa27b129c65915fb5384d7ce927aa23ff99e1843adc5780f4"
+        },
+        {
+          "path": "docs/qa/2026-10-06-milestone.md",
+          "sha256": "63b4b66e9450106507254a67b5e2933a6b905ba29c23092c3e0c557d09c4a1a5"
+        }
+      ],
+      "ui": {
+        "route": "今天",
+        "implementation_status": "原生统一时间线、整页滚动、明确已完成与弱化呈现、计划提醒已实现；21 号局部交互通过，当前手机版本待更新",
+        "code": [
+          {
+            "path": "Sources/ToughTrialV2App/V2TodayView.swift",
+            "symbol": "V2TodayView"
+          },
+          {
+            "path": "Sources/ToughTrialV2App/V2TodayExecutionBoard.swift",
+            "symbol": "V2TodayExecutionBoard"
+          },
+          {
+            "path": "Sources/ToughTrialV2App/V2PlanRemindersView.swift",
+            "symbol": "V2PlanRemindersView"
+          },
+          {
+            "path": "Sources/ToughTrialV2App/V2AppStoreTaskEditing.swift",
+            "symbol": "V2AppStore.setPlanReminder"
+          },
+          {
+            "path": "Sources/ToughTrialV2App/V2NativeServices.swift",
+            "symbol": "V2NotificationService"
+          },
+          {
+            "path": "Sources/ToughTrialV2App/V2AppStore.swift",
+            "symbol": "V2AppStore.todayTimelineItems"
+          }
+        ],
+        "review_pages": [
+          {
+            "id": "today-completion-clear-20261005",
+            "title": "今天 · 明确完成状态",
+            "image": "outputs/contacts-design-review/assets/today-completed-21-native-20261005.png",
+            "kind": "simulator",
+            "provenance": "2026-10-05 · iPhone 13 Pro · iOS 26.5 · 1.0（21）Debug 开发预览 · 系统 dark / App 明确 light · 合成数据 · 未分发",
+            "verification": "完成项紧凑弱化，明确已完成，保留时间线、累计和右下角新增；对应实际交互见本轮 QA，真机人工验收待。",
+            "review_path": "/#today-completion-clear-20261005"
+          },
+          {
+            "id": "today",
+            "title": "今天 · 历史 9/20",
+            "image": "outputs/contacts-design-review/assets/today-native.png",
+            "kind": "simulator",
+            "provenance": "2026-09-20 · iPhone 17e 模拟器 · 构建号未锁定",
+            "verification": "历史模拟器截图，合成数据；具体交互范围见原 QA，当前真机未复验。",
+            "review_path": "/#today"
+          },
+          {
+            "id": "today-paused",
+            "title": "今天 · 暂停后",
+            "image": "outputs/contacts-design-review/assets/today-paused-native.png",
+            "kind": "simulator",
+            "provenance": "2026-09-20 · iPhone 17e 模拟器 · 构建号未锁定",
+            "verification": "历史模拟器截图，合成数据；具体交互范围见原 QA，当前真机未复验。",
+            "review_path": "/#today-paused"
+          },
+          {
+            "id": "today-completed",
+            "title": "今天 · 完成后",
+            "image": "outputs/contacts-design-review/assets/today-completed-native.png",
+            "kind": "simulator",
+            "provenance": "2026-09-20 · iPhone 17e 模拟器 · 构建号未锁定",
+            "verification": "历史模拟器截图，合成数据；具体交互范围见原 QA，当前真机未复验。",
+            "review_path": "/#today-completed"
+          },
+          {
+            "id": "today-empty",
+            "title": "今天 · 空闲",
+            "image": "outputs/contacts-design-review/assets/today-empty-native.png",
+            "kind": "simulator",
+            "provenance": "2026-09-20 · iPhone 17e 模拟器 · 构建号未锁定",
+            "verification": "历史模拟器截图，合成数据；具体交互范围见原 QA，当前真机未复验。",
+            "review_path": "/#today-empty"
+          },
+          {
+            "id": "today-current-20261005",
+            "title": "今天 · 当前 10/5",
+            "image": "outputs/contacts-design-review/assets/today-current-native-20261005.png",
+            "kind": "simulator",
+            "provenance": "2026-10-05 · iPhone 17 Pro · iOS 26.5 · 1.0（18）Debug 工作区；合成任务",
+            "verification": "生产 SwiftUI 实际操作截图；7 项 UI + 5 项 App 单元限定范围通过，详见今日滚动 QA。当前 iPhone 安装版和大字体未复验。",
+            "review_path": "/#today-current-20261005"
+          },
+          {
+            "id": "today-scrolled-20261005",
+            "title": "今天 · 滚动到详情",
+            "image": "outputs/contacts-design-review/assets/today-scrolled-native-20261005.png",
+            "kind": "simulator",
+            "provenance": "2026-10-05 · iPhone 17 Pro · iOS 26.5 · 1.0（18）Debug 工作区；合成任务",
+            "verification": "生产 SwiftUI 实际操作截图；7 项 UI + 5 项 App 单元限定范围通过，详见今日滚动 QA。当前 iPhone 安装版和大字体未复验。",
+            "review_path": "/#today-scrolled-20261005"
+          },
+          {
+            "id": "today-quiet-completed-20261005",
+            "title": "今天 · 弱化完成项",
+            "image": "outputs/contacts-design-review/assets/today-quiet-completed-native-20261005.png",
+            "kind": "simulator",
+            "provenance": "2026-10-05 · iPhone 17 Pro · iOS 26.5 · 1.0（18）Debug 工作区；合成任务",
+            "verification": "生产 SwiftUI 实际操作截图；7 项 UI + 5 项 App 单元限定范围通过，详见今日滚动 QA。当前 iPhone 安装版和大字体未复验。",
+            "review_path": "/#today-quiet-completed-20261005"
+          },
+          {
+            "id": "today-paused-20261005",
+            "title": "今天 · 暂停补位 10/5",
+            "image": "outputs/contacts-design-review/assets/today-paused-native-20261005.png",
+            "kind": "simulator",
+            "provenance": "2026-10-05 · iPhone 17 Pro · iOS 26.5 · 1.0（18）Debug 工作区；合成任务",
+            "verification": "生产 SwiftUI 实际操作截图；7 项 UI + 5 项 App 单元限定范围通过，详见今日滚动 QA。当前 iPhone 安装版和大字体未复验。",
+            "review_path": "/#today-paused-20261005"
+          },
+          {
+            "id": "today-completed-20261005",
+            "title": "今天 · 完成后 10/5",
+            "image": "outputs/contacts-design-review/assets/today-completed-native-20261005.png",
+            "kind": "simulator",
+            "provenance": "2026-10-05 · iPhone 17 Pro · iOS 26.5 · 1.0（18）Debug 工作区；合成任务",
+            "verification": "生产 SwiftUI 实际操作截图；7 项 UI + 5 项 App 单元限定范围通过，详见今日滚动 QA。当前 iPhone 安装版和大字体未复验。",
+            "review_path": "/#today-completed-20261005"
+          },
+          {
+            "id": "today-empty-20261005",
+            "title": "今天 · 空闲 10/5",
+            "image": "outputs/contacts-design-review/assets/today-empty-native-20261005.png",
+            "kind": "simulator",
+            "provenance": "2026-10-05 · iPhone 17 Pro · iOS 26.5 · 1.0（18）Debug 工作区；合成任务",
+            "verification": "生产 SwiftUI 实际操作截图；7 项 UI + 5 项 App 单元限定范围通过，详见今日滚动 QA。当前 iPhone 安装版和大字体未复验。",
+            "review_path": "/#today-empty-20261005"
+          }
+        ]
+      },
+      "delivery": {
+        "assessed_on": "2026-10-06",
+        "implementation": "implemented",
+        "technical_verification": "scoped-runtime-and-ui-pass",
+        "human_acceptance": "pending",
+        "roadmap_stage": "R1",
+        "status_source": "docs/roadmap.md",
+        "open_items": "21 号 Debug 明确完成提示与恢复已局部验证；19 号已上传，21 未分发；当前真机、滚动 / 大字、到点提醒及 Live Activity 仍待。"
+      }
+    },
+    {
+      "id": "ui.tasks.list",
+      "title": "任务列表",
+      "purpose": "在同一列表按进行中、未开始、已完成查看全部未归档任务；保留编辑、完成恢复和撤销。",
+      "aliases": [
+        "任务列表",
+        "三组任务",
+        "未开始",
+        "进行中",
+        "已完成"
+      ],
+      "preconditions": [
+        "项目源码和本地评审素材可读；图片中的 App 控件不可操作。"
+      ],
+      "user_path": [
+        "任务 → 列表 → 进行中 / 未开始 / 已完成",
+        "点击标题编辑；点击完成图标完成或恢复，回执可撤销。",
+        "在评审站查看生产原生截图、来源和对应代码。"
+      ],
+      "operations": [
+        {
+          "kind": "ui",
+          "entry": "任务 → 列表",
+          "effect": "read-only",
+          "authorization": "仅导航查看；写入任务、记账、分享或上传需按各业务既有授权执行。"
+        }
+      ],
+      "acceptance": [
+        {
+          "source": "docs/qa/2026-09-14-four-task-views.md",
+          "expected": "按原验收来源核对；历史截图和设计示意不证明当前安装版一致。"
+        },
+        {
+          "source": "docs/qa/2026-10-05-task-list-groups.md",
+          "expected": "8 App 单元、2 iOS UI、4 Mac UI 限定范围通过；完成/恢复/撤销后分组、数量和按钮一致，iOS 44 点点击区通过。当前手机安装版、大字体和 Mac 运行态全交互仍待。"
+        },
+        {
+          "source": "docs/qa/2026-10-05-task-list-design-foundation.md",
+          "expected": "轻量三组表面、状态浅底深字、完成项弱化；空态 / 长标题 / 完成恢复撤销 / 44 点点击区与五个底栏入口实际通过。任务页明确浅色，4 项浅色 UI 及最终源码 2 项系统深色复验通过；开发预览未分发，完整动态字号和真机仍待。"
+        },
+        {
+          "source": "docs/qa/2026-10-06-milestone.md",
+          "expected": "10/6 源码阶段收束，按限定验证和保留的失败历史核对；23 号未分发，手机及服务验收仍开放。"
+        }
+      ],
+      "ontology_refs": [],
+      "evidence": [
+        {
+          "path": "docs/spec.md",
+          "sha256": "ef8b89d1d2758ca1df5916ee1dff6bc01db4b28e449b580538171938bbf7ffab"
+        },
+        {
+          "path": "docs/qa/2026-09-14-four-task-views.md",
+          "sha256": "6796cbf899060d2275035e9f1575884d46318aa3b56df1d10f0985f60ad64281"
+        },
+        {
+          "path": "ontology/task-workspace.json",
+          "sha256": "9e1fbe32b34e032874af7eaa6110b057b0d761ab2ab760ac0dcbecd44a368bde"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2TasksView.swift",
+          "sha256": "9293f345675c7607cb53e915aad762440ee0c513952145d2085e039eccb0eeb5"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/tasks-list-device-20260921.png",
+          "sha256": "dac459a202ef4caa6aff34c68db411fcc2648e077127d12b54b91f38fabf4f7e"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/tasks-list-native.png",
+          "sha256": "df9bb7f36c0900ef2bdf8cbf05bff084a6d98c0db9d1f071467dbf83cb774427"
+        },
+        {
+          "path": "Sources/ToughTrialV2Core/V2Models.swift",
+          "sha256": "1c63311b22cf9e340a87b8811335a167d9f945c6d3a7ed122b41747b0411b644"
+        },
+        {
+          "path": "Sources/ToughTrialMacApp/MacTaskWorkspaceView.swift",
+          "sha256": "211cb79f869206b791a832a1ffdea35fd400c6355cfcd5c8e42213f768a9bb10"
+        },
+        {
+          "path": "Tests/ToughTrialV2AppTests/V2TodayQueueTests.swift",
+          "sha256": "e48f7d9e5181283e8b0cdf1a942fce6a7062a5954f52ef3f7222ce79a3643041"
+        },
+        {
+          "path": "Tests/ToughTrialUITests/V2TaskEditorUITests.swift",
+          "sha256": "4ab5a7b40ef0b8ad596f355ecb45cfb95f58fe345f6c82ef99a17833ca13e067"
+        },
+        {
+          "path": "Tests/ToughTrialMacUITests/MacTaskInteractionTests.swift",
+          "sha256": "e8e22694d5c1ca1f6fe160bdb89f2a704bcd37c112576dfbedd1e22cec8fe0d1"
+        },
+        {
+          "path": "docs/qa/2026-10-05-task-list-groups.md",
+          "sha256": "77367b2c6f4e76cb98215ea459e2457c3bc2b311e1fcf7c5056017b8405478e3"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/tasks-list-current-native-20261005.png",
+          "sha256": "d9a6e45a8d89d3d1b9f17dc91004f5dc929d58021b477a8e6c05f9be954b1296"
+        },
+        {
+          "path": "docs/qa/assets/2026-10-05-task-list/mac-tasks-list-current-native-20261005.png",
+          "sha256": "d8859b9199c6df1e26775b0f0cd44da390970b71e618cd17bdf5b5e84cb92b21"
+        },
+        {
+          "path": "docs/qa/2026-10-05-testflight-build19.md",
+          "sha256": "807957c57e51aa653e13a8bb6d19b4c0bf594f7ebd13d3a7b05b753832cc4e9b"
+        },
+        {
+          "path": "docs/qa/2026-10-05-task-list-design-foundation.md",
+          "sha256": "16dafe44b70cafa80b6afcaf63f971a4e1365f3b09201609d238a89d6e826b0e"
+        },
+        {
+          "path": "docs/design-system.md",
+          "sha256": "faa63e5dddb6b973cff8ff035a0acbfc79a25dc60ed6539079f20e7ccef47289"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2Theme.swift",
+          "sha256": "e57d5673d075211b271d5949ea4ca269ec832930285097a5b7c3ee071d39522c"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/tasks-list-foundation-20-native-20261005.png",
+          "sha256": "1ef4f5ea80037f15b7c1c27c1f1d6121d542da776c238e16d4f124df7c694375"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/tasks-list-foundation-20-empty-native-20261005.png",
+          "sha256": "040783b75ff6c2903307899577c742af0fe1fbb18fe102a653a9c550d2f46064"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/tasks-list-foundation-20-large-text-native-20261005.png",
+          "sha256": "28f77a789b7c6951a7a550e87e81811966944dda49a2ddce2c35934379a3d974"
+        },
+        {
+          "path": "docs/qa/2026-10-06-milestone.md",
+          "sha256": "63b4b66e9450106507254a67b5e2933a6b905ba29c23092c3e0c557d09c4a1a5"
+        }
+      ],
+      "ui": {
+        "route": "任务 → 列表",
+        "implementation_status": "iPhone 20 号 Debug 设计优化已实现；Mac 保留既有三组列表；19 号已上传、手机更新尚未确认",
+        "code": [
+          {
+            "path": "Sources/ToughTrialV2App/V2TasksView.swift",
+            "symbol": "V2TaskListView"
+          },
+          {
+            "path": "Sources/ToughTrialV2Core/V2Models.swift",
+            "symbol": "V2TaskListGroup"
+          },
+          {
+            "path": "Sources/ToughTrialMacApp/MacTaskWorkspaceView.swift",
+            "symbol": "MacTaskWorkspaceView.groupedList"
+          },
+          {
+            "path": "Sources/ToughTrialV2App/V2Theme.swift",
+            "symbol": "V2Theme.ColorRole"
+          }
+        ],
+        "review_pages": [
+          {
+            "id": "device-tasks-list",
+            "title": "真机 · 任务列表",
+            "image": "outputs/contacts-design-review/assets/tasks-list-device-20260921.png",
+            "kind": "device",
+            "provenance": "2026-09-21 · iPhone 13 Pro · 1.0（14）历史截图",
+            "verification": "历史设备证据；不代表当前 1.0（17）视觉验收通过。",
+            "review_path": "/#device-tasks-list"
+          },
+          {
+            "id": "tasks-list",
+            "title": "任务 · 列表 · 历史 9/20",
+            "image": "outputs/contacts-design-review/assets/tasks-list-native.png",
+            "kind": "simulator",
+            "provenance": "2026-09-20 · iPhone 17e 模拟器 · 构建号未锁定",
+            "verification": "历史模拟器截图，合成数据；具体交互范围见原 QA，当前真机未复验。",
+            "review_path": "/#tasks-list"
+          },
+          {
+            "id": "tasks-list-current-20261005",
+            "title": "任务 · 列表 · 当前 10/5",
+            "image": "outputs/contacts-design-review/assets/tasks-list-current-native-20261005.png",
+            "kind": "simulator",
+            "provenance": "2026-10-05 · iPhone 17 Pro · iOS 26.5 · 1.0（18）Debug 工作区；合成任务",
+            "verification": "生产 SwiftUI 实际新建、开始、暂停和完成后截图；2 iOS UI 与 8 App 单元限定范围通过，详见任务分组 QA。真机和大字体未复验。",
+            "review_path": "/#tasks-list-current-20261005"
+          },
+          {
+            "id": "tasks-list-design-foundation-20261005",
+            "title": "任务 · 列表 · 设计优化",
+            "image": "outputs/contacts-design-review/assets/tasks-list-foundation-20-native-20261005.png",
+            "kind": "simulator",
+            "provenance": "2026-10-05 · iPhone 13 Pro · iOS 26.5 · 1.0（20）Debug 开发预览；合成任务；系统深色、任务页明确浅色；未分发",
+            "verification": "生产 SwiftUI 实际操作截图；4 项浅色 UI 与最终源码 2 项系统深色复验通过，详见设计 QA。不替代真机或全 App 无障碍验收。",
+            "review_path": "/#tasks-list-design-foundation-20261005"
+          },
+          {
+            "id": "tasks-list-design-foundation-empty-20261005",
+            "title": "任务 · 列表 · 简洁空态",
+            "image": "outputs/contacts-design-review/assets/tasks-list-foundation-20-empty-native-20261005.png",
+            "kind": "simulator",
+            "provenance": "2026-10-05 · iPhone 13 Pro · iOS 26.5 · 1.0（20）Debug 开发预览；合成任务；系统深色、任务页明确浅色；未分发",
+            "verification": "生产 SwiftUI 实际操作截图；4 项浅色 UI 与最终源码 2 项系统深色复验通过，详见设计 QA。不替代真机或全 App 无障碍验收。",
+            "review_path": "/#tasks-list-design-foundation-empty-20261005"
+          },
+          {
+            "id": "tasks-list-design-foundation-large-text-20261005",
+            "title": "任务 · 列表 · 长标题检查",
+            "image": "outputs/contacts-design-review/assets/tasks-list-foundation-20-large-text-native-20261005.png",
+            "kind": "simulator",
+            "provenance": "2026-10-05 · iPhone 13 Pro · iOS 26.5 · 1.0（20）Debug 开发预览；合成任务；系统深色、任务页明确浅色；未分发",
+            "verification": "生产 SwiftUI 实际操作截图；4 项浅色 UI 与最终源码 2 项系统深色复验通过，详见设计 QA。不替代真机或全 App 无障碍验收。",
+            "review_path": "/#tasks-list-design-foundation-large-text-20261005"
+          }
+        ]
+      },
+      "delivery": {
+        "assessed_on": "2026-10-06",
+        "implementation": "implemented",
+        "technical_verification": "scoped-runtime-and-ui-pass",
+        "human_acceptance": "pending",
+        "roadmap_stage": "R1",
+        "status_source": "docs/roadmap.md",
+        "open_items": "20 号 Debug 任务列表设计优化及限定原生交互通过，尚未分发和人工确认；19 号已上传，测试群组可用与手机更新尚未确认。完整动态字号、VoiceOver、当前真机、Mac 运行态全交互待验收。"
+      }
+    },
+    {
+      "id": "ui.tasks.structure",
+      "title": "任务结构",
+      "purpose": "关联任务结构的产品入口、实现定位和现有评审页面；不替代实际验收。",
+      "aliases": [
+        "任务结构"
+      ],
+      "preconditions": [
+        "项目源码和本地评审素材可读；图片中的 App 控件不可操作。"
+      ],
+      "user_path": [
+        "任务 → 结构 → 共用未分类展示根 / 真实任务分支",
+        "在评审站按功能筛选，查看来源、实现与同功能画面。"
+      ],
+      "operations": [
+        {
+          "kind": "ui",
+          "entry": "任务 → 结构",
+          "effect": "read-only",
+          "authorization": "仅导航查看；写入任务、记账、分享或上传需按各业务既有授权执行。"
+        }
+      ],
+      "acceptance": [
+        {
+          "source": "docs/qa/2026-09-21-structure-modes.md",
+          "expected": "按原验收来源核对；历史截图和设计示意不证明当前安装版一致。"
+        },
+        {
+          "source": "docs/qa/2026-10-05-phone-ui-refinements.md",
+          "expected": "10/5 手机四处修订：本地 21 号 Debug、限定原生交互通过，系统深色下保持明确浅色；版本分发与人工验收仍待。详见逐项 QA，截图不能代替测试。"
+        },
+        {
+          "source": "docs/qa/2026-10-05-light-task-tree.md",
+          "expected": "10/5 轻树 22 号 Debug：三个限定原生用例通过，独立至少 44 点命中区；审美评审、真机及 TestFlight 待。"
+        },
+        {
+          "source": "docs/qa/2026-10-06-milestone.md",
+          "expected": "23 号彩色树三个限定原生交互用例通过；沿用父子关系、命令与单一展示根，人工审美与手机验证仍开放。"
+        }
+      ],
+      "ontology_refs": [],
+      "evidence": [
+        {
+          "path": "docs/spec.md",
+          "sha256": "ef8b89d1d2758ca1df5916ee1dff6bc01db4b28e449b580538171938bbf7ffab"
+        },
+        {
+          "path": "docs/qa/2026-09-21-structure-modes.md",
+          "sha256": "f17105c9b3fca10a4e516b37e1ab9354255e4b370ad632009d24d69ee09ca45b"
+        },
+        {
+          "path": "ontology/task-workspace.json",
+          "sha256": "9e1fbe32b34e032874af7eaa6110b057b0d761ab2ab760ac0dcbecd44a368bde"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2TasksView.swift",
+          "sha256": "9293f345675c7607cb53e915aad762440ee0c513952145d2085e039eccb0eeb5"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2InvertedTaskTreeView.swift",
+          "sha256": "bf9056984dac57994b54637e7894ada25ec3cb93cfe4e251b444864654a5e8f5"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/inverted-tree-native-overview-20260921.png",
+          "sha256": "ae7e8228288b232e9a71d42630716baf35db268fcfab68436cf2b68f6ce8099b"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/inverted-tree-native-selection-20260921.png",
+          "sha256": "2dc028e2fa16748dc4809062b8378bf38c6cb83d555d1a012440179b4ce9ce89"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/inverted-tree-native-focus-20260921.png",
+          "sha256": "9866ca1e4ed48aa722f6d65600a5b99fa06c3f7e91e6044e5f9fe1a4a31bedc9"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/inverted-tree-native-six-levels-20260921.png",
+          "sha256": "9d9b2f012d6a3a57b63635a3c74a12a5f1dfc78e28d252679569398b5a5f634c"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/directory-mode-native-20260921.png",
+          "sha256": "f09e50905af059a696b0721219deec9db788094f876237c11b651b8b76d55a49"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/inverted-tree-overview.svg",
+          "sha256": "9774dd06875180765d3ed912474218df358d8a0352d3def499738fedd2040448"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/inverted-tree-focus.svg",
+          "sha256": "ebf0d2d7524b13aa2751a6f12c41de2d88257a30fcffe0dd7106037e580311f1"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/six-level-expanded-simulator.png",
+          "sha256": "76075ed63b4048458315a4f91306832b94fde70013e5acf8394e7ce28b80cbe1"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/six-level-default-simulator.png",
+          "sha256": "214acbfcd19026e219f78dd8c56728d99ae207f0b85959924c7173345c902491"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/six-level-scrolled-simulator.png",
+          "sha256": "25134ab68b9ea61535654e23a52edbe18e141f3bace06c63ccc25f3ae2eac73d"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/tasks-structure-compact-simulator-20260921.png",
+          "sha256": "e79e943778640032bfe65a5a6c41c79e799f77617b732534423ed98449216419"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/tasks-structure-device-20260921.png",
+          "sha256": "2f66dad3389458a5de4717ebc3f9b3e7fc0673d012c814f9cee0a89f101a9148"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/tasks-structure-native.png",
+          "sha256": "383a172931e48f1ae691c820dc4af1ac2862d9e1cc165cb9cb2b62b53effc367"
+        },
+        {
+          "path": "docs/qa/2026-10-05-phone-ui-refinements.md",
+          "sha256": "3de58f03f18cc482a5aef9620fcb6c96954b9a16d7071cd71e58daba99170be0"
+        },
+        {
+          "path": "docs/design-system.md",
+          "sha256": "faa63e5dddb6b973cff8ff035a0acbfc79a25dc60ed6539079f20e7ccef47289"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2RootView.swift",
+          "sha256": "57f3d5a51262cee6d4f9763707bd2b454957bb9877ea36df1a6992fb76d3387c"
+        },
+        {
+          "path": "Tests/ToughTrialUITests/V2TodayQueueUITests.swift",
+          "sha256": "043db9ff73009c5c9bea85de0a8ff692be3dcf7554b4453440c9e521767df7aa"
+        },
+        {
+          "path": "Sources/ToughTrialV2Core/V2InvertedTreeLayout.swift",
+          "sha256": "abf82e43a88037a88c0a31c5b61070099c65ca12295e78bd7d3637a7b5237b97"
+        },
+        {
+          "path": "Tests/ToughTrialWorkspaceTests/InvertedTreeLayoutTests.swift",
+          "sha256": "51f6da1964875a3e50359efd5b98f44b6e63bac4fde0bce048165320fb4e6ec8"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/structure-common-root-21-native-20261005.png",
+          "sha256": "7a2e7c75017330e5a7f3352a66a30e6c07741f99112668e12e437e41b859d206"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/structure-completed-21-native-20261005.png",
+          "sha256": "83f6d258637caa314b7d17eceaba8e130711cf8f39d5204dca1aeccf1ccf1fe0"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/structure-focus-21-native-20261005.png",
+          "sha256": "61fa1ddfc40a20ad8c932e009296cb2f9ec401dda6709358520f10a0f7c5c135"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/structure-empty-21-native-20261005.png",
+          "sha256": "459ca0ca75f1a4850312e0d940a386cf0997866936694e2232935aee4afb8539"
+        },
+        {
+          "path": "Tests/ToughTrialUITests/ToughTrialUITests.swift",
+          "sha256": "750e4972e479f559ea8eb7d93b2b2ede99b7ddf208ea32f8edc07854051394d9"
+        },
+        {
+          "path": "docs/qa/2026-10-05-light-task-tree.md",
+          "sha256": "409b8635147a7d60b4c84df88905bd47b8a156a1d84a781bf01e688ce1fe0396"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/structure-light-tree-22-native-20261005.png",
+          "sha256": "f00ce7d9fe0483ad6c413b5bcd1c633f9c6d21a89c192bd5f7f88c4fb3f81964"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/structure-light-completed-22-native-20261005.png",
+          "sha256": "91ee14edc26fb3e0fd94c91799c9585946e79e07a6504d6db250caec8fea3af8"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/structure-light-selected-22-native-20261005.png",
+          "sha256": "cf44dbda358a58ff7db9c01ef50932b7d02c225844ccaf759904d0e7367f6c3a"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/structure-light-forest-22-native-20261005.png",
+          "sha256": "d07e8df0fb74b7145df42eab0eea721132446b9e48258827d043e6f17f1f88a1"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/structure-mindmap-tree-23-native-20261006.png",
+          "sha256": "1da5a260a688ca51450390f50709b06280bf292bed6848da4e64cfe2f7c6d670"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/structure-mindmap-completed-23-native-20261006.png",
+          "sha256": "f0faddd9f53567b838f264d0fd5e4b591956c10680822ec83ae15592c4ec3d0b"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/structure-mindmap-selected-23-native-20261006.png",
+          "sha256": "edde7bc12a091181fdb849f727b2e8943ac1bc029586d47ff87b9e0b00db864a"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/structure-mindmap-forest-23-native-20261006.png",
+          "sha256": "29d8a6418b4da119f3bd7eeea6d4173ca9c189fc3568744db813e04cdc5d390e"
+        },
+        {
+          "path": "docs/qa/2026-10-06-milestone.md",
+          "sha256": "63b4b66e9450106507254a67b5e2933a6b905ba29c23092c3e0c557d09c4a1a5"
+        }
+      ],
+      "ui": {
+        "route": "任务 → 结构",
+        "implementation_status": "原生彩色思维导图：稳定分支色、曲线与连接点、紧凑浅底节点、单一展示根；23 号三个限定原生交互通过，审美人工评审与真机分发待",
+        "code": [
+          {
+            "path": "Sources/ToughTrialV2App/V2TasksView.swift",
+            "symbol": "V2TasksView"
+          },
+          {
+            "path": "Sources/ToughTrialV2App/V2InvertedTaskTreeView.swift",
+            "symbol": "V2InvertedTaskTreeView"
+          },
+          {
+            "path": "Sources/ToughTrialV2Core/V2InvertedTreeLayout.swift",
+            "symbol": "V2InvertedTreeLayout.OverviewRoot"
+          }
+        ],
+        "review_pages": [
+          {
+            "id": "structure-mindmap-tree-20261006",
+            "title": "彩色思维导图 · 总览",
+            "image": "outputs/contacts-design-review/assets/structure-mindmap-tree-23-native-20261006.png",
+            "kind": "simulator",
+            "provenance": "2026-10-06 · iPhone 13 Pro · iOS 26.5 · 1.0（23）Debug · 生产 SwiftUI / 合成数据 · light · 未分发",
+            "verification": "彩色分支、细曲线与连接节点；紧凑浅底节点，从同一个未分类展示根展开；原生操作范围见 10/6 阶段 QA，审美人工评审与真机待。",
+            "review_path": "/#structure-mindmap-tree-20261006"
+          },
+          {
+            "id": "structure-mindmap-completed-20261006",
+            "title": "彩色树 · 完成状态",
+            "image": "outputs/contacts-design-review/assets/structure-mindmap-completed-23-native-20261006.png",
+            "kind": "simulator",
+            "provenance": "2026-10-06 · iPhone 13 Pro · iOS 26.5 · 1.0（23）Debug · 生产 SwiftUI / 合成数据 · light · 未分发",
+            "verification": "完成父节点和叶节点保留勾选、已完成和删除线，颜色退为中性；原生操作范围见 10/6 阶段 QA，审美人工评审与真机待。",
+            "review_path": "/#structure-mindmap-completed-20261006"
+          },
+          {
+            "id": "structure-mindmap-selected-20261006",
+            "title": "彩色树 · 选中与详情",
+            "image": "outputs/contacts-design-review/assets/structure-mindmap-selected-23-native-20261006.png",
+            "kind": "simulator",
+            "provenance": "2026-10-06 · iPhone 13 Pro · iOS 26.5 · 1.0（23）Debug · 生产 SwiftUI / 合成数据 · light · 未分发",
+            "verification": "选中保持清晰蓝色边界；查看、聚焦和关闭操作沿用原生界面；原生操作范围见 10/6 阶段 QA，审美人工评审与真机待。",
+            "review_path": "/#structure-mindmap-selected-20261006"
+          },
+          {
+            "id": "structure-mindmap-forest-20261006",
+            "title": "彩色树 · 多根分支",
+            "image": "outputs/contacts-design-review/assets/structure-mindmap-forest-23-native-20261006.png",
+            "kind": "simulator",
+            "provenance": "2026-10-06 · iPhone 13 Pro · iOS 26.5 · 1.0（23）Debug · 生产 SwiftUI / 合成数据 · light · 未分发",
+            "verification": "多个实际顶层任务从单一未分类展示根展开；宽树可横向拖动；原生操作范围见 10/6 阶段 QA，审美人工评审与真机待。",
+            "review_path": "/#structure-mindmap-forest-20261006"
+          },
+          {
+            "id": "structure-light-tree-20261005",
+            "title": "历史 22 · 任务结构 · 轻树总览",
+            "image": "outputs/contacts-design-review/assets/structure-light-tree-22-native-20261005.png",
+            "kind": "simulator",
+            "provenance": "2026-10-05 · iPhone 13 Pro · iOS 26.5 · 1.0（22）Debug · 生产 SwiftUI / 合成数据 · light · 未分发",
+            "verification": "文字节点与细曲线，常态无卡片；共用未分类根，展开控件与标题并排；具体原生操作范围见本轮 QA，人工审美与真机待。 用户反馈要求彩色节点，10/6 已由 23 号替代。",
+            "review_path": "/#structure-light-tree-20261005"
+          },
+          {
+            "id": "structure-light-completed-20261005",
+            "title": "历史 22 · 轻树 · 完成状态",
+            "image": "outputs/contacts-design-review/assets/structure-light-completed-22-native-20261005.png",
+            "kind": "simulator",
+            "provenance": "2026-10-05 · iPhone 13 Pro · iOS 26.5 · 1.0（22）Debug · 生产 SwiftUI / 合成数据 · light · 未分发",
+            "verification": "完成父节点和叶节点保留勾选、已完成与删除线，次级文字保持可读；具体原生操作范围见本轮 QA，人工审美与真机待。 用户反馈要求彩色节点，10/6 已由 23 号替代。",
+            "review_path": "/#structure-light-completed-20261005"
+          },
+          {
+            "id": "structure-light-selected-20261005",
+            "title": "历史 22 · 轻树 · 选中与详情",
+            "image": "outputs/contacts-design-review/assets/structure-light-selected-22-native-20261005.png",
+            "kind": "simulator",
+            "provenance": "2026-10-05 · iPhone 13 Pro · iOS 26.5 · 1.0（22）Debug · 生产 SwiftUI / 合成数据 · light · 未分发",
+            "verification": "只有当前选中节点出现淡蓝底；下方查看任务、聚焦与关闭仍使用原生操作；具体原生操作范围见本轮 QA，人工审美与真机待。 用户反馈要求彩色节点，10/6 已由 23 号替代。",
+            "review_path": "/#structure-light-selected-20261005"
+          },
+          {
+            "id": "structure-light-forest-20261005",
+            "title": "历史 22 · 轻树 · 多根分支",
+            "image": "outputs/contacts-design-review/assets/structure-light-forest-22-native-20261005.png",
+            "kind": "simulator",
+            "provenance": "2026-10-05 · iPhone 13 Pro · iOS 26.5 · 1.0（22）Debug · 生产 SwiftUI / 合成数据 · light · 未分发",
+            "verification": "多个顶层任务从同一个展示根延伸；宽树仍可横向查看，不压缩文字强塞首屏；具体原生操作范围见本轮 QA，人工审美与真机待。 用户反馈要求彩色节点，10/6 已由 23 号替代。",
+            "review_path": "/#structure-light-forest-20261005"
+          },
+          {
+            "id": "structure-common-root-20261005",
+            "title": "历史 21 · 任务 · 共用未分类根",
+            "image": "outputs/contacts-design-review/assets/structure-common-root-21-native-20261005.png",
+            "kind": "simulator",
+            "provenance": "2026-10-05 · iPhone 13 Pro · iOS 26.5 · 1.0（21）Debug 开发预览 · 系统 dark / App 明确 light · 合成数据 · 未分发",
+            "verification": "结构直接显示倒树；多个顶层任务从单一展示根延伸，宽树仍需横向拖动；对应实际交互见本轮 QA，真机人工验收待。",
+            "review_path": "/#structure-common-root-20261005"
+          },
+          {
+            "id": "structure-completed-20261005",
+            "title": "历史 21 · 任务结构 · 完成状态",
+            "image": "outputs/contacts-design-review/assets/structure-completed-21-native-20261005.png",
+            "kind": "simulator",
+            "provenance": "2026-10-05 · iPhone 13 Pro · iOS 26.5 · 1.0（21）Debug 开发预览 · 系统 dark / App 明确 light · 合成数据 · 未分发",
+            "verification": "完成父节点和叶节点均以文字、勾选、删除线与中性表面表示；对应实际交互见本轮 QA，真机人工验收待。",
+            "review_path": "/#structure-completed-20261005"
+          },
+          {
+            "id": "structure-focus-20261005",
+            "title": "历史 21 · 任务结构 · 聚焦分支",
+            "image": "outputs/contacts-design-review/assets/structure-focus-21-native-20261005.png",
+            "kind": "simulator",
+            "provenance": "2026-10-05 · iPhone 13 Pro · iOS 26.5 · 1.0（21）Debug 开发预览 · 系统 dark / App 明确 light · 合成数据 · 未分发",
+            "verification": "聚焦真实分支，返回上一级；展示根不充当业务节点；对应实际交互见本轮 QA，真机人工验收待。",
+            "review_path": "/#structure-focus-20261005"
+          },
+          {
+            "id": "structure-empty-20261005",
+            "title": "历史 21 · 任务结构 · 空态",
+            "image": "outputs/contacts-design-review/assets/structure-empty-21-native-20261005.png",
+            "kind": "simulator",
+            "provenance": "2026-10-05 · iPhone 13 Pro · iOS 26.5 · 1.0（21）Debug 开发预览 · 系统 dark / App 明确 light · 合成数据 · 未分发",
+            "verification": "没有任务时不创建假根；右下角新增仍是实际入口；对应实际交互见本轮 QA，真机人工验收待。",
+            "review_path": "/#structure-empty-20261005"
+          },
+          {
+            "id": "native-inverted-overview",
+            "title": "已实现 · 倒树总览",
+            "image": "outputs/contacts-design-review/assets/inverted-tree-native-overview-20260921.png",
+            "kind": "simulator",
+            "provenance": "2026-09-21 · iPhone 17e 模拟器 · 构建号未锁定",
+            "verification": "历史模拟器截图，合成数据；具体交互范围见原 QA，当前真机未复验。",
+            "review_path": "/#native-inverted-overview"
+          },
+          {
+            "id": "native-inverted-selection",
+            "title": "已实现 · 倒树选中",
+            "image": "outputs/contacts-design-review/assets/inverted-tree-native-selection-20260921.png",
+            "kind": "simulator",
+            "provenance": "2026-09-21 · iPhone 17e 模拟器 · 构建号未锁定",
+            "verification": "历史模拟器截图，合成数据；具体交互范围见原 QA，当前真机未复验。",
+            "review_path": "/#native-inverted-selection"
+          },
+          {
+            "id": "native-inverted-focus",
+            "title": "已实现 · 倒树聚焦",
+            "image": "outputs/contacts-design-review/assets/inverted-tree-native-focus-20260921.png",
+            "kind": "simulator",
+            "provenance": "2026-09-21 · iPhone 17e 模拟器 · 构建号未锁定",
+            "verification": "历史模拟器截图，合成数据；具体交互范围见原 QA，当前真机未复验。",
+            "review_path": "/#native-inverted-focus"
+          },
+          {
+            "id": "native-inverted-six",
+            "title": "已实现 · 六层倒树",
+            "image": "outputs/contacts-design-review/assets/inverted-tree-native-six-levels-20260921.png",
+            "kind": "simulator",
+            "provenance": "2026-09-21 · iPhone 17e 模拟器 · 构建号未锁定",
+            "verification": "历史模拟器截图，合成数据；具体交互范围见原 QA，当前真机未复验。",
+            "review_path": "/#native-inverted-six"
+          },
+          {
+            "id": "native-directory-mode",
+            "title": "历史 · 目录模式（入口已移除）",
+            "image": "outputs/contacts-design-review/assets/directory-mode-native-20260921.png",
+            "kind": "simulator",
+            "provenance": "2026-09-21 · iPhone 17e 模拟器 · 构建号未锁定",
+            "verification": "历史模拟器截图，合成数据；具体交互范围见原 QA，当前真机未复验。",
+            "review_path": "/#native-directory-mode"
+          },
+          {
+            "id": "inverted-tree-overview",
+            "title": "倒树 · 总览设计",
+            "image": "outputs/contacts-design-review/assets/inverted-tree-overview.svg",
+            "kind": "design",
+            "provenance": "静态设计示意 · 非安装包产物",
+            "verification": "设计参考；不构成原生验收。功能实现状态另见本组说明。",
+            "review_path": "/#inverted-tree-overview"
+          },
+          {
+            "id": "inverted-tree-focus",
+            "title": "倒树 · 聚焦分支设计",
+            "image": "outputs/contacts-design-review/assets/inverted-tree-focus.svg",
+            "kind": "design",
+            "provenance": "静态设计示意 · 非安装包产物",
+            "verification": "设计参考；不构成原生验收。功能实现状态另见本组说明。",
+            "review_path": "/#inverted-tree-focus"
+          },
+          {
+            "id": "six-level-expanded",
+            "title": "六层 · 全部展开",
+            "image": "outputs/contacts-design-review/assets/six-level-expanded-simulator.png",
+            "kind": "simulator",
+            "provenance": "2026-09-21 · iPhone 17e 模拟器 · 构建号未锁定",
+            "verification": "历史模拟器截图，合成数据；具体交互范围见原 QA，当前真机未复验。",
+            "review_path": "/#six-level-expanded"
+          },
+          {
+            "id": "six-level-default",
+            "title": "六层 · 默认折叠",
+            "image": "outputs/contacts-design-review/assets/six-level-default-simulator.png",
+            "kind": "simulator",
+            "provenance": "2026-09-21 · iPhone 17e 模拟器 · 构建号未锁定",
+            "verification": "历史模拟器截图，合成数据；具体交互范围见原 QA，当前真机未复验。",
+            "review_path": "/#six-level-default"
+          },
+          {
+            "id": "six-level-scrolled",
+            "title": "六层 · 向下滚动",
+            "image": "outputs/contacts-design-review/assets/six-level-scrolled-simulator.png",
+            "kind": "simulator",
+            "provenance": "2026-09-21 · iPhone 17e 模拟器 · 构建号未锁定",
+            "verification": "历史模拟器截图，合成数据；具体交互范围见原 QA，当前真机未复验。",
+            "review_path": "/#six-level-scrolled"
+          },
+          {
+            "id": "compact-tasks-structure",
+            "title": "历史 · 目录 · 紧凑任务结构（入口已移除）",
+            "image": "outputs/contacts-design-review/assets/tasks-structure-compact-simulator-20260921.png",
+            "kind": "simulator",
+            "provenance": "2026-09-21 · iPhone 17e 模拟器 · 构建号未锁定",
+            "verification": "历史模拟器截图，合成数据；具体交互范围见原 QA，当前真机未复验。",
+            "review_path": "/#compact-tasks-structure"
+          },
+          {
+            "id": "device-tasks-structure",
+            "title": "真机 · 任务结构",
+            "image": "outputs/contacts-design-review/assets/tasks-structure-device-20260921.png",
+            "kind": "device",
+            "provenance": "2026-09-21 · iPhone 13 Pro · 1.0（14）历史截图",
+            "verification": "历史设备证据；不代表当前 1.0（17）视觉验收通过。",
+            "review_path": "/#device-tasks-structure"
+          },
+          {
+            "id": "tasks-structure",
+            "title": "任务 · 结构",
+            "image": "outputs/contacts-design-review/assets/tasks-structure-native.png",
+            "kind": "simulator",
+            "provenance": "2026-09-20 · iPhone 17e 模拟器 · 构建号未锁定",
+            "verification": "历史模拟器截图，合成数据；具体交互范围见原 QA，当前真机未复验。",
+            "review_path": "/#tasks-structure"
+          }
+        ]
+      },
+      "delivery": {
+        "assessed_on": "2026-10-06",
+        "implementation": "implemented",
+        "technical_verification": "scoped-runtime-and-ui-pass",
+        "human_acceptance": "pending",
+        "roadmap_stage": "R1",
+        "status_source": "docs/roadmap.md",
+        "open_items": "22 号 Debug 轻树、共用展示根、节点点击 / 展开、聚焦、缩放、多根 / 六层 / 空态和完成 / 恢复 / 撤销已限定验证；人工审美、完整可访问性、真机与分发仍待。"
+      }
+    },
+    {
+      "id": "ui.tasks.time",
+      "title": "任务时间",
+      "purpose": "关联任务时间的产品入口、实现定位和现有评审页面；不替代实际验收。",
+      "aliases": [
+        "任务时间"
+      ],
+      "preconditions": [
+        "项目源码和本地评审素材可读；图片中的 App 控件不可操作。"
+      ],
+      "user_path": [
+        "任务 → 时间",
+        "在评审站按功能筛选，查看来源、实现与同功能画面。"
+      ],
+      "operations": [
+        {
+          "kind": "ui",
+          "entry": "任务 → 时间",
+          "effect": "read-only",
+          "authorization": "仅导航查看；写入任务、记账、分享或上传需按各业务既有授权执行。"
+        }
+      ],
+      "acceptance": [
+        {
+          "source": "docs/qa/2026-09-14-four-task-views.md",
+          "expected": "按原验收来源核对；历史截图和设计示意不证明当前安装版一致。"
+        }
+      ],
+      "ontology_refs": [],
+      "evidence": [
+        {
+          "path": "docs/spec.md",
+          "sha256": "ef8b89d1d2758ca1df5916ee1dff6bc01db4b28e449b580538171938bbf7ffab"
+        },
+        {
+          "path": "docs/qa/2026-09-14-four-task-views.md",
+          "sha256": "6796cbf899060d2275035e9f1575884d46318aa3b56df1d10f0985f60ad64281"
+        },
+        {
+          "path": "ontology/task-workspace.json",
+          "sha256": "9e1fbe32b34e032874af7eaa6110b057b0d761ab2ab760ac0dcbecd44a368bde"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2TaskTimeView.swift",
+          "sha256": "90bbf3488db5b076d78f7a2575936e15ef3c3822758a49608ae39a031da52d51"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/tasks-time-device-20260921.png",
+          "sha256": "874486a55920d7f2713af41f485da2bf7257df7344ee00e4096a4abeb769fa3b"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/tasks-time-native.png",
+          "sha256": "814fc9f06a6f3a8c4c7386ba8d52d245c9e15cb8c8319653944ff6dac1b9a3f9"
+        }
+      ],
+      "ui": {
+        "route": "任务 → 时间",
+        "implementation_status": "已有原生实现；当前安装版逐页验收未完成",
+        "code": [
+          {
+            "path": "Sources/ToughTrialV2App/V2TaskTimeView.swift",
+            "symbol": "V2TimeLensView"
+          }
+        ],
+        "review_pages": [
+          {
+            "id": "device-tasks-time",
+            "title": "真机 · 任务时间",
+            "image": "outputs/contacts-design-review/assets/tasks-time-device-20260921.png",
+            "kind": "device",
+            "provenance": "2026-09-21 · iPhone 13 Pro · 1.0（14）历史截图",
+            "verification": "历史设备证据；不代表当前 1.0（17）视觉验收通过。",
+            "review_path": "/#device-tasks-time"
+          },
+          {
+            "id": "tasks-time",
+            "title": "任务 · 时间",
+            "image": "outputs/contacts-design-review/assets/tasks-time-native.png",
+            "kind": "simulator",
+            "provenance": "2026-09-20 · iPhone 17e 模拟器 · 构建号未锁定",
+            "verification": "历史模拟器截图，合成数据；具体交互范围见原 QA，当前真机未复验。",
+            "review_path": "/#tasks-time"
+          }
+        ]
+      },
+      "delivery": {
+        "assessed_on": "2026-10-02",
+        "implementation": "implemented",
+        "technical_verification": "historical-scoped-pass",
+        "human_acceptance": "pending",
+        "roadmap_stage": "R1",
+        "status_source": "docs/roadmap.md",
+        "open_items": "当前真机安排与日期切换待复验；重复规则及未来实例扩展未实现。"
+      }
+    },
+    {
+      "id": "ui.tasks.fishbone",
+      "title": "任务鱼骨",
+      "purpose": "关联任务鱼骨的产品入口、实现定位和现有评审页面；不替代实际验收。",
+      "aliases": [
+        "任务鱼骨"
+      ],
+      "preconditions": [
+        "项目源码和本地评审素材可读；图片中的 App 控件不可操作。"
+      ],
+      "user_path": [
+        "任务 → 鱼骨",
+        "在评审站按功能筛选，查看来源、实现与同功能画面。"
+      ],
+      "operations": [
+        {
+          "kind": "ui",
+          "entry": "任务 → 鱼骨",
+          "effect": "read-only",
+          "authorization": "仅导航查看；写入任务、记账、分享或上传需按各业务既有授权执行。"
+        }
+      ],
+      "acceptance": [
+        {
+          "source": "docs/qa/2026-09-14-four-task-views.md",
+          "expected": "按原验收来源核对；历史截图和设计示意不证明当前安装版一致。"
+        }
+      ],
+      "ontology_refs": [],
+      "evidence": [
+        {
+          "path": "docs/spec.md",
+          "sha256": "ef8b89d1d2758ca1df5916ee1dff6bc01db4b28e449b580538171938bbf7ffab"
+        },
+        {
+          "path": "docs/qa/2026-09-14-four-task-views.md",
+          "sha256": "6796cbf899060d2275035e9f1575884d46318aa3b56df1d10f0985f60ad64281"
+        },
+        {
+          "path": "ontology/task-workspace.json",
+          "sha256": "9e1fbe32b34e032874af7eaa6110b057b0d761ab2ab760ac0dcbecd44a368bde"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2TasksView.swift",
+          "sha256": "9293f345675c7607cb53e915aad762440ee0c513952145d2085e039eccb0eeb5"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/tasks-fishbone-device-20260921.png",
+          "sha256": "6d596a5b8de612acdb37be28898554b4807ceda3f152e1e9bad548b46eb0a166"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/tasks-fishbone-native.png",
+          "sha256": "ecd45f0a6a804493382e64be37b0b336acfd5dd033161cbcce0ba50d2c225103"
+        }
+      ],
+      "ui": {
+        "route": "任务 → 鱼骨",
+        "implementation_status": "已有原生实现；当前安装版逐页验收未完成",
+        "code": [
+          {
+            "path": "Sources/ToughTrialV2App/V2TasksView.swift",
+            "symbol": "V2TasksView"
+          }
+        ],
+        "review_pages": [
+          {
+            "id": "device-tasks-fishbone",
+            "title": "真机 · 任务鱼骨",
+            "image": "outputs/contacts-design-review/assets/tasks-fishbone-device-20260921.png",
+            "kind": "device",
+            "provenance": "2026-09-21 · iPhone 13 Pro · 1.0（14）历史截图",
+            "verification": "历史设备证据；不代表当前 1.0（17）视觉验收通过。",
+            "review_path": "/#device-tasks-fishbone"
+          },
+          {
+            "id": "tasks-fishbone",
+            "title": "任务 · 鱼骨",
+            "image": "outputs/contacts-design-review/assets/tasks-fishbone-native.png",
+            "kind": "simulator",
+            "provenance": "2026-09-20 · iPhone 17e 模拟器 · 构建号未锁定",
+            "verification": "历史模拟器截图，合成数据；具体交互范围见原 QA，当前真机未复验。",
+            "review_path": "/#tasks-fishbone"
+          }
+        ]
+      },
+      "delivery": {
+        "assessed_on": "2026-10-02",
+        "implementation": "implemented",
+        "technical_verification": "historical-scoped-pass",
+        "human_acceptance": "pending",
+        "roadmap_stage": "R1",
+        "status_source": "docs/roadmap.md",
+        "open_items": "当前真机目标筛选、完成事件及画布体验待复验。"
+      }
+    },
+    {
+      "id": "ui.assistant",
+      "title": "助手",
+      "purpose": "关联助手的产品入口、实现定位和现有评审页面；不替代实际验收。",
+      "aliases": [
+        "助手"
+      ],
+      "preconditions": [
+        "项目源码和本地评审素材可读；图片中的 App 控件不可操作。"
+      ],
+      "user_path": [
+        "助手",
+        "在评审站按功能筛选，查看来源、实现与同功能画面。"
+      ],
+      "operations": [
+        {
+          "kind": "ui",
+          "entry": "助手",
+          "effect": "read-only",
+          "authorization": "仅导航查看；写入任务、记账、分享或上传需按各业务既有授权执行。"
+        }
+      ],
+      "acceptance": [
+        {
+          "source": "docs/qa/2026-09-20-today-queue-native-review.md",
+          "expected": "按原验收来源核对；历史截图和设计示意不证明当前安装版一致。"
+        },
+        {
+          "source": "docs/qa/2026-09-11-assistant-home.md",
+          "expected": "助手主页的历史定向验收；不据此关闭当前真实模型多轮/搜索引用。"
+        },
+        {
+          "source": "docs/qa/2026-09-14-device-feedback-verification.md",
+          "expected": "保留真实 MiniMax 联网失败与独立搜索成功的不同范围，继续当前模型验收。"
+        }
+      ],
+      "ontology_refs": [
+        "code.assistant.submit"
+      ],
+      "evidence": [
+        {
+          "path": "docs/spec.md",
+          "sha256": "ef8b89d1d2758ca1df5916ee1dff6bc01db4b28e449b580538171938bbf7ffab"
+        },
+        {
+          "path": "docs/qa/2026-09-20-today-queue-native-review.md",
+          "sha256": "8a8ebd1657547f7b284023193fe6281898df783727993d846ff2a550ec324e48"
+        },
+        {
+          "path": "ontology/task-workspace.json",
+          "sha256": "9e1fbe32b34e032874af7eaa6110b057b0d761ab2ab760ac0dcbecd44a368bde"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2AssistantView.swift",
+          "sha256": "ce6f3ca652e8dd5abef86477973c420c6d5ed723dfc78c80134f9274e5050ce0"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2AssistantComposerStore.swift",
+          "sha256": "b90028569b2adcd223b7bf0d989d6abb908d157bca354374f11b201462cfe9db"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/assistant-native.png",
+          "sha256": "3e991cca473e422a2e7cabdfa2886e8496f70741e09d7639fe944e29e735a87a"
+        },
+        {
+          "path": "docs/qa/2026-09-11-assistant-home.md",
+          "sha256": "d7d760a6aefd77cb914f97644627304c24bb3764215b2a2d8883b527d19f8b4c"
+        },
+        {
+          "path": "docs/qa/2026-09-14-device-feedback-verification.md",
+          "sha256": "5127d7201bd774e674f84d3b2460932b342dd157038dd7a4eee7371a3f865591"
+        }
+      ],
+      "ui": {
+        "route": "助手",
+        "implementation_status": "已有原生实现；当前安装版逐页验收未完成",
+        "code": [
+          {
+            "path": "Sources/ToughTrialV2App/V2AssistantView.swift",
+            "symbol": "V2AssistantView"
+          },
+          {
+            "path": "Sources/ToughTrialV2App/V2AssistantComposerStore.swift",
+            "symbol": "V2AssistantStore.submitDraft(_:source:)"
+          }
+        ],
+        "review_pages": [
+          {
+            "id": "assistant",
+            "title": "助手",
+            "image": "outputs/contacts-design-review/assets/assistant-native.png",
+            "kind": "simulator",
+            "provenance": "2026-09-20 · iPhone 17e 模拟器 · 构建号未锁定",
+            "verification": "历史模拟器截图，合成数据；具体交互范围见原 QA，当前真机未复验。",
+            "review_path": "/#assistant"
+          }
+        ]
+      },
+      "delivery": {
+        "assessed_on": "2026-10-02",
+        "implementation": "implemented",
+        "technical_verification": "historical-scoped-pass",
+        "human_acceptance": "pending",
+        "roadmap_stage": "R1",
+        "status_source": "docs/roadmap.md",
+        "open_items": "真实多轮和搜索→读取→引用待关闭；9/14 MiniMax 样本失败不能由独立搜索成功替代。"
+      }
+    },
+    {
+      "id": "ui.recall",
+      "title": "回想",
+      "purpose": "关联回想的产品入口、实现定位和现有评审页面；不替代实际验收。",
+      "aliases": [
+        "回想"
+      ],
+      "preconditions": [
+        "项目源码和本地评审素材可读；图片中的 App 控件不可操作。"
+      ],
+      "user_path": [
+        "更多插件 → 回想（可设为底栏快捷入口）",
+        "在评审站按功能筛选，查看来源、实现与同功能画面。"
+      ],
+      "operations": [
+        {
+          "kind": "ui",
+          "entry": "更多插件 → 回想（可设为底栏快捷入口）",
+          "effect": "read-only",
+          "authorization": "仅导航查看；写入任务、记账、分享或上传需按各业务既有授权执行。"
+        }
+      ],
+      "acceptance": [
+        {
+          "source": "docs/qa/2026-09-20-today-queue-native-review.md",
+          "expected": "按原验收来源核对；历史截图和设计示意不证明当前安装版一致。"
+        },
+        {
+          "source": "docs/qa/2026-07-24-recall-dual-mode/README.md",
+          "expected": "回想文字/手写的历史验收范围；当前真机体验另行验证。"
+        }
+      ],
+      "ontology_refs": [
+        "code.recall.save"
+      ],
+      "evidence": [
+        {
+          "path": "docs/spec.md",
+          "sha256": "ef8b89d1d2758ca1df5916ee1dff6bc01db4b28e449b580538171938bbf7ffab"
+        },
+        {
+          "path": "docs/qa/2026-09-20-today-queue-native-review.md",
+          "sha256": "8a8ebd1657547f7b284023193fe6281898df783727993d846ff2a550ec324e48"
+        },
+        {
+          "path": "ontology/task-workspace.json",
+          "sha256": "9e1fbe32b34e032874af7eaa6110b057b0d761ab2ab760ac0dcbecd44a368bde"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2RecallView.swift",
+          "sha256": "b2f6ec91c7e1b418dd63019c60fa3fa236de3117c72d8e0541488e3b27b2f12c"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/recall-native.png",
+          "sha256": "c78bd49c5c553990380dab3adcd74b5439b98432fc8f19d2460b36f73403a694"
+        },
+        {
+          "path": "docs/qa/2026-07-24-recall-dual-mode/README.md",
+          "sha256": "2507d4dcbb9a5bb1ce79cf20da98f30eabfd14723191242f65c57bcab5a34573"
+        }
+      ],
+      "ui": {
+        "route": "更多插件 → 回想（可设为底栏快捷入口）",
+        "implementation_status": "已有原生实现；当前安装版逐页验收未完成",
+        "code": [
+          {
+            "path": "Sources/ToughTrialV2App/V2RecallView.swift",
+            "symbol": "V2RecallView"
+          }
+        ],
+        "review_pages": [
+          {
+            "id": "recall",
+            "title": "回想",
+            "image": "outputs/contacts-design-review/assets/recall-native.png",
+            "kind": "simulator",
+            "provenance": "2026-09-20 · iPhone 17e 模拟器 · 构建号未锁定",
+            "verification": "历史模拟器截图，合成数据；具体交互范围见原 QA，当前真机未复验。",
+            "review_path": "/#recall"
+          }
+        ]
+      },
+      "delivery": {
+        "assessed_on": "2026-10-02",
+        "implementation": "implemented",
+        "technical_verification": "historical-scoped-pass",
+        "human_acceptance": "pending",
+        "roadmap_stage": "R1",
+        "status_source": "docs/roadmap.md",
+        "open_items": "文字/手写与证据保存已有实现；当前真机完整交互及手写手感待验收。"
+      }
+    },
+    {
+      "id": "ui.finance",
+      "title": "理账计划",
+      "purpose": "关联理账计划的产品入口、实现定位和现有评审页面；不替代实际验收。",
+      "aliases": [
+        "理账计划"
+      ],
+      "preconditions": [
+        "项目源码和本地评审素材可读；图片中的 App 控件不可操作。"
+      ],
+      "user_path": [
+        "更多插件 → 财务",
+        "在评审站按功能筛选，查看来源、实现与同功能画面。"
+      ],
+      "operations": [
+        {
+          "kind": "ui",
+          "entry": "更多插件 → 财务",
+          "effect": "read-only",
+          "authorization": "仅导航查看；写入任务、记账、分享或上传需按各业务既有授权执行。"
+        }
+      ],
+      "acceptance": [
+        {
+          "source": "docs/qa/2026-09-20-today-queue-native-review.md",
+          "expected": "按原验收来源核对；历史截图和设计示意不证明当前安装版一致。"
+        },
+        {
+          "source": "docs/qa/2026-09-10-finance-attachments-plugins.md",
+          "expected": "核对财务计划、支付确认/撤销/预算的限定历史证据，不将计划页截图当全部财务验收。"
+        }
+      ],
+      "ontology_refs": [
+        "code.finance.execute"
+      ],
+      "evidence": [
+        {
+          "path": "docs/spec.md",
+          "sha256": "ef8b89d1d2758ca1df5916ee1dff6bc01db4b28e449b580538171938bbf7ffab"
+        },
+        {
+          "path": "docs/qa/2026-09-20-today-queue-native-review.md",
+          "sha256": "8a8ebd1657547f7b284023193fe6281898df783727993d846ff2a550ec324e48"
+        },
+        {
+          "path": "ontology/task-workspace.json",
+          "sha256": "9e1fbe32b34e032874af7eaa6110b057b0d761ab2ab760ac0dcbecd44a368bde"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2FinanceView.swift",
+          "sha256": "054887abf658597c280de0311f44e81491b8e237a3f1f96f49e8294b6d9f939d"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/finance-native.png",
+          "sha256": "b37923101c9e13b1edc539c3e9b6abad3f479f3d22273835f320cba82bc13f27"
+        },
+        {
+          "path": "docs/qa/2026-09-10-finance-attachments-plugins.md",
+          "sha256": "9939e38123c8fca35093681a36c6b3733fb2ae178c3886abe5ea81c1f04f513f"
+        }
+      ],
+      "ui": {
+        "route": "更多插件 → 财务",
+        "implementation_status": "已有原生实现；当前安装版逐页验收未完成",
+        "code": [
+          {
+            "path": "Sources/ToughTrialV2App/V2FinanceView.swift",
+            "symbol": "V2FinanceView"
+          }
+        ],
+        "review_pages": [
+          {
+            "id": "finance",
+            "title": "财务 · 理账计划",
+            "image": "outputs/contacts-design-review/assets/finance-native.png",
+            "kind": "simulator",
+            "provenance": "2026-09-20 · iPhone 17e 模拟器 · 构建号未锁定",
+            "verification": "历史模拟器截图，合成数据；具体交互范围见原 QA，当前真机未复验。",
+            "review_path": "/#finance"
+          }
+        ]
+      },
+      "delivery": {
+        "assessed_on": "2026-10-02",
+        "implementation": "implemented",
+        "technical_verification": "historical-scoped-pass",
+        "human_acceptance": "pending",
+        "roadmap_stage": "R1",
+        "status_source": "docs/roadmap.md",
+        "open_items": "理账计划、确认支付/撤销/预算已有实现；当前真机到期/通知与完整交互矩阵待验收。"
+      }
+    },
+    {
+      "id": "ui.navigation",
+      "title": "更多插件与底栏",
+      "purpose": "关联更多插件与底栏的产品入口、实现定位和现有评审页面；不替代实际验收。",
+      "aliases": [
+        "更多插件与底栏"
+      ],
+      "preconditions": [
+        "项目源码和本地评审素材可读；图片中的 App 控件不可操作。"
+      ],
+      "user_path": [
+        "更多插件",
+        "在评审站按功能筛选，查看来源、实现与同功能画面。"
+      ],
+      "operations": [
+        {
+          "kind": "ui",
+          "entry": "更多插件",
+          "effect": "read-only",
+          "authorization": "仅导航查看；写入任务、记账、分享或上传需按各业务既有授权执行。"
+        }
+      ],
+      "acceptance": [
+        {
+          "source": "docs/superpowers/specs/2026-09-20-customizable-tabbar-and-more-plugins-design-zh.md",
+          "expected": "按原验收来源核对；历史截图和设计示意不证明当前安装版一致。"
+        },
+        {
+          "source": "docs/qa/2026-10-05-task-list-design-foundation.md",
+          "expected": "五个现有底栏入口真实点击与选中状态通过，按钮至少 44 点高；最大辅助字号标签保留全称。2–5 项全部组合、拖拽、偏好迁移和持久化不在本轮通过范围。"
+        },
+        {
+          "source": "docs/qa/2026-10-05-phone-ui-refinements.md",
+          "expected": "10/5 手机四处修订：本地 21 号 Debug、限定原生交互通过，系统深色下保持明确浅色；版本分发与人工验收仍待。详见逐项 QA，截图不能代替测试。"
+        },
+        {
+          "source": "docs/qa/2026-10-06-milestone.md",
+          "expected": "10/6 源码阶段收束，按限定验证和保留的失败历史核对；23 号未分发，手机及服务验收仍开放。"
+        }
+      ],
+      "ontology_refs": [],
+      "evidence": [
+        {
+          "path": "docs/spec.md",
+          "sha256": "ef8b89d1d2758ca1df5916ee1dff6bc01db4b28e449b580538171938bbf7ffab"
+        },
+        {
+          "path": "docs/superpowers/specs/2026-09-20-customizable-tabbar-and-more-plugins-design-zh.md",
+          "sha256": "f55ef2d5ac2eb0f39d7f8803dd110015d372dcadec0f235bbd4a6febb6f03e10"
+        },
+        {
+          "path": "ontology/task-workspace.json",
+          "sha256": "9e1fbe32b34e032874af7eaa6110b057b0d761ab2ab760ac0dcbecd44a368bde"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2MorePluginsView.swift",
+          "sha256": "57cfd0706be5d254118293b35b8955a43d6da19289442aee0c643d459e045dfd"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2BottomNavigationBar.swift",
+          "sha256": "d59ae29422b13441f68d20453fd11eb6b7f4fd58939a5156592c3a94af2daeec"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/more-plugins-native.png",
+          "sha256": "ad651e39ac98220279e31213fce9ed0a5dd711f53df6bce5ecea373cb3406785"
+        },
+        {
+          "path": "docs/qa/2026-10-05-task-list-design-foundation.md",
+          "sha256": "16dafe44b70cafa80b6afcaf63f971a4e1365f3b09201609d238a89d6e826b0e"
+        },
+        {
+          "path": "docs/design-system.md",
+          "sha256": "faa63e5dddb6b973cff8ff035a0acbfc79a25dc60ed6539079f20e7ccef47289"
+        },
+        {
+          "path": "Tests/ToughTrialUITests/V2TaskEditorUITests.swift",
+          "sha256": "4ab5a7b40ef0b8ad596f355ecb45cfb95f58fe345f6c82ef99a17833ca13e067"
+        },
+        {
+          "path": "docs/qa/2026-10-05-phone-ui-refinements.md",
+          "sha256": "3de58f03f18cc482a5aef9620fcb6c96954b9a16d7071cd71e58daba99170be0"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2RootView.swift",
+          "sha256": "57f3d5a51262cee6d4f9763707bd2b454957bb9877ea36df1a6992fb76d3387c"
+        },
+        {
+          "path": "Tests/ToughTrialUITests/V2TodayQueueUITests.swift",
+          "sha256": "043db9ff73009c5c9bea85de0a8ff692be3dcf7554b4453440c9e521767df7aa"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/more-plugins-paper-21-native-20261005.png",
+          "sha256": "618399eedb6eb2859676d90d5473ca75d4d9cdb567ae168bb6ade2f3e4b5ef03"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/navigation-editor-paper-21-native-20261005.png",
+          "sha256": "fc48aabb32350dc8fb9325b28891be3e85d483a610f7c6738e5ba8acfbd558ea"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/navigation-editor-minimum-21-native-20261005.png",
+          "sha256": "0a58fb47619efea80d709d0d6419b8737171d32d3cd2c3e6abd3bd948c3bec4a"
+        },
+        {
+          "path": "docs/qa/2026-10-06-milestone.md",
+          "sha256": "63b4b66e9450106507254a67b5e2933a6b905ba29c23092c3e0c557d09c4a1a5"
+        }
+      ],
+      "ui": {
+        "route": "更多插件",
+        "implementation_status": "更多插件与编辑页统一纸白；底栏 2 / 3 / 4 / 5 项、上下限、必选、实际底栏拖拽与模块打开已限定验证，当前真机安装仍待",
+        "code": [
+          {
+            "path": "Sources/ToughTrialV2App/V2MorePluginsView.swift",
+            "symbol": "V2MorePluginsView"
+          },
+          {
+            "path": "Sources/ToughTrialV2App/V2BottomNavigationBar.swift",
+            "symbol": "V2BottomNavigationBar"
+          }
+        ],
+        "review_pages": [
+          {
+            "id": "more-plugins-paper-20261005",
+            "title": "更多插件 · 统一配色",
+            "image": "outputs/contacts-design-review/assets/more-plugins-paper-21-native-20261005.png",
+            "kind": "simulator",
+            "provenance": "2026-10-05 · iPhone 13 Pro · iOS 26.5 · 1.0（21）Debug 开发预览 · 系统 dark / App 明确 light · 合成数据 · 未分发",
+            "verification": "统一纸白、可读标题和中性模块图标；底栏按真实拖拽调整为今天、转录、更多插件、任务；对应实际交互见本轮 QA，真机人工验收待。",
+            "review_path": "/#more-plugins-paper-20261005"
+          },
+          {
+            "id": "navigation-editor-paper-20261005",
+            "title": "底栏编辑 · 四个入口",
+            "image": "outputs/contacts-design-review/assets/navigation-editor-paper-21-native-20261005.png",
+            "kind": "simulator",
+            "provenance": "2026-10-05 · iPhone 13 Pro · iOS 26.5 · 1.0（21）Debug 开发预览 · 系统 dark / App 明确 light · 合成数据 · 未分发",
+            "verification": "同一纸白配色；真实添加 / 移除和数量限制说明；对应实际交互见本轮 QA，真机人工验收待。",
+            "review_path": "/#navigation-editor-paper-20261005"
+          },
+          {
+            "id": "navigation-editor-minimum-20261005",
+            "title": "底栏编辑 · 最少入口",
+            "image": "outputs/contacts-design-review/assets/navigation-editor-minimum-21-native-20261005.png",
+            "kind": "simulator",
+            "provenance": "2026-10-05 · iPhone 13 Pro · iOS 26.5 · 1.0（21）Debug 开发预览 · 系统 dark / App 明确 light · 合成数据 · 未分发",
+            "verification": "2 个入口的原生禁用状态：保留今天与更多插件；对应实际交互见本轮 QA，真机人工验收待。",
+            "review_path": "/#navigation-editor-minimum-20261005"
+          },
+          {
+            "id": "more-plugins",
+            "title": "更多插件",
+            "image": "outputs/contacts-design-review/assets/more-plugins-native.png",
+            "kind": "simulator",
+            "provenance": "2026-09-20 · iPhone 17e 模拟器 · 构建号未锁定",
+            "verification": "历史模拟器截图，合成数据；具体交互范围见原 QA，当前真机未复验。",
+            "review_path": "/#more-plugins"
+          }
+        ]
+      },
+      "delivery": {
+        "assessed_on": "2026-10-06",
+        "implementation": "implemented",
+        "technical_verification": "scoped-runtime-and-ui-pass",
+        "human_acceptance": "pending",
+        "roadmap_stage": "R1",
+        "status_source": "docs/roadmap.md",
+        "open_items": "21 号 Debug 纸白配色、单条 2–5 项配置路径、真实底栏拖拽与选中反馈通过；旧偏好迁移、重启持久化、编辑列表排序把手、所有组合 / 模块联动及完整可访问性仍待。未分发。"
+      }
+    },
+    {
+      "id": "ui.profile",
+      "title": "我的资料与分享",
+      "purpose": "关联我的资料与分享的产品入口、实现定位和现有评审页面；不替代实际验收。",
+      "aliases": [
+        "我的资料与分享"
+      ],
+      "preconditions": [
+        "项目源码和本地评审素材可读；图片中的 App 控件不可操作。"
+      ],
+      "user_path": [
+        "更多插件 → 我的资料",
+        "在评审站按功能筛选，查看来源、实现与同功能画面。"
+      ],
+      "operations": [
+        {
+          "kind": "ui",
+          "entry": "更多插件 → 我的资料",
+          "effect": "read-only",
+          "authorization": "仅导航查看；写入任务、记账、分享或上传需按各业务既有授权执行。"
+        }
+      ],
+      "acceptance": [
+        {
+          "source": "docs/superpowers/specs/2026-09-20-business-card-contacts-design-zh.md",
+          "expected": "按原验收来源核对；历史截图和设计示意不证明当前安装版一致。"
+        }
+      ],
+      "ontology_refs": [],
+      "evidence": [
+        {
+          "path": "docs/spec.md",
+          "sha256": "ef8b89d1d2758ca1df5916ee1dff6bc01db4b28e449b580538171938bbf7ffab"
+        },
+        {
+          "path": "docs/superpowers/specs/2026-09-20-business-card-contacts-design-zh.md",
+          "sha256": "f89ee768ae5a3a30fd4ad065740b6d0eaa01037d55d2c43533f4df8338ae949c"
+        },
+        {
+          "path": "ontology/task-workspace.json",
+          "sha256": "9e1fbe32b34e032874af7eaa6110b057b0d761ab2ab760ac0dcbecd44a368bde"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2OwnProfileView.swift",
+          "sha256": "ccfa812be0f75706896b953bcdcd14a4355da77119d9b4bf7fa4ac445a22e227"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/my-home-native.png",
+          "sha256": "e919da4a2965adde35e815d74ce17194ab9cbf73fdf582c2d9a3aaba70eb752d"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/qr-share-native.png",
+          "sha256": "37e70db078e9c0337f5b188e35bc28f1fdbdccef19e74b2e1eb061ea72c96c1d"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/share-info.svg",
+          "sha256": "0b5decc83a4c4bcd56b5d8e8b91563c5790f216ff994a43e6cc502c5d0d2ac0e"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/social-qr.svg",
+          "sha256": "8cc1cb3d1cdbee466a55105c743f44bebf86302bbcfec608ad261cbb172eb3c1"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/edit-profile.svg",
+          "sha256": "30c18cbbda1fcbad576d5c723a96b42690b7e18a85819508694f93dd071169f8"
+        }
+      ],
+      "ui": {
+        "route": "更多插件 → 我的资料",
+        "implementation_status": "资料/文字分享/文字或链接二维码首版；vCard、原始二维码图片导入等未实现，当前真机验收未完成",
+        "code": [
+          {
+            "path": "Sources/ToughTrialV2App/V2OwnProfileView.swift",
+            "symbol": "V2OwnProfileView"
+          }
+        ],
+        "review_pages": [
+          {
+            "id": "my-home",
+            "title": "我的资料 · 首页",
+            "image": "outputs/contacts-design-review/assets/my-home-native.png",
+            "kind": "simulator",
+            "provenance": "2026-09-20 · iPhone 17e 模拟器 · 构建号未锁定",
+            "verification": "历史模拟器截图，合成数据；具体交互范围见原 QA，当前真机未复验。",
+            "review_path": "/#my-home"
+          },
+          {
+            "id": "qr-share",
+            "title": "我的二维码",
+            "image": "outputs/contacts-design-review/assets/qr-share-native.png",
+            "kind": "simulator",
+            "provenance": "2026-09-20 · iPhone 17e 模拟器 · 构建号未锁定",
+            "verification": "历史模拟器截图，合成数据；具体交互范围见原 QA，当前真机未复验。",
+            "review_path": "/#qr-share"
+          },
+          {
+            "id": "share-info",
+            "title": "分享信息",
+            "image": "outputs/contacts-design-review/assets/share-info.svg",
+            "kind": "design",
+            "provenance": "静态设计示意 · 非安装包产物",
+            "verification": "设计参考；不构成原生验收。功能实现状态另见本组说明。",
+            "review_path": "/#share-info"
+          },
+          {
+            "id": "social-qr",
+            "title": "社交二维码",
+            "image": "outputs/contacts-design-review/assets/social-qr.svg",
+            "kind": "design",
+            "provenance": "静态设计示意 · 非安装包产物",
+            "verification": "设计参考；不构成原生验收。功能实现状态另见本组说明。",
+            "review_path": "/#social-qr"
+          },
+          {
+            "id": "edit-profile",
+            "title": "编辑我的资料",
+            "image": "outputs/contacts-design-review/assets/edit-profile.svg",
+            "kind": "design",
+            "provenance": "静态设计示意 · 非安装包产物",
+            "verification": "设计参考；不构成原生验收。功能实现状态另见本组说明。",
+            "review_path": "/#edit-profile"
+          }
+        ]
+      },
+      "delivery": {
+        "assessed_on": "2026-10-02",
+        "implementation": "partial",
+        "technical_verification": "source-and-historical-screenshots",
+        "human_acceptance": "pending",
+        "roadmap_stage": "R3",
+        "status_source": "docs/roadmap.md",
+        "open_items": "仅资料/文字分享/文字或链接二维码首版；vCard、二维码图片分享/原始二维码导入、多身份未实现。"
+      }
+    },
+    {
+      "id": "ui.habits",
+      "title": "重复规划（设计）",
+      "purpose": "关联重复规划（设计）的产品入口、实现定位和现有评审页面；不替代实际验收。",
+      "aliases": [
+        "重复规划（设计）"
+      ],
+      "preconditions": [
+        "项目源码和本地评审素材可读；图片中的 App 控件不可操作。"
+      ],
+      "user_path": [
+        "设计入口：今天 / 任务 → 时间",
+        "在评审站按功能筛选，查看来源、实现与同功能画面。"
+      ],
+      "operations": [
+        {
+          "kind": "ui",
+          "entry": "设计入口：今天 / 任务 → 时间",
+          "effect": "read-only",
+          "authorization": "仅导航查看；写入任务、记账、分享或上传需按各业务既有授权执行。"
+        }
+      ],
+      "acceptance": [
+        {
+          "source": "docs/superpowers/specs/2026-09-20-recurring-rules-daily-instance-design-zh.md",
+          "expected": "按原验收来源核对；历史截图和设计示意不证明当前安装版一致。"
+        }
+      ],
+      "ontology_refs": [],
+      "evidence": [
+        {
+          "path": "docs/spec.md",
+          "sha256": "ef8b89d1d2758ca1df5916ee1dff6bc01db4b28e449b580538171938bbf7ffab"
+        },
+        {
+          "path": "docs/superpowers/specs/2026-09-20-recurring-rules-daily-instance-design-zh.md",
+          "sha256": "fece0aaaf85645d470c0bbf15407530c4b85329f1d75387294dbd3c1f2647368"
+        },
+        {
+          "path": "ontology/task-workspace.json",
+          "sha256": "9e1fbe32b34e032874af7eaa6110b057b0d761ab2ab760ac0dcbecd44a368bde"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/habit-today.svg",
+          "sha256": "083f1c64d5cb2126d1da6472dc596ebd6495b60b24b02facae7b61e355060514"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/habit-rules.svg",
+          "sha256": "7243b8ea6a154fb94ea36982212d970343e12b9215efd66641568d5264c2770f"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/habit-edit.svg",
+          "sha256": "e9d7efff489948ee07f12921c1e931cecbeabfbbf7ac1aa537ba63a5811a1c66"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/habit-actual.svg",
+          "sha256": "65adb2700f2eb3f283b4545baab0153d3b8a74a4290a799f792f467353726116"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/habit-transit.svg",
+          "sha256": "b0c3bf7f70e725481a3383700a3b60ca5947208c1a53bc68ebd267fad4347ee0"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/habit-reading.svg",
+          "sha256": "4ea3b1c233656c0a2f5c4de43bf9fff20f334fe52844e5377509c8cf2c6bb46b"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/habit-result.svg",
+          "sha256": "11e6aeedffb5e89b5293fa5be1cdf33a4c219c694359c31bc60538c0f8661ac5"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/habit-generation.svg",
+          "sha256": "54058a39f692f6fefd6c6dba688bea67d862d1b944f463721b0fc521f29d2f09"
+        },
+        {
+          "path": "outputs/contacts-design-review/assets/habit-calendar.svg",
+          "sha256": "a4003f20e2a190621dbd79eb9539d6b37eeaeb9cdbd11f423200b096ca8c0bd6"
+        }
+      ],
+      "ui": {
+        "route": "设计入口：今天 / 任务 → 时间",
+        "implementation_status": "仅设计，原生重复规则未实现",
+        "code": [],
+        "review_pages": [
+          {
+            "id": "habit-today",
+            "title": "今天 · 统一今日规划",
+            "image": "outputs/contacts-design-review/assets/habit-today.svg",
+            "kind": "design",
+            "provenance": "静态设计示意 · 非安装包产物",
+            "verification": "设计参考；不构成原生验收。对应功能仍未实现。",
+            "review_path": "/#habit-today"
+          },
+          {
+            "id": "habit-rules",
+            "title": "任务 · 时间 · 重复规则",
+            "image": "outputs/contacts-design-review/assets/habit-rules.svg",
+            "kind": "design",
+            "provenance": "静态设计示意 · 非安装包产物",
+            "verification": "设计参考；不构成原生验收。对应功能仍未实现。",
+            "review_path": "/#habit-rules"
+          },
+          {
+            "id": "habit-edit",
+            "title": "重复规划 · 新建",
+            "image": "outputs/contacts-design-review/assets/habit-edit.svg",
+            "kind": "design",
+            "provenance": "静态设计示意 · 非安装包产物",
+            "verification": "设计参考；不构成原生验收。对应功能仍未实现。",
+            "review_path": "/#habit-edit"
+          },
+          {
+            "id": "habit-actual",
+            "title": "早餐 · 完成并记账",
+            "image": "outputs/contacts-design-review/assets/habit-actual.svg",
+            "kind": "design",
+            "provenance": "静态设计示意 · 非安装包产物",
+            "verification": "设计参考；不构成原生验收。对应功能仍未实现。",
+            "review_path": "/#habit-actual"
+          },
+          {
+            "id": "habit-transit",
+            "title": "通勤 · 实际偏差",
+            "image": "outputs/contacts-design-review/assets/habit-transit.svg",
+            "kind": "design",
+            "provenance": "静态设计示意 · 非安装包产物",
+            "verification": "设计参考；不构成原生验收。对应功能仍未实现。",
+            "review_path": "/#habit-transit"
+          },
+          {
+            "id": "habit-reading",
+            "title": "阅读 · 实际记录",
+            "image": "outputs/contacts-design-review/assets/habit-reading.svg",
+            "kind": "design",
+            "provenance": "静态设计示意 · 非安装包产物",
+            "verification": "设计参考；不构成原生验收。对应功能仍未实现。",
+            "review_path": "/#habit-reading"
+          },
+          {
+            "id": "habit-result",
+            "title": "今天 · 完成与未完成",
+            "image": "outputs/contacts-design-review/assets/habit-result.svg",
+            "kind": "design",
+            "provenance": "静态设计示意 · 非安装包产物",
+            "verification": "设计参考；不构成原生验收。对应功能仍未实现。",
+            "review_path": "/#habit-result"
+          },
+          {
+            "id": "habit-generation",
+            "title": "重复规划 · 跨天生成",
+            "image": "outputs/contacts-design-review/assets/habit-generation.svg",
+            "kind": "design",
+            "provenance": "静态设计示意 · 非安装包产物",
+            "verification": "设计参考；不构成原生验收。对应功能仍未实现。",
+            "review_path": "/#habit-generation"
+          },
+          {
+            "id": "habit-calendar",
+            "title": "任务 · 时间日历",
+            "image": "outputs/contacts-design-review/assets/habit-calendar.svg",
+            "kind": "design",
+            "provenance": "静态设计示意 · 非安装包产物",
+            "verification": "设计参考；不构成原生验收。对应功能仍未实现。",
+            "review_path": "/#habit-calendar"
+          }
+        ]
+      },
+      "delivery": {
+        "assessed_on": "2026-10-02",
+        "implementation": "design-only",
+        "technical_verification": "not-assessed",
+        "human_acceptance": "pending",
+        "roadmap_stage": "R2",
+        "status_source": "docs/roadmap.md",
+        "open_items": "生成器、当日实例扩展、comment/实际值/记账事务及跨日验收全部待实现。"
+      }
+    },
+    {
+      "id": "ui.review-links",
+      "title": "页面与功能关联校验",
+      "purpose": "检查评审站页面、图片和 Feature ID 的双向引用并生成索引。",
+      "aliases": [
+        "评审图关联",
+        "画面关联",
+        "Feature Map"
+      ],
+      "preconditions": [
+        "本地评审站素材存在；Python 3.11+。"
+      ],
+      "user_path": [
+        "Feature CLI doctor → plan → run → verify",
+        "打开评审站查看关联信息及同功能画面"
+      ],
+      "operations": [
+        {
+          "id": "validate-links",
+          "kind": "cli",
+          "entry": "python3 Tools/FeatureCLI/review_links.py --write-index",
+          "effect": "write",
+          "authorization": "本次用户授权建立画面与 Feature Map 关联；仅写生成索引和本地执行记录。",
+          "execution": {
+            "script": "Tools/FeatureCLI/review_links.py",
+            "args": [
+              "--write-index"
+            ],
+            "parameters": {},
+            "timeout_seconds": 30
+          }
+        },
+        {
+          "id": "validate-links-readonly",
+          "kind": "cli",
+          "entry": "python3 Tools/FeatureCLI/review_links.py",
+          "effect": "read-only",
+          "authorization": "本次用户要求核对功能地图；仅检查本项目现有引用，结果不是产品验收或发布授权。",
+          "execution": {
+            "script": "Tools/FeatureCLI/review_links.py",
+            "args": [],
+            "parameters": {},
+            "timeout_seconds": 30
+          }
+        }
+      ],
+      "acceptance": [
+        {
+          "source": "Tools/FeatureCLI/README.md",
+          "expected": "现有评审页全部有唯一 Feature 关联，真实截图与示意图分开标注；图像身份不等于功能验收。"
+        },
+        {
+          "source": "docs/qa/2026-10-06-milestone.md",
+          "expected": "10/6 源码阶段收束，按限定验证和保留的失败历史核对；23 号未分发，手机及服务验收仍开放。"
+        }
+      ],
+      "ontology_refs": [
+        "tough-trial:tool.review-links"
+      ],
+      "evidence": [
+        {
+          "path": "Tools/FeatureCLI/README.md",
+          "sha256": "ba615f591e6a6907efd39c50bdf638126199d526d6cd6bfa3ff3d1462efd357c"
+        },
+        {
+          "path": "Tools/FeatureCLI/review_links.py",
+          "sha256": "65bb48e971192901c9b07bb18466819e3ede5d8b0c5c3ce2aa7ef2b7681741c4"
+        },
+        {
+          "path": "Tools/FeatureCLI/test_review_links.py",
+          "sha256": "12be34ee1e18fb80a2f361d3af57eeaeddbf5b670c6911a8191a817a2195a145"
+        },
+        {
+          "path": "outputs/contacts-design-review/index.html",
+          "sha256": "287c1fcb5d260e51207b8aa895df7cc44f30eb8ce3a5eb906c1bb10c262f33e5"
+        },
+        {
+          "path": "outputs/contacts-design-review/server.py",
+          "sha256": "6291a7e820bcf0938fb0bbca39e833b8bc181bcaf0fe8420d9aed717f7e5dc71"
+        },
+        {
+          "path": "outputs/contacts-design-review/feature-links.js",
+          "sha256": "4d91960b0872556b1ed9eb2c533125eddd5cd115556853c8eaec36bdb588e1ca"
+        },
+        {
+          "path": "outputs/contacts-design-review/feature-links.css",
+          "sha256": "1e832fc030b5d47b8a2edc93d41a19f319b45d612f80cbfd14a84f638038da53"
+        },
+        {
+          "path": "docs/qa/2026-10-06-milestone.md",
+          "sha256": "63b4b66e9450106507254a67b5e2933a6b905ba29c23092c3e0c557d09c4a1a5"
+        }
+      ],
+      "delivery": {
+        "assessed_on": "2026-10-06",
+        "implementation": "implemented",
+        "technical_verification": "historical-tool-pass",
+        "human_acceptance": "pending",
+        "roadmap_stage": "R1",
+        "status_source": "docs/roadmap.md",
+        "open_items": "关联校验只证明引用完整；目标构建重拍和产品验收仍开放。"
+      }
+    },
+    {
+      "id": "ui.finance.statistics",
+      "title": "账单统计",
+      "purpose": "区分已实现的自然时间/分类/币种基础统计与未实现的标签、钻取和趋势。",
+      "aliases": [
+        "财务统计",
+        "进账统计",
+        "分类统计",
+        "自然时间统计",
+        "标签统计"
+      ],
+      "preconditions": [
+        "本项目来源可读；本次只核对实现/设计与历史证据，不访问个人业务数据或运行外部服务。"
+      ],
+      "user_path": [
+        "随手记 → 记账 → 统计；Mac → 理账 → 统计",
+        "对照现有来源与 roadmap 的范围及验收缺口。"
+      ],
+      "operations": [
+        {
+          "kind": "ui",
+          "entry": "随手记 → 记账 → 统计；Mac → 理账 → 统计",
+          "effect": "read-only",
+          "authorization": "当前仅导航/来源核对；业务写入、分享或上传仍遵循原授权，设计入口不代表功能已实现。"
+        }
+      ],
+      "acceptance": [
+        {
+          "source": "docs/qa/2026-09-16-macos-full-app.md",
+          "expected": "按该来源的限定范围区分实现、历史技术结果和当前人工验收；不由源码或截图推断运行通过。"
+        }
+      ],
+      "ontology_refs": [],
+      "evidence": [
+        {
+          "path": "docs/qa/2026-09-16-macos-full-app.md",
+          "sha256": "4cc74399d74de19a6ef150d51dda0a64d182c5aef58af2d29a86e4d1e8408e5d"
+        },
+        {
+          "path": "Tests/ToughTrialCaptureTests/V2LedgerStatisticsTests.swift",
+          "sha256": "4d3f4658bc9d16d9718c4e939539e59193465a7eb9dd4da2718d66a7ad282e26"
+        },
+        {
+          "path": "Sources/ToughTrialV2Core/V2LedgerStatistics.swift",
+          "sha256": "4fac8ce6ca8750aa6ba68d2604db9d18f0d71ba358c242315fe2e142e4f2015b"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2LedgerStatisticsView.swift",
+          "sha256": "de3df4fb4ec91f756a0a17a32b46e119e5a848d582181fdd14e21a36c1c24dc2"
+        }
+      ],
+      "code": [
+        {
+          "path": "Sources/ToughTrialV2Core/V2LedgerStatistics.swift",
+          "symbol": "V2LedgerStatistics.project"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2LedgerStatisticsView.swift",
+          "symbol": "V2LedgerStatisticsView"
+        }
+      ],
+      "delivery": {
+        "assessed_on": "2026-10-02",
+        "implementation": "partial",
+        "technical_verification": "historical-scoped-pass",
+        "human_acceptance": "pending",
+        "roadmap_stage": "R4",
+        "status_source": "docs/roadmap.md",
+        "open_items": "9/16 基础统计 5 项测试及限定 Mac 操作通过；标签、分类钻取/层级、趋势图未实现，当前真机待验收。"
+      }
+    },
+    {
+      "id": "app.macos",
+      "title": "原生 Mac 客户端",
+      "purpose": "原生 Mac 首版与共用领域核心的范围；开发包不等于发行及全交互验收。",
+      "aliases": [
+        "Mac",
+        "macOS",
+        "桌面客户端"
+      ],
+      "preconditions": [
+        "本项目来源可读；本次只核对实现/设计与历史证据，不访问个人业务数据或运行外部服务。"
+      ],
+      "user_path": [
+        "原生 Tough Trial Mac → 侧栏各模块",
+        "对照现有来源与 roadmap 的范围及验收缺口。"
+      ],
+      "operations": [
+        {
+          "kind": "ui",
+          "entry": "原生 Tough Trial Mac → 侧栏各模块",
+          "effect": "read-only",
+          "authorization": "当前仅导航/来源核对；业务写入、分享或上传仍遵循原授权，设计入口不代表功能已实现。"
+        }
+      ],
+      "acceptance": [
+        {
+          "source": "docs/qa/2026-09-16-macos-full-app.md",
+          "expected": "按该来源的限定范围区分实现、历史技术结果和当前人工验收；不由源码或截图推断运行通过。"
+        },
+        {
+          "source": "docs/qa/2026-10-06-milestone.md",
+          "expected": "10/6 源码阶段收束，按限定验证和保留的失败历史核对；23 号未分发，手机及服务验收仍开放。"
+        }
+      ],
+      "ontology_refs": [],
+      "evidence": [
+        {
+          "path": "docs/qa/2026-09-16-macos-full-app.md",
+          "sha256": "4cc74399d74de19a6ef150d51dda0a64d182c5aef58af2d29a86e4d1e8408e5d"
+        },
+        {
+          "path": "Tests/ToughTrialMacAppTests/MacAppModelTests.swift",
+          "sha256": "6866c6189c03436bfd829522b817efab1811114290a2269cb267ae6c5c0b61a9"
+        },
+        {
+          "path": "Sources/ToughTrialMacApp/MacAppModel.swift",
+          "sha256": "e4367b17e8947c86b82ac0508be5840f8e0108063859061b403575ac36d8f342"
+        },
+        {
+          "path": "Sources/ToughTrialMacApp/MacRootView.swift",
+          "sha256": "625f12cfe6c2d8fdacdd9478dba990df19df1954d9618b676c31ba271602aba6"
+        },
+        {
+          "path": "docs/qa/2026-10-06-milestone.md",
+          "sha256": "63b4b66e9450106507254a67b5e2933a6b905ba29c23092c3e0c557d09c4a1a5"
+        }
+      ],
+      "code": [
+        {
+          "path": "Sources/ToughTrialMacApp/MacAppModel.swift",
+          "symbol": "MacAppModel"
+        },
+        {
+          "path": "Sources/ToughTrialMacApp/MacRootView.swift",
+          "symbol": "MacRootView"
+        }
+      ],
+      "delivery": {
+        "assessed_on": "2026-10-06",
+        "implementation": "implemented",
+        "technical_verification": "historical-scoped-pass",
+        "human_acceptance": "pending",
+        "roadmap_stage": "R1",
+        "status_source": "docs/roadmap.md",
+        "open_items": "9/16 本地开发版有限测试通过；当前自然输入/语音/真实 AI、全交互、长期稳定性和原生双端联调待验收。"
+      }
+    },
+    {
+      "id": "data.schedule-sync",
+      "title": "任务与日程 GitHub 同步",
+      "purpose": "限定既有 Markdown 协议；不包含账单、笔记、附件和助手资料的全域同步。",
+      "aliases": [
+        "GitHub同步",
+        "日程同步",
+        "手机Mac同步"
+      ],
+      "preconditions": [
+        "本项目来源可读；本次只核对实现/设计与历史证据，不访问个人业务数据或运行外部服务。"
+      ],
+      "user_path": [
+        "设置 → GitHub 日程同步；Mac → 设置",
+        "对照现有来源与 roadmap 的范围及验收缺口。"
+      ],
+      "operations": [
+        {
+          "kind": "ui",
+          "entry": "设置 → GitHub 日程同步；Mac → 设置",
+          "effect": "read-only",
+          "authorization": "当前仅导航/来源核对；业务写入、分享或上传仍遵循原授权，设计入口不代表功能已实现。"
+        }
+      ],
+      "acceptance": [
+        {
+          "source": "docs/qa/2026-09-07-phone-schedule-sync.md",
+          "expected": "按该来源的限定范围区分实现、历史技术结果和当前人工验收；不由源码或截图推断运行通过。"
+        }
+      ],
+      "ontology_refs": [],
+      "evidence": [
+        {
+          "path": "docs/qa/2026-09-07-phone-schedule-sync.md",
+          "sha256": "b1363613b603eed040587b370fc71218622aa146e3aa160a00ccc3343c6ba316"
+        },
+        {
+          "path": "docs/qa/2026-09-07-route-1-5-audit.md",
+          "sha256": "7b504fac46bb7a91ac6a1f5421284f6cef0d70a00a8688be2fb3012285b63c51"
+        },
+        {
+          "path": "Tests/ToughTrialV2AppTests/V2PhoneMacSyncTests.swift",
+          "sha256": "e1d6151297ec4b2c497210fbb96cdc38419fb1eb655a86e1070a7e77a1f51946"
+        },
+        {
+          "path": "Tests/ToughTrialScheduleLiveTests/V2GitHubLiveTests.swift",
+          "sha256": "4b9006122669edd6a37c1d8547b8c245d368c376c338c8cf8fddeb996d370e3f"
+        },
+        {
+          "path": "Sources/ToughTrialV2Core/V2ScheduleSync.swift",
+          "sha256": "8df78f0efcdc26f4a9ae267caac1176421f1ab05ad7860d8aefc6d1c7e89f07f"
+        },
+        {
+          "path": "Sources/ToughTrialV2Core/V2ScheduleMarkdown.swift",
+          "sha256": "7a0535d4765fedc210702666d9d61637474876dfcf503b2c3c8f1a67f30182da"
+        },
+        {
+          "path": "Sources/ToughTrialV2Core/V2GitHubScheduleClient.swift",
+          "sha256": "0fc83443098036f77d15b74458708d2803534bd83ab471594d61eee69aaad04c"
+        }
+      ],
+      "code": [
+        {
+          "path": "Sources/ToughTrialV2Core/V2ScheduleSync.swift",
+          "symbol": "V2ScheduleSynchronizer"
+        },
+        {
+          "path": "Sources/ToughTrialV2Core/V2ScheduleMarkdown.swift",
+          "symbol": "V2ScheduleMarkdown"
+        },
+        {
+          "path": "Sources/ToughTrialV2Core/V2GitHubScheduleClient.swift",
+          "symbol": "V2GitHubScheduleClient"
+        }
+      ],
+      "delivery": {
+        "assessed_on": "2026-10-02",
+        "implementation": "implemented",
+        "technical_verification": "historical-scoped-pass",
+        "human_acceptance": "pending",
+        "roadmap_stage": "R5",
+        "status_source": "docs/roadmap.md",
+        "open_items": "9/7 真机 Engine + 独立 Mac 脚本真实往返通过；当前正常 iPhone 与原生 Mac UI 的同步/进程重启仍待验收。"
+      }
+    },
+    {
+      "id": "data.full-backup",
+      "title": "全量备份与恢复（设计）",
+      "purpose": "统一本地备份包与 GitHub 副本渠道；迁移前单文件备份不构成全量恢复。",
+      "aliases": [
+        "全量备份",
+        "数据恢复",
+        "WebDAV",
+        "NAS",
+        "加密同步"
+      ],
+      "preconditions": [
+        "本项目来源可读；本次只核对实现/设计与历史证据，不访问个人业务数据或运行外部服务。"
+      ],
+      "user_path": [
+        "设计：本地备份/设置入口待实现",
+        "对照现有来源与 roadmap 的范围及验收缺口。"
+      ],
+      "operations": [
+        {
+          "kind": "ui",
+          "entry": "设计：本地备份/设置入口待实现",
+          "effect": "read-only",
+          "authorization": "当前仅导航/来源核对；业务写入、分享或上传仍遵循原授权，设计入口不代表功能已实现。"
+        }
+      ],
+      "acceptance": [
+        {
+          "source": "docs/superpowers/specs/2026-09-14-local-backup-and-sync-design-zh.md",
+          "expected": "统一版本包、领域/附件清单、GitHub 上传下载与恢复预览、另一设备恢复均未实现；WebDAV/NAS/E2EE 为后续。"
+        }
+      ],
+      "ontology_refs": [],
+      "evidence": [
+        {
+          "path": "docs/superpowers/specs/2026-09-14-local-backup-and-sync-design-zh.md",
+          "sha256": "5283ced4c5766b2657f1abf4148925562ea87dee7571d5daa57532d9c123dbda"
+        },
+        {
+          "path": "docs/superpowers/specs/2026-09-16-macos-sync-ontology-design-zh.md",
+          "sha256": "4c9ea3f2133f250506fa41fdd3ed5549b6aee36c7b6331a00952688df3fdf860"
+        },
+        {
+          "path": "Sources/ToughTrialV2Core/V2JSONSnapshotStore.swift",
+          "sha256": "ece71de570fc156ad36e82f525d95bc7b4abab26bd50b1ba50560c655a2a1f4f"
+        }
+      ],
+      "code": [],
+      "delivery": {
+        "assessed_on": "2026-10-02",
+        "implementation": "design-only",
+        "technical_verification": "not-assessed",
+        "human_acceptance": "pending",
+        "roadmap_stage": "R5",
+        "status_source": "docs/roadmap.md",
+        "open_items": "统一版本包、领域/附件清单、GitHub 上传下载与恢复预览、另一设备恢复均未实现；WebDAV/NAS/E2EE 为后续。"
+      }
+    },
+    {
+      "id": "ui.contacts",
+      "title": "名片扫描与联系人（设计）",
+      "purpose": "区分我的资料分享首版和未实现的 OCR/联系人独立领域。",
+      "aliases": [
+        "名片扫描",
+        "联系人",
+        "OCR",
+        "联系人整理"
+      ],
+      "preconditions": [
+        "本项目来源可读；本次只核对实现/设计与历史证据，不访问个人业务数据或运行外部服务。"
+      ],
+      "user_path": [
+        "我的资料 → 名片扫描与联系人（当前占位页）",
+        "对照现有来源与 roadmap 的范围及验收缺口。"
+      ],
+      "operations": [
+        {
+          "kind": "ui",
+          "entry": "我的资料 → 名片扫描与联系人（当前占位页）",
+          "effect": "read-only",
+          "authorization": "当前仅导航/来源核对；业务写入、分享或上传仍遵循原授权，设计入口不代表功能已实现。"
+        }
+      ],
+      "acceptance": [
+        {
+          "source": "docs/superpowers/specs/2026-09-20-business-card-contacts-design-zh.md",
+          "expected": "扫描/OCR 草稿、联系人库、搜索/合并/AI 整理及任务关联未实现；分享资料不等于联系人库。"
+        }
+      ],
+      "ontology_refs": [],
+      "evidence": [
+        {
+          "path": "docs/superpowers/specs/2026-09-20-business-card-contacts-design-zh.md",
+          "sha256": "f89ee768ae5a3a30fd4ad065740b6d0eaa01037d55d2c43533f4df8338ae949c"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2OwnProfileView.swift",
+          "sha256": "ccfa812be0f75706896b953bcdcd14a4355da77119d9b4bf7fa4ac445a22e227"
+        }
+      ],
+      "code": [],
+      "delivery": {
+        "assessed_on": "2026-10-02",
+        "implementation": "design-only",
+        "technical_verification": "not-assessed",
+        "human_acceptance": "pending",
+        "roadmap_stage": "R3",
+        "status_source": "docs/roadmap.md",
+        "open_items": "扫描/OCR 草稿、联系人库、搜索/合并/AI 整理及任务关联未实现；分享资料不等于联系人库。"
+      }
+    },
+    {
+      "id": "ui.transcription",
+      "title": "转录资料库",
+      "purpose": "本地音视频保存、Apple/FunASR 文件转录、摘要与查询；相册合成视频导入 / 播放及返回时保留识别选择通过，真实 iPhone 与服务验收仍待。",
+      "aliases": [
+        "转录",
+        "音视频",
+        "录音资料库"
+      ],
+      "preconditions": [
+        "本项目来源可读；本次只核对实现/设计与历史证据，不访问个人业务数据或运行外部服务。"
+      ],
+      "user_path": [
+        "更多插件 → 转录；Mac → 转录",
+        "对照现有来源与 roadmap 的范围及验收缺口。"
+      ],
+      "operations": [
+        {
+          "kind": "ui",
+          "entry": "更多插件 → 转录；Mac → 转录",
+          "effect": "read-only",
+          "authorization": "当前仅导航/来源核对；业务写入、分享或上传仍遵循原授权，设计入口不代表功能已实现。"
+        }
+      ],
+      "acceptance": [
+        {
+          "source": "docs/superpowers/specs/2026-09-25-transcription-library-design-zh.md",
+          "expected": "按该来源的限定范围区分实现、历史技术结果和当前人工验收；不由源码或截图推断运行通过。"
+        },
+        {
+          "source": "docs/qa/2026-10-04-transcription-file-repair.md",
+          "expected": "按真实模型/本地回归/UI 操作的限定范围确认；分发失败、真机锁屏和模拟器模型 skip 不算识别或安装通过。"
+        },
+        {
+          "source": "docs/qa/2026-10-05-simulator-retest.md",
+          "expected": "修复后转录专项 15 通过、0 失败、1 模型不可用跳过；包含实际返回识别选择断言。相册导入 / 播放与真实模型识别区分，当前 iPhone 更新和原视频未验收。"
+        },
+        {
+          "source": "docs/qa/2026-10-06-milestone.md",
+          "expected": "10/6 源码阶段收束，按限定验证和保留的失败历史核对；23 号未分发，手机及服务验收仍开放。"
+        }
+      ],
+      "ontology_refs": [],
+      "evidence": [
+        {
+          "path": "docs/superpowers/specs/2026-09-25-transcription-library-design-zh.md",
+          "sha256": "2ee29b69528a9423d8e7cf653fb53f2e0bf9814359b40c3b2d7dad473e04dc4d"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2RootView.swift",
+          "sha256": "57f3d5a51262cee6d4f9763707bd2b454957bb9877ea36df1a6992fb76d3387c"
+        },
+        {
+          "path": "Sources/ToughTrialMacApp/MacRootView.swift",
+          "sha256": "625f12cfe6c2d8fdacdd9478dba990df19df1954d9618b676c31ba271602aba6"
+        },
+        {
+          "path": "Sources/ToughTrialV2Core/V2TranscriptionRecord.swift",
+          "sha256": "607370f791f0dc5bd332c734f623f9d7250de271066e4b29af3d5cd51cc9993d"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2TranscriptionStore.swift",
+          "sha256": "d9db877b01f3da6afad78fed655f067efd0bd90a8557a6825ce426b453b2dc04"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2TranscriptionProcessor.swift",
+          "sha256": "73bb53b286719967e09cd8352bc4d3a01555ed489b659525bf3f0fca681c776d"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2TranscriptionView.swift",
+          "sha256": "64452c9ab90b8a31fed79ca28d3f95bd4f14c0521059b857af5eaa25a7d1ca22"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2AppleSpeechTranscriber.swift",
+          "sha256": "0faf91cf62323df76ed6c1d258142599e5390991d0c33fefb4c4858abdfc62ca"
+        },
+        {
+          "path": "Tests/ToughTrialV2AppTests/V2TranscriptionTests.swift",
+          "sha256": "2f8a116a6e7a16cb995a49a8ac9a48fe66ac37e6536a9f999ac343fe53566d3b"
+        },
+        {
+          "path": "Tests/ToughTrialUITests/V2TranscriptionUITests.swift",
+          "sha256": "bf217a3e892041ef4a2826ab61d6d4b0708dea960ad6070ade8f1fc59f63a237"
+        },
+        {
+          "path": "docs/qa/2026-10-04-transcription-file-repair.md",
+          "sha256": "ec81543a319d1868b99da6e787e770db77ea406d89d4558a918985eb530cbc81"
+        },
+        {
+          "path": "docs/qa/2026-10-05-simulator-retest.md",
+          "sha256": "d3ebbc86f4beba039e20eab2ec9983bc6477fe601f1d75b487ac0347a61ce5ca"
+        },
+        {
+          "path": "docs/qa/assets/2026-10-05-simulator/transcription-readable-retry.png",
+          "sha256": "2a36b5382c947193f2e774b4d15da420ec04811ac9da5a7a73fc75624c3ad7e5"
+        },
+        {
+          "path": "docs/qa/assets/2026-10-05-simulator/transcription-original-retained.png",
+          "sha256": "0d88770540a7f693da8a57045c8bc55669c12b139ba9ddf186c941c6fbd92d7f"
+        },
+        {
+          "path": "docs/qa/assets/2026-10-05-simulator/transcription-readable-detail.png",
+          "sha256": "7baa81ac2ee0e8647aa601339a9dfb2b3ccf7bc3f72b29c17a3d0557bd154867"
+        },
+        {
+          "path": "docs/qa/assets/2026-10-05-simulator/photo-video-original-player.png",
+          "sha256": "fa5b2f2545297af6cf71a7b7dbd5d5520f2182bbf02680248fba0ae98e44c674"
+        },
+        {
+          "path": "docs/qa/assets/2026-10-05-simulator/photo-video-return-provider-reset.png",
+          "sha256": "e191f6195cdfa6f91ce2276b3e0921bd100856b58181a7c80736af14ad4e82a2"
+        },
+        {
+          "path": "docs/qa/2026-10-05-testflight-build19.md",
+          "sha256": "807957c57e51aa653e13a8bb6d19b4c0bf594f7ebd13d3a7b05b753832cc4e9b"
+        },
+        {
+          "path": "docs/qa/2026-10-06-milestone.md",
+          "sha256": "63b4b66e9450106507254a67b5e2933a6b905ba29c23092c3e0c557d09c4a1a5"
+        }
+      ],
+      "code": [
+        {
+          "path": "Sources/ToughTrialV2Core/V2TranscriptionRecord.swift",
+          "symbol": "V2TranscriptionRecord"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2TranscriptionStore.swift",
+          "symbol": "V2TranscriptionStore"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2TranscriptionProcessor.swift",
+          "symbol": "V2TranscriptionProcessor"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2TranscriptionView.swift",
+          "symbol": "V2TranscriptionView"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2TranscriptionProcessor.swift",
+          "symbol": "V2TranscriptionPCMReader.next"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2TranscriptionProcessor.swift",
+          "symbol": "V2TranscriptionProcessor.transcribeApple"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2TranscriptionProcessor.swift",
+          "symbol": "V2TranscriptionProcessor.transcribeFunASR"
+        },
+        {
+          "path": "Tests/ToughTrialV2AppTests/V2TranscriptionTests.swift",
+          "symbol": "V2TranscriptionTests"
+        },
+        {
+          "path": "Tests/ToughTrialUITests/V2TranscriptionUITests.swift",
+          "symbol": "V2TranscriptionUITests"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2TranscriptionView.swift",
+          "symbol": "V2TranscriptionDetailView.init"
+        }
+      ],
+      "delivery": {
+        "assessed_on": "2026-10-06",
+        "implementation": "partial",
+        "technical_verification": "scoped-runtime-and-ui-pass",
+        "human_acceptance": "pending",
+        "roadmap_stage": "R1",
+        "status_source": "docs/roadmap.md",
+        "open_items": "10/5 修复后转录专项 15 通过、1 苹果模型因模拟器不支持跳过；实际合成相册视频导入和播放到末尾已操作。原视频、iPhone 模型识别、FunASR/AI 真实服务、长视频 / 后台未验收。最新 1.0（19）分发签名与上传通过，Apple 返回处理中；测试群组可用和手机实际更新仍待。历史协议阻塞已经解除。"
+      }
+    },
+    {
+      "id": "tooling.mobile-review",
+      "title": "手机评审 CLI 与 skill",
+      "purpose": "复用原图与 Feature Map，手机画圈/点位、反馈导入导出和历史图片版本隔离。",
+      "aliases": [
+        "mobile-review",
+        "手机评审",
+        "画圈",
+        "annotate"
+      ],
+      "preconditions": [
+        "本项目来源可读；本次只核对实现/设计与历史证据，不访问个人业务数据或运行外部服务。"
+      ],
+      "user_path": [
+        "mobile-review --help；$mobile-review",
+        "对照现有来源与 roadmap 的范围及验收缺口。"
+      ],
+      "operations": [
+        {
+          "kind": "cli",
+          "entry": "mobile-review --help；$mobile-review",
+          "effect": "read-only",
+          "authorization": "当前仅导航/来源核对；业务写入、分享或上传仍遵循原授权，设计入口不代表功能已实现。"
+        }
+      ],
+      "acceptance": [
+        {
+          "source": "docs/qa/2026-10-01-mobile-review-cli.md",
+          "expected": "按该来源的限定范围区分实现、历史技术结果和当前人工验收；不由源码或截图推断运行通过。"
+        },
+        {
+          "source": "docs/qa/2026-10-06-milestone.md",
+          "expected": "10/6 源码阶段收束，按限定验证和保留的失败历史核对；23 号未分发，手机及服务验收仍开放。"
+        }
+      ],
+      "ontology_refs": [],
+      "evidence": [
+        {
+          "path": "docs/qa/2026-10-01-mobile-review-cli.md",
+          "sha256": "8ed01e81311578ecd619f202b8e416c74f3fa87f338f09ee7a45f109f9b1d2cb"
+        },
+        {
+          "path": "docs/qa/2026-09-30-mobile-review.md",
+          "sha256": "ed753909e93e6e2e43cae0f4b3343546ded00ef3dfcc3fc12d75ae6ab594be96"
+        },
+        {
+          "path": "Tools/MobileReview/README.md",
+          "sha256": "b853db235159ba3e19e2dbc5c6723a6d0ca98e92f99639781d40b7fe6d1732d6"
+        },
+        {
+          "path": "Tools/MobileReview/test_cli.py",
+          "sha256": "85bf2c26d86f68306ddb01ce5a64d50bd45abca83beb1f34ae20bee8737880f6"
+        },
+        {
+          "path": "Tools/MobileReview/test_annotations.mjs",
+          "sha256": "b31b4158dc77333d7a7827434092ae348d224ecd6256afa57be1e53bd7e39105"
+        },
+        {
+          "path": "skills/mobile-review/SKILL.md",
+          "sha256": "f342fc45c924076544f5b041f7e4af8e32bb914101a9be3d47fa43540f15771d"
+        },
+        {
+          "path": "Tools/MobileReview/cli.py",
+          "sha256": "a4e0d04c002df428dea5a6728590139f5dce897abe418d1efb55c6bfa6a60379"
+        },
+        {
+          "path": "Tools/MobileReview/web/review.js",
+          "sha256": "4eaf7e5265f9bced4729ea78b3c34562da625bbc52b37931783f5358eac531d3"
+        },
+        {
+          "path": "Tools/MobileReview/web/annotations.mjs",
+          "sha256": "fcd9f7e22fe357b4f7549f234555854f66c2fd9f35a7e549772bf75777a93484"
+        },
+        {
+          "path": "docs/qa/2026-10-06-milestone.md",
+          "sha256": "63b4b66e9450106507254a67b5e2933a6b905ba29c23092c3e0c557d09c4a1a5"
+        }
+      ],
+      "code": [
+        {
+          "path": "Tools/MobileReview/cli.py",
+          "symbol": "main"
+        },
+        {
+          "path": "Tools/MobileReview/web/review.js",
+          "symbol": "render"
+        },
+        {
+          "path": "Tools/MobileReview/web/annotations.mjs",
+          "symbol": "mergeAnnotations"
+        }
+      ],
+      "delivery": {
+        "assessed_on": "2026-10-06",
+        "implementation": "implemented",
+        "technical_verification": "tool-tests-and-browser-scoped-pass",
+        "human_acceptance": "pending",
+        "roadmap_stage": "R1",
+        "status_source": "docs/roadmap.md",
+        "open_items": "CLI 1.0.0 及浏览器流程已有验证；iPhone Safari 回访和目标构建重拍待完成，云批注同步/自动部署/TestFlight 接入未实现。"
+      }
+    },
+    {
+      "id": "core.module-runtime",
+      "title": "模块运行框架与声明式插件",
+      "purpose": "既有原生能力门禁、事务/回执、outbox 与插件 v2；不包含第三方脚本市场。",
+      "aliases": [
+        "模块框架",
+        "插件",
+        "动态工具",
+        "outbox"
+      ],
+      "preconditions": [
+        "本项目来源可读；本次只核对实现/设计与历史证据，不访问个人业务数据或运行外部服务。"
+      ],
+      "user_path": [
+        "原生命令/查询登记；更多插件 → 功能与插件",
+        "对照现有来源与 roadmap 的范围及验收缺口。"
+      ],
+      "operations": [
+        {
+          "kind": "cli",
+          "entry": "原生命令/查询登记；更多插件 → 功能与插件",
+          "effect": "read-only",
+          "authorization": "当前仅导航/来源核对；业务写入、分享或上传仍遵循原授权，设计入口不代表功能已实现。"
+        }
+      ],
+      "acceptance": [
+        {
+          "source": "docs/qa/2026-09-10-complete-module-runtime.md",
+          "expected": "按该来源的限定范围区分实现、历史技术结果和当前人工验收；不由源码或截图推断运行通过。"
+        },
+        {
+          "source": "docs/qa/2026-10-06-milestone.md",
+          "expected": "10/6 源码阶段收束，按限定验证和保留的失败历史核对；23 号未分发，手机及服务验收仍开放。"
+        }
+      ],
+      "ontology_refs": [],
+      "evidence": [
+        {
+          "path": "docs/qa/2026-09-10-complete-module-runtime.md",
+          "sha256": "47d03b5159bca13b642e0955270e43b2b1868d8f398fe261d28d0d94fa3715a7"
+        },
+        {
+          "path": "docs/superpowers/specs/2026-09-10-plugin-runtime-and-contracts-design-zh.md",
+          "sha256": "272d86bd6d8383202e56b776233bc910a17eb3bc5ef69c378d321476fe34c8fd"
+        },
+        {
+          "path": "Tests/ToughTrialCaptureTests/V2ModuleRuntimeTests.swift",
+          "sha256": "e2d0044d743e7b4f106879823e77a460202843838999efb1c2c4a07920b461ae"
+        },
+        {
+          "path": "Tests/ToughTrialCaptureTests/V2NativeContractsTests.swift",
+          "sha256": "c460059c5d653771bf251de2c3c9c61fb1fd757b70e1999d5c46744f7d47b497"
+        },
+        {
+          "path": "Sources/ToughTrialV2Core/V2ModuleRuntime.swift",
+          "sha256": "51e93340fb085760b169644e1c61fe4f78cba353864cf1f627f5719c9e5d34db"
+        },
+        {
+          "path": "Sources/ToughTrialV2Core/V2NativeContracts.swift",
+          "sha256": "9139ae6bda581001aa81ce74578121ad775df5a3a86f335677e6ef5dcda0268c"
+        },
+        {
+          "path": "Sources/ToughTrialV2Core/V2PluginManifest.swift",
+          "sha256": "8ffeb50130f60beaf8aa7536d629c043b0d3ff47b1dda0206ae01e416e977573"
+        },
+        {
+          "path": "docs/qa/2026-10-06-milestone.md",
+          "sha256": "63b4b66e9450106507254a67b5e2933a6b905ba29c23092c3e0c557d09c4a1a5"
+        }
+      ],
+      "code": [
+        {
+          "path": "Sources/ToughTrialV2Core/V2ModuleRuntime.swift",
+          "symbol": "V2ModuleRuntime"
+        },
+        {
+          "path": "Sources/ToughTrialV2Core/V2NativeContracts.swift",
+          "symbol": "V2NativeCommandRegistry"
+        },
+        {
+          "path": "Sources/ToughTrialV2Core/V2PluginManifest.swift",
+          "symbol": "V2PluginManifest"
+        }
+      ],
+      "delivery": {
+        "assessed_on": "2026-10-06",
+        "implementation": "implemented",
+        "technical_verification": "historical-scoped-pass",
+        "human_acceptance": "pending",
+        "roadmap_stage": "R1",
+        "status_source": "docs/roadmap.md",
+        "open_items": "9/10 核心/模拟器及限定真机有证据；当前生命周期/副作用待复验，新增领域同步和脚本市场未实现。"
+      }
+    }
+  ],
+  "title": "Tough Trial"
+}

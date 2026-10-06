@@ -1,5 +1,6 @@
 import SwiftUI
 import ToughTrialV2Core
+import UniformTypeIdentifiers
 
 struct V2RootView: View {
     @StateObject private var store: V2AppStore
@@ -16,6 +17,7 @@ struct V2RootView: View {
     @State private var quickCaptureRequest: V2QuickCaptureRequest?
     @State private var selectedTab = V2NavigationID.assistant
     @State private var standaloneModule: V2NavigationID?
+    @State private var incomingTranscriptionURL: URL?
     @State private var showHiddenAssistant = false
     @Environment(\.scenePhase) private var scenePhase
     private let recallDrawingStore: V2RecallDrawingStore
@@ -53,6 +55,7 @@ struct V2RootView: View {
                     .accessibilityHidden(true)
             }
         }
+        .preferredColorScheme(.light)
         .v2Sheet(isPresented: $showPlugins) {
             NavigationStack { V2PluginsView(appStore: store).toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { showPlugins = false }.accessibilityIdentifier("plugins.done") } } }
         }
@@ -163,6 +166,14 @@ struct V2RootView: View {
                 guard plugins.enabled("tasks") else { showPlugins = true; return }
                 store.closePlanAgent(); store.closeZen()
                 if navigation.orderedTabs.contains(.today) { selectedTab = .today } else { showHiddenToday = true }
+            } else if url.isFileURL {
+                let type = UTType(filenameExtension: url.pathExtension)
+                guard type?.conforms(to: .audio) == true || type?.conforms(to: .movie) == true else { return }
+                guard plugins.enabled("transcription") else { showPlugins = true; return }
+                store.closePlanAgent(); store.closeZen()
+                incomingTranscriptionURL = url
+                if navigation.orderedTabs.contains(.transcription) { selectedTab = .transcription }
+                else { standaloneModule = .transcription }
             }
         }
     }
@@ -193,6 +204,8 @@ struct V2RootView: View {
             V2RecallView(store: store, drawingStore: recallDrawingStore)
         case .ownProfile:
             V2OwnProfileView()
+        case .transcription:
+            V2TranscriptionView(incomingURL: $incomingTranscriptionURL)
         case .morePlugins:
             V2MorePluginsView(
                 appStore: store,
@@ -212,6 +225,7 @@ struct V2RootView: View {
         case .capture: V2CaptureView(appStore: store, client: Self.captureTestClient, quickRequest: $quickCaptureRequest)
         case .recall: V2RecallView(store: store, drawingStore: recallDrawingStore)
         case .ownProfile: V2OwnProfileView()
+        case .transcription: V2TranscriptionView(incomingURL: $incomingTranscriptionURL)
         case .morePlugins: EmptyView()
         }
     }
@@ -272,6 +286,22 @@ struct V2RootView: View {
 
     private static func makeUITestStore() -> V2AppStore {
 #if DEBUG
+        if ProcessInfo.processInfo.environment["TOUGH_TRIAL_UI_TEST_SIX_LEVELS"] == "1" {
+            let engine = V2Engine()
+            let titles = ["建立稳定创作系统", "定位与内容策略", "知识分享系列", "写作方法专题", "文章结构训练", "整理三个真实案例并写出各自的开头与结尾"]
+            var parentID: String?
+            var rootID: String?
+            for (index, title) in titles.enumerated() {
+                if let task = try? engine.createTask(title: title, parentID: parentID,
+                    at: Date(timeIntervalSince1970: 1_700_000_000 + Double(index))) {
+                    parentID = task.id
+                    if index == 0 { rootID = task.id }
+                }
+            }
+            _ = try? engine.createTask(title: "同级分支：选题库", parentID: rootID)
+            _ = try? engine.createTask(title: "另一棵树：健康计划")
+            return V2AppStore(engine: engine, memoryEngine: V2MemoryEngine())
+        }
         if let fixtureID = ProcessInfo.processInfo.environment["TOUGH_TRIAL_UI_FILE_FIXTURE"],
            let id = UUID(uuidString: fixtureID) {
             return makeFileUITestStore(id: id)

@@ -45,6 +45,7 @@ struct V2TasksView: View {
             captureControl
         }
         .v2ScreenBackground()
+        .preferredColorScheme(.light)
         .environment(\.scheduleHighlightedIDs, store.highlightedScheduleIDs)
         .onAppear {
             if visibleGoalIDs.isEmpty {
@@ -129,11 +130,12 @@ struct V2TasksView: View {
 
             Group {
                 if lens == .list {
-                    V2TaskListView(tasks: allTasks, onOpenDetails: presentTaskDetails,
+                    V2TaskListView(tasks: allTasks,
+                                   startedTaskIDs: Set(store.engine.snapshot.executionSegments.compactMap(\.taskID)),
+                                   onOpenDetails: presentTaskDetails,
                                    onToggleCompletion: toggleTaskCompletion)
                 } else {
-                    V2StructureLensView(tasks: rootTasks, selectedTaskID: store.state.selectedTaskID,
-                                        onOpenDetails: presentTaskDetails)
+                    V2StructureLensView(tasks: rootTasks, onOpenDetails: presentTaskDetails)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -207,6 +209,7 @@ struct V2TasksView: View {
                             .lineLimit(1)
                             .frame(maxWidth: .infinity)
                             .frame(height: 44)
+                            .contentShape(Rectangle())
                             .foregroundStyle(
                                 lens == item
                                     ? V2Theme.ColorRole.textPrimary
@@ -534,61 +537,61 @@ private struct V2TaskDetailSheet: View {
 private struct V2TaskListView: View {
     @Environment(\.scheduleHighlightedIDs) private var highlightedIDs
     let tasks: [V2TaskNode]
+    let startedTaskIDs: Set<String>
     let onOpenDetails: (V2TaskNode) -> Void
     let onToggleCompletion: (V2TaskNode) -> Void
 
     var body: some View {
         if tasks.isEmpty {
-            V2EmptyLensView(title: "还没有任务", detail: "记下要做的事，从一件小事开始。")
+            VStack(spacing: 10) {
+                Image(systemName: "square.stack.3d.up")
+                    .font(.system(size: 28, weight: .semibold))
+                    .foregroundStyle(V2Theme.tertiary)
+                    .accessibilityHidden(true)
+                Text("还没有任务")
+                    .font(V2Theme.TypeRole.titleLarge)
+                    .foregroundStyle(V2Theme.ink)
+                Text("记下要做的事，从一件小事开始。")
+                    .font(V2Theme.TypeRole.bodyMedium)
+                    .foregroundStyle(V2Theme.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             ScrollView {
-                LazyVStack(spacing: 10) {
-                    ForEach(tasks, id: \.id) { task in
-                        HStack(spacing: 8) {
-                            if task.children.isEmpty {
-                                Button { onToggleCompletion(task) } label: {
-                                    Image(systemName: task.status == .done ? "checkmark.circle.fill" : "circle")
-                                        .foregroundStyle(task.status == .done ? V2Theme.mint : V2Theme.blue)
-                                        .frame(width: 44, height: 44)
-                                }
-                                .buttonStyle(.plain)
-                                .accessibilityLabel("\(task.status == .done ? "恢复未完成" : "完成")：\(task.title)")
-                                .accessibilityValue(task.status == .done ? "已完成" : "未完成")
-                                .accessibilityIdentifier("tasks.complete.\(task.id)")
+                LazyVStack(alignment: .leading, spacing: 24) {
+                    ForEach(V2TaskListGroup.allCases, id: \.rawValue) { group in
+                        let items = tasks.filter { $0.status.listGroup(hasExecution: startedTaskIDs.contains($0.id)) == group }
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("\(group.title) \(Text("· \(items.count)").font(V2Theme.TypeRole.bodySmall).foregroundStyle(V2Theme.secondary))")
+                                .font(V2Theme.TypeRole.titleMedium)
+                                .foregroundStyle(group == .completed ? V2Theme.secondary : V2Theme.ink)
+                                .accessibilityLabel("\(group.title) · \(items.count)")
+                                .accessibilityAddTraits(.isHeader)
+                                .accessibilityIdentifier("tasks.list.group.\(group.rawValue)")
+
+                            if items.isEmpty {
+                                Text("暂无\(group.title)的任务")
+                                    .font(V2Theme.TypeRole.bodySmall)
+                                    .foregroundStyle(V2Theme.secondary)
                             } else {
-                                Image(systemName: "arrow.triangle.branch")
-                                    .foregroundStyle(V2Theme.blue).frame(width: 44, height: 44)
-                                    .accessibilityHidden(true)
-                            }
-                            Button { onOpenDetails(task) } label: {
-                                HStack(spacing: 12) {
-                                    VStack(alignment: .leading, spacing: 5) {
-                                        Text(task.title)
-                                            .font(V2Theme.TypeRole.titleMedium)
-                                            .foregroundStyle(V2Theme.ink)
-                                            .multilineTextAlignment(.leading)
-                                        if !task.children.isEmpty {
-                                            Text("\(task.children.count) 个子任务")
-                                                .font(V2Theme.TypeRole.bodySmall)
-                                                .foregroundStyle(V2Theme.secondary)
+                                LazyVStack(spacing: 0) {
+                                    ForEach(items, id: \.id) { task in
+                                        taskRow(task)
+                                            .id("\(group.rawValue):\(task.id):\(task.status.rawValue)")
+                                        if task.id != items.last?.id {
+                                            Rectangle()
+                                                .fill(V2Theme.line.opacity(0.55))
+                                                .frame(height: 1)
+                                                .padding(.leading, 64)
                                         }
                                     }
-                                    Spacer(minLength: 0)
-                                    Image(systemName: "chevron.right")
-                                        .font(V2Theme.TypeRole.labelSmall)
-                                        .foregroundStyle(V2Theme.tertiary)
                                 }
-                                .frame(minHeight: 44)
-                                .contentShape(Rectangle())
+                                .background(group == .completed ? .clear : V2Theme.ColorRole.surfaceRaised,
+                                            in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                             }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(task.title)
-
                         }
-                        .padding(14)
-                        .background(V2Theme.ColorRole.surfaceRaised, in: RoundedRectangle(cornerRadius: 20))
-                        .overlay(RoundedRectangle(cornerRadius: 20).stroke(
-                            highlightedIDs.contains(task.id) ? V2Theme.blue.opacity(0.4) : V2Theme.line.opacity(0.65)))
                     }
                 }
                 .padding(.horizontal, 18)
@@ -598,666 +601,88 @@ private struct V2TaskListView: View {
             .accessibilityIdentifier("tasks.list")
         }
     }
+
+    private func taskRow(_ task: V2TaskNode) -> some View {
+        HStack(spacing: 8) {
+            if task.children.isEmpty {
+                Button { onToggleCompletion(task) } label: {
+                    Image(systemName: task.status == .done ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 20))
+                        .foregroundStyle(V2Theme.secondary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(task.status == .done ? "恢复未完成" : "完成")：\(task.title)")
+                .accessibilityValue(task.status == .done ? "已完成" : "未完成")
+                .accessibilityIdentifier("tasks.complete.\(task.id)")
+            } else {
+                Image(systemName: "arrow.triangle.branch")
+                    .foregroundStyle(V2Theme.secondary).frame(width: 44, height: 44)
+                    .accessibilityHidden(true)
+            }
+            Button { onOpenDetails(task) } label: {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(task.title)
+                            .font(V2Theme.TypeRole.titleMedium)
+                            .foregroundStyle(task.status == .done ? V2Theme.secondary : V2Theme.ink)
+                            .strikethrough(task.status == .done)
+                            .multilineTextAlignment(.leading)
+                            .lineLimit(3)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if task.status.listGroup(hasExecution: startedTaskIDs.contains(task.id)) == .inProgress {
+                            Label(statusLabel(task), systemImage: task.status == .active ? "waveform" : task.status == .paused ? "pause.fill" : "arrow.clockwise")
+                                .font(V2Theme.TypeRole.labelMedium)
+                                .foregroundStyle(task.status == .active ? V2Theme.ColorRole.onTaskActiveContainer : V2Theme.ColorRole.onTaskPausedContainer)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 3)
+                                .background(task.status == .active ? V2Theme.ColorRole.taskActiveContainer : V2Theme.ColorRole.taskPausedContainer,
+                                            in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        }
+                        if !task.children.isEmpty {
+                            Text("\(task.children.count) 个子任务")
+                                .font(V2Theme.TypeRole.bodySmall)
+                                .foregroundStyle(V2Theme.secondary)
+                        }
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right")
+                        .font(V2Theme.TypeRole.labelSmall)
+                        .foregroundStyle(V2Theme.tertiary)
+                }
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(task.title)
+            .accessibilityValue(statusLabel(task))
+
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, task.status == .done ? 6 : 8)
+        .background(highlightedIDs.contains(task.id)
+                    ? task.status == .done ? V2Theme.ColorRole.surfaceMuted : V2Theme.ColorRole.primaryContainer
+                    : .clear,
+                    in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private func statusLabel(_ task: V2TaskNode) -> String {
+        if task.status == .paused { return "已暂停" }
+        if task.status == .planned && startedTaskIDs.contains(task.id) { return "待继续" }
+        return task.status.listGroup.title
+    }
 }
 
 private struct V2StructureLensView: View {
     let tasks: [V2TaskNode]
-    let selectedTaskID: String?
     let onOpenDetails: (V2TaskNode) -> Void
-
-    // Presentation-only root: never passed to commands or used as a new task's parent.
-    private var overview: V2TaskNode {
-        V2TaskNode(id: "task-overview", title: "全部任务", subtitle: "", goal: "",
-                   colorName: "blue", status: .planned, spentMinutes: 0, children: tasks)
-    }
 
     var body: some View {
         if tasks.isEmpty {
             V2EmptyLensView(title: "还没有任务", detail: "记下要做的事，从一件小事开始。")
         } else {
-            V2TaskMapCanvas(task: overview, selectedTaskID: selectedTaskID,
-                            onOpenDetails: onOpenDetails, isOverview: true)
-                .accessibilityIdentifier("tasks.structure.overview")
-        }
-    }
-}
-
-private struct V2TaskMapCanvas: View {
-    let task: V2TaskNode
-    let selectedTaskID: String?
-    let onOpenDetails: (V2TaskNode) -> Void
-    var isOverview = false
-
-    @State private var focusedNodeID: String?
-    @State private var expandedNodeIDs: Set<String> = []
-    @State private var zoomScale: CGFloat = 0.92
-    @GestureState private var pinchScale: CGFloat = 1
-
-    private let minimumCanvasWidth: CGFloat = 940
-    private let minimumCanvasHeight: CGFloat = 650
-    private let rootX: CGFloat = 126
-    private let columnSpacing: CGFloat = 224
-
-    private var defaultFocusedBranch: V2TaskNode? {
-        task.children.first { branch in
-            guard let selectedTaskID else { return false }
-            return branch.containsTask(id: selectedTaskID) && branch.children.contains { !$0.children.isEmpty }
-        }
-            ?? task.children.first { $0.children.contains { !$0.children.isEmpty } && $0.status == .active }
-            ?? task.children.first { $0.children.contains { !$0.children.isEmpty } && $0.status != .done }
-            ?? task.children.first { branch in
-                guard let selectedTaskID else { return false }
-                return branch.containsTask(id: selectedTaskID)
-            }
-            ?? task.children.first { !$0.children.isEmpty && $0.status == .active }
-            ?? task.children.first { !$0.children.isEmpty && $0.status != .done }
-            ?? task.children.first
-    }
-
-    private var defaultFocusPath: [V2TaskNode] {
-        if let selectedTaskID,
-           let path = path(to: selectedTaskID, in: task) {
-            return path
-        }
-
-        guard let branch = defaultFocusedBranch else {
-            return [task]
-        }
-
-        var result = [task, branch]
-        if let detail = defaultFocusedDetail(in: branch) {
-            result.append(detail)
-        }
-        return result
-    }
-
-    private var defaultExpandedNodeIDs: Set<String> {
-        Set(defaultFocusPath.filter { !$0.children.isEmpty }.map(\.id))
-            .union([task.id])
-    }
-
-    private var effectiveExpandedNodeIDs: Set<String> {
-        (expandedNodeIDs.isEmpty ? defaultExpandedNodeIDs : expandedNodeIDs)
-            .union([task.id])
-    }
-
-    private var layout: V2TaskTreeLayout {
-        V2TaskTreeLayout(
-            root: task,
-            expandedNodeIDs: effectiveExpandedNodeIDs
-        )
-    }
-
-    private var canvasWidth: CGFloat {
-        max(
-            minimumCanvasWidth,
-            rootX + CGFloat(layout.maxDepth) * columnSpacing + 260
-        )
-    }
-
-    private var canvasHeight: CGFloat {
-        max(minimumCanvasHeight, CGFloat(layout.contentHeight))
-    }
-
-    private var effectiveZoom: CGFloat {
-        clampedZoom(zoomScale * pinchScale)
-    }
-
-    var body: some View {
-        GeometryReader { proxy in
-            ScrollView([.vertical, .horizontal], showsIndicators: false) {
-                let currentLayout = layout
-
-                ZStack(alignment: .topLeading) {
-                    mapLines(layout: currentLayout)
-
-                    ForEach(currentLayout.entries) { entry in
-                        mapNode(for: entry)
-                            .transition(.opacity.combined(with: .scale(scale: 0.96)))
-                            .position(
-                                x: nodeX(depth: entry.depth),
-                                y: CGFloat(entry.centerY)
-                            )
-                    }
-                }
-                .frame(width: canvasWidth, height: canvasHeight)
-                .scaleEffect(effectiveZoom, anchor: .topLeading)
-                .frame(
-                    width: canvasWidth * effectiveZoom,
-                    height: canvasHeight * effectiveZoom,
-                    alignment: .topLeading
-                )
-                .padding(.trailing, 24)
-                .padding(.vertical, 10)
-            }
-            .frame(width: proxy.size.width, height: proxy.size.height)
-            .background(V2Theme.ColorRole.canvas)
-            .scrollBounceBehavior(.basedOnSize)
-            .simultaneousGesture(
-                MagnificationGesture()
-                    .updating($pinchScale) { value, state, _ in
-                        state = value
-                    }
-                    .onEnded { value in
-                        zoomScale = clampedZoom(zoomScale * value)
-                    }
-            )
-            .overlay(alignment: .topTrailing) {
-                mapControls
-                    .padding(.top, 8)
-                    .padding(.trailing, 14)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .frame(minHeight: 520)
-        .onAppear {
-            seedFocus(force: false)
-        }
-        .onChange(of: selectedTaskID) { _, _ in
-            withAnimation(.spring(response: 0.32, dampingFraction: 0.84)) {
-                seedFocus(force: true)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func mapNode(for entry: V2TaskTreeLayout.Entry) -> some View {
-        if isOverview && entry.depth == 0 {
-            Text("全部任务")
-                .font(V2Theme.TypeRole.headlineSmall)
-                .foregroundStyle(V2Theme.ColorRole.textPrimary)
-                .accessibilityIdentifier("tasks.structure.overviewTitle")
-        } else {
-            mapNodeLabel(for: entry)
-        }
-    }
-
-    private func mapNodeLabel(for entry: V2TaskTreeLayout.Entry) -> some View {
-        let style = nodeStyle(for: entry)
-        let onToggleExpansion: (() -> Void)?
-        if entry.depth > 0, !entry.node.children.isEmpty {
-            onToggleExpansion = { toggleExpansion(for: entry.node) }
-        } else {
-            onToggleExpansion = nil
-        }
-
-        return V2TaskMapNode(
-            id: entry.node.id,
-            title: entry.node.title,
-            color: entry.depth == 0
-                ? V2Theme.ColorRole.textPrimary
-                : V2Theme.goalColor(entry.node.colorName),
-            status: entry.node.status,
-            completionSignal: entry.node.completionSignal,
-            style: style,
-            childCount: entry.depth == 0 ? 0 : entry.node.children.count,
-            isExpanded: effectiveExpandedNodeIDs.contains(entry.node.id),
-            onOpenDetails: { onOpenDetails(entry.node) },
-            onToggleExpansion: onToggleExpansion
-        )
-        .scaleEffect(effectiveFocusedNodeID == entry.node.id ? 1 : 0.98)
-        .opacity(nodeOpacity(for: entry))
-    }
-
-    private var effectiveFocusedNodeID: String? {
-        focusedNodeID ?? defaultFocusPath.dropFirst().first?.id
-    }
-
-    private func nodeStyle(for entry: V2TaskTreeLayout.Entry) -> V2TaskMapNode.Style {
-        let isFocused = effectiveFocusedNodeID == entry.node.id
-        switch entry.depth {
-        case 0:
-            return .root
-        case 1:
-            return isFocused ? .selectedBranch : .branch
-        case 2:
-            return isFocused ? .selectedDetail : .detail
-        default:
-            return entry.node.children.isEmpty
-                ? .leaf
-                : (isFocused ? .selectedDetail : .detail)
-        }
-    }
-
-    private func nodeOpacity(for entry: V2TaskTreeLayout.Entry) -> Double {
-        guard entry.depth > 0 else { return 1 }
-        return effectiveFocusedNodeID == entry.node.id ? 1 : 0.78
-    }
-
-    private func toggleExpansion(for node: V2TaskNode) {
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.84)) {
-            focusedNodeID = node.id
-            if expandedNodeIDs.contains(node.id) {
-                expandedNodeIDs.remove(node.id)
-            } else {
-                expandedNodeIDs.insert(node.id)
-            }
-        }
-    }
-
-    private func seedFocus(force: Bool) {
-        let path = defaultFocusPath
-        let pathParents = Set(path.filter { !$0.children.isEmpty }.map(\.id))
-
-        if expandedNodeIDs.isEmpty {
-            expandedNodeIDs = defaultExpandedNodeIDs
-        } else if force {
-            expandedNodeIDs.formUnion(pathParents)
-        }
-        expandedNodeIDs.insert(task.id)
-
-        if force || focusedNodeID == nil {
-            focusedNodeID = path.dropFirst().first?.id
-        }
-    }
-
-    private func path(to id: String, in node: V2TaskNode) -> [V2TaskNode]? {
-        if node.id == id {
-            return [node]
-        }
-
-        for child in node.children {
-            if let childPath = path(to: id, in: child) {
-                return [node] + childPath
-            }
-        }
-        return nil
-    }
-
-    private func defaultFocusedDetail(in branch: V2TaskNode) -> V2TaskNode? {
-        branch.children.first { detail in
-            guard let selectedTaskID else { return false }
-            return detail.containsTask(id: selectedTaskID)
-        }
-            ?? branch.children.first { !$0.children.isEmpty && $0.status != .done }
-            ?? branch.children.first { !$0.children.isEmpty }
-            ?? branch.children.first
-    }
-
-    private func clampedZoom(_ value: CGFloat) -> CGFloat {
-        min(1.35, max(0.62, value))
-    }
-
-    private var mapControls: some View {
-        HStack(spacing: 4) {
-            Button {
-                withAnimation(.easeOut(duration: 0.18)) {
-                    zoomScale = clampedZoom(zoomScale - 0.12)
-                }
-            } label: {
-                Image(systemName: "minus")
-                    .frame(width: 30, height: 30)
-            }
-            .accessibilityLabel("缩小任务地图")
-
-            Button {
-                withAnimation(.easeOut(duration: 0.18)) {
-                    zoomScale = 0.92
-                }
-            } label: {
-                Image(systemName: "arrow.counterclockwise")
-                    .frame(width: 30, height: 30)
-            }
-            .accessibilityLabel("重置地图缩放")
-
-            Button {
-                withAnimation(.easeOut(duration: 0.18)) {
-                    zoomScale = clampedZoom(zoomScale + 0.12)
-                }
-            } label: {
-                Image(systemName: "plus")
-                    .frame(width: 30, height: 30)
-            }
-            .accessibilityLabel("放大任务地图")
-        }
-        .font(.system(size: 14, weight: .semibold))
-        .foregroundStyle(V2Theme.ColorRole.textSecondary)
-        .padding(4)
-        .background(V2Theme.ColorRole.surfaceRaised.opacity(0.84))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(V2Theme.ColorRole.outline.opacity(0.52), lineWidth: 1)
-        )
-        .shadow(color: V2Theme.ColorRole.textPrimary.opacity(0.06), radius: 14, y: 7)
-        .buttonStyle(.plain)
-    }
-
-    private func mapLines(layout: V2TaskTreeLayout) -> some View {
-        ZStack {
-            ForEach(layout.entries.filter { $0.parentID != nil }) { entry in
-                if let parentID = entry.parentID,
-                   let parent = layout.entry(id: parentID) {
-                    let from = CGPoint(
-                        x: nodeAnchorX(for: parent),
-                        y: CGFloat(parent.centerY)
-                    )
-                    let to = CGPoint(
-                        x: nodeAnchorX(for: entry),
-                        y: CGFloat(entry.centerY)
-                    )
-                    let controlDistance = max(72, (to.x - from.x) * 0.46)
-                    let color = V2Theme.goalColor(entry.node.colorName)
-                    let isFocused = effectiveFocusedNodeID == entry.node.id
-
-                    Path { path in
-                        path.move(to: from)
-                        path.addCurve(
-                            to: to,
-                            control1: CGPoint(
-                                x: from.x + controlDistance,
-                                y: from.y
-                            ),
-                            control2: CGPoint(
-                                x: to.x - controlDistance,
-                                y: to.y
-                            )
-                        )
-                    }
-                    .stroke(
-                        color.opacity(isFocused ? 0.92 : 0.50),
-                        style: StrokeStyle(
-                            lineWidth: isFocused ? 3.2 : 2.4,
-                            lineCap: .round,
-                            lineJoin: .round
-                        )
-                    )
-                    .shadow(
-                        color: color.opacity(isFocused ? 0.08 : 0.03),
-                        radius: 3,
-                        y: 2
-                    )
-                }
-            }
-        }
-    }
-
-    private func nodeX(depth: Int) -> CGFloat {
-        rootX + CGFloat(depth) * columnSpacing
-    }
-
-    private func nodeAnchorX(for entry: V2TaskTreeLayout.Entry) -> CGFloat {
-        nodeX(depth: entry.depth)
-            - nodeWidth(for: entry) / 2
-            + statusDotSize(for: entry) / 2
-    }
-
-    private func nodeWidth(for entry: V2TaskTreeLayout.Entry) -> CGFloat {
-        switch nodeStyle(for: entry) {
-        case .root:
-            return 206
-        case .selectedBranch, .branch:
-            return 183
-        case .selectedDetail, .detail:
-            return 189
-        case .leaf:
-            return 161
-        }
-    }
-
-    private func statusDotSize(for entry: V2TaskTreeLayout.Entry) -> CGFloat {
-        switch nodeStyle(for: entry) {
-        case .root:
-            return 22
-        case .selectedBranch:
-            return 18
-        case .branch, .selectedDetail:
-            return 15
-        case .detail, .leaf:
-            return 13
-        }
-    }
-}
-
-private struct V2TaskMapNode: View {
-    enum Style {
-        case root
-        case branch
-        case selectedBranch
-        case detail
-        case selectedDetail
-        case leaf
-    }
-
-    let id: String
-    let title: String
-    let color: Color
-    let status: V2TaskNode.Status
-    let completionSignal: Double
-    let style: Style
-    let childCount: Int
-    let isExpanded: Bool
-    let onOpenDetails: () -> Void
-    let onToggleExpansion: (() -> Void)?
-
-    var body: some View {
-        HStack(spacing: 5) {
-            Button(action: onOpenDetails) {
-                HStack(spacing: 8) {
-                    V2TaskMapStatusDot(
-                        color: color,
-                        completionSignal: completionSignal,
-                        style: style
-                    )
-
-                    Text(title)
-                        .font(font)
-                        .foregroundStyle(textColor)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.72)
-                        .padding(.horizontal, 3)
-                        .background(V2Theme.ColorRole.canvas)
-                        .overlay(alignment: .bottom) {
-                            Capsule()
-                                .fill(textColor.opacity(underlineOpacity))
-                                .frame(height: style == .detail ? 2 : 3)
-                                .offset(y: 5)
-                        }
-                }
-                .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(bodyAccessibilityLabel)
-            .accessibilityValue(status == .done ? "已完成" : "未完成")
-            .accessibilityHint("打开任务详情")
-            .accessibilityIdentifier("tasks.node.\(id).details")
-
-            if let onToggleExpansion {
-                Button(action: onToggleExpansion) {
-                    HStack(spacing: 2) {
-                        Text("\(childCount)")
-                        Image(systemName: "chevron.right")
-                            .rotationEffect(isExpanded ? .degrees(90) : .zero)
-                    }
-                    .font(V2Theme.TypeRole.labelSmall)
-                    .foregroundStyle(color.opacity(0.78))
-                    .padding(.horizontal, 6)
-                    .frame(minWidth: 34, minHeight: 32)
-                    .background(V2Theme.ColorRole.canvas, in: Capsule())
-                    .overlay(Capsule().fill(color.opacity(0.10)))
-                    .animation(.easeInOut(duration: 0.18), value: isExpanded)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(title)
-                .accessibilityValue(isExpanded ? "已展开" : "已收起")
-                .accessibilityHint(isExpanded ? "收起子任务" : "展开子任务")
-                .accessibilityIdentifier("tasks.node.\(id).disclosure")
-            }
-        }
-        .frame(width: nodeWidth, alignment: .leading)
-        .modifier(V2ScheduleHighlight(ids: [id]))
-    }
-
-    private var bodyAccessibilityLabel: String {
-        onToggleExpansion == nil ? title : "查看详情：\(title)"
-    }
-
-    private var nodeWidth: CGFloat {
-        switch style {
-        case .root:
-            206
-        case .selectedBranch, .branch:
-            183
-        case .selectedDetail, .detail:
-            189
-        case .leaf:
-            161
-        }
-    }
-
-    private var font: Font {
-        switch style {
-        case .root:
-            V2Theme.TypeRole.headlineSmall
-        case .selectedBranch:
-            V2Theme.TypeRole.titleLarge
-        case .branch:
-            V2Theme.TypeRole.titleMedium
-        case .selectedDetail:
-            V2Theme.TypeRole.titleMedium
-        case .detail:
-            V2Theme.TypeRole.bodyMedium
-        case .leaf:
-            V2Theme.TypeRole.bodySmall
-        }
-    }
-
-    private var textColor: Color {
-        if status == .done {
-            return V2Theme.ColorRole.textSecondary
-        }
-
-        switch style {
-        case .root, .selectedBranch, .selectedDetail:
-            return V2Theme.ColorRole.textPrimary
-        case .branch:
-            return color
-        case .detail, .leaf:
-            return V2Theme.ColorRole.textSecondary
-        }
-    }
-
-    private var underlineOpacity: Double {
-        switch status {
-        case .done: 0.16
-        case .planned, .active, .paused: baseUnderlineOpacity
-        }
-    }
-
-    private var baseUnderlineOpacity: Double {
-        switch style {
-        case .root:
-            0.32
-        case .selectedBranch:
-            0.36
-        case .selectedDetail:
-            0.3
-        case .branch:
-            0.26
-        case .detail:
-            0.18
-        case .leaf:
-            0.14
-        }
-    }
-
-}
-
-private struct V2TaskMapStatusDot: View {
-    let color: Color
-    let completionSignal: Double
-    let style: V2TaskMapNode.Style
-
-    var body: some View {
-        ZStack(alignment: .bottom) {
-            Circle()
-                .fill(dotBackground)
-
-            GeometryReader { proxy in
-                VStack {
-                    Spacer(minLength: 0)
-                    Rectangle()
-                        .fill(progressFill)
-                        .frame(height: proxy.size.height * min(1, max(0, completionSignal)))
-                }
-            }
-            .clipShape(Circle())
-        }
-        .frame(width: size, height: size)
-        .overlay(
-            Circle()
-                .stroke(border, lineWidth: strokeWidth)
-        )
-        .background(
-            Circle()
-                .fill(haloFill)
-                .frame(width: haloSize, height: haloSize)
-                .shadow(color: border.opacity(0.16), radius: 5, y: 2)
-        )
-    }
-
-    private var size: CGFloat {
-        switch style {
-        case .root:
-            22
-        case .selectedBranch:
-            18
-        case .branch, .selectedDetail:
-            15
-        case .detail, .leaf:
-            13
-        }
-    }
-
-    private var haloSize: CGFloat {
-        switch style {
-        case .root:
-            33
-        case .selectedBranch:
-            34
-        case .selectedDetail:
-            29
-        case .branch:
-            23
-        case .detail, .leaf:
-            20
-        }
-    }
-
-    private var strokeWidth: CGFloat {
-        switch style {
-        case .root:
-            3
-        case .selectedBranch:
-            2.6
-        case .branch, .selectedDetail:
-            2.2
-        case .detail, .leaf:
-            1.9
-        }
-    }
-
-    private var progressFill: Color {
-        V2Theme.ColorRole.taskComplete
-    }
-
-    private var dotBackground: Color {
-        completionSignal >= 1
-            ? V2Theme.ColorRole.taskCompleteContainer
-            : V2Theme.ColorRole.taskIncompleteContainer
-    }
-
-    private var border: Color {
-        color.opacity(completionSignal > 0 ? 0.88 : 0.68)
-    }
-
-    private var haloFill: Color {
-        switch style {
-        case .selectedBranch, .selectedDetail:
-            color.opacity(0.10)
-        case .root, .branch, .detail, .leaf:
-            V2Theme.ColorRole.canvas
+            V2InvertedTaskTreeView(tasks: tasks, onOpenDetails: onOpenDetails)
         }
     }
 }

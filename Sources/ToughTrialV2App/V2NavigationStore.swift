@@ -8,7 +8,7 @@ struct V2NavigationPreferences: Codable, Equatable, Sendable {
 }
 
 enum V2NavigationID: String, Codable, CaseIterable, Identifiable, Hashable, Sendable {
-    case assistant, today, tasks, capture, recall, ownProfile, morePlugins
+    case assistant, today, tasks, capture, recall, ownProfile, transcription, morePlugins
     var id: String { rawValue }
 
     var title: String {
@@ -19,6 +19,7 @@ enum V2NavigationID: String, Codable, CaseIterable, Identifiable, Hashable, Send
         case .capture: "随手记"
         case .recall: "回想"
         case .ownProfile: "我的资料"
+        case .transcription: "转录"
         case .morePlugins: "更多插件"
         }
     }
@@ -31,6 +32,7 @@ enum V2NavigationID: String, Codable, CaseIterable, Identifiable, Hashable, Send
         case .capture: "square.and.pencil"
         case .recall: "clock.arrow.circlepath"
         case .ownProfile: "person.crop.circle"
+        case .transcription: "waveform"
         case .morePlugins: "ellipsis.circle"
         }
     }
@@ -41,6 +43,7 @@ enum V2NavigationID: String, Codable, CaseIterable, Identifiable, Hashable, Send
         case .today, .tasks: "tasks"
         case .capture: "capture"
         case .recall: "recall"
+        case .transcription: "transcription"
         case .ownProfile, .morePlugins: nil
         }
     }
