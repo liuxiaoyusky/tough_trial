@@ -69,11 +69,11 @@
       "evidence": [
         {
           "path": "docs/spec.md",
-          "sha256": "ef8b89d1d2758ca1df5916ee1dff6bc01db4b28e449b580538171938bbf7ffab"
+          "sha256": "90efe4396754071df7de47324d95a7d4e078228db49d6354f4aa650c68c6d766"
         },
         {
           "path": "docs/design-system.md",
-          "sha256": "faa63e5dddb6b973cff8ff035a0acbfc79a25dc60ed6539079f20e7ccef47289"
+          "sha256": "9956aeb07a975a9bfe1dafe15f55be0d4ef1fc2f1e0627e609911ac0c342e1e2"
         },
         {
           "path": "docs/superpowers/specs/2026-09-09-unified-capture-and-ledger-design-zh.md",
@@ -253,7 +253,7 @@
       "evidence": [
         {
           "path": "docs/spec.md",
-          "sha256": "ef8b89d1d2758ca1df5916ee1dff6bc01db4b28e449b580538171938bbf7ffab"
+          "sha256": "90efe4396754071df7de47324d95a7d4e078228db49d6354f4aa650c68c6d766"
         },
         {
           "path": "docs/qa/2026-09-20-today-queue-native-review.md",
@@ -389,7 +389,7 @@
         },
         {
           "path": "docs/design-system.md",
-          "sha256": "faa63e5dddb6b973cff8ff035a0acbfc79a25dc60ed6539079f20e7ccef47289"
+          "sha256": "9956aeb07a975a9bfe1dafe15f55be0d4ef1fc2f1e0627e609911ac0c342e1e2"
         },
         {
           "path": "Sources/ToughTrialV2App/V2RootView.swift",
@@ -594,7 +594,7 @@
       "evidence": [
         {
           "path": "docs/spec.md",
-          "sha256": "ef8b89d1d2758ca1df5916ee1dff6bc01db4b28e449b580538171938bbf7ffab"
+          "sha256": "90efe4396754071df7de47324d95a7d4e078228db49d6354f4aa650c68c6d766"
         },
         {
           "path": "docs/qa/2026-09-14-four-task-views.md",
@@ -658,7 +658,7 @@
         },
         {
           "path": "docs/design-system.md",
-          "sha256": "faa63e5dddb6b973cff8ff035a0acbfc79a25dc60ed6539079f20e7ccef47289"
+          "sha256": "9956aeb07a975a9bfe1dafe15f55be0d4ef1fc2f1e0627e609911ac0c342e1e2"
         },
         {
           "path": "Sources/ToughTrialV2App/V2Theme.swift",
@@ -807,13 +807,17 @@
         {
           "source": "docs/qa/2026-10-06-milestone.md",
           "expected": "23 号彩色树三个限定原生交互用例通过；沿用父子关系、命令与单一展示根，人工审美与手机验证仍开放。"
+        },
+        {
+          "source": "docs/superpowers/specs/2026-10-07-markmap-inverted-tree-design-zh.md",
+          "expected": "用户确认旧 Markmap 视觉与向下展开；本轮只交付设计，进度聚合为明确假设，后续须用生产 SwiftUI 重拍并操作验收。"
         }
       ],
       "ontology_refs": [],
       "evidence": [
         {
           "path": "docs/spec.md",
-          "sha256": "ef8b89d1d2758ca1df5916ee1dff6bc01db4b28e449b580538171938bbf7ffab"
+          "sha256": "90efe4396754071df7de47324d95a7d4e078228db49d6354f4aa650c68c6d766"
         },
         {
           "path": "docs/qa/2026-09-21-structure-modes.md",
@@ -889,7 +893,7 @@
         },
         {
           "path": "docs/design-system.md",
-          "sha256": "faa63e5dddb6b973cff8ff035a0acbfc79a25dc60ed6539079f20e7ccef47289"
+          "sha256": "9956aeb07a975a9bfe1dafe15f55be0d4ef1fc2f1e0627e609911ac0c342e1e2"
         },
         {
           "path": "Sources/ToughTrialV2App/V2RootView.swift",
@@ -966,11 +970,27 @@
         {
           "path": "docs/qa/2026-10-06-milestone.md",
           "sha256": "63b4b66e9450106507254a67b5e2933a6b905ba29c23092c3e0c557d09c4a1a5"
+        },
+        {
+          "path": "docs/superpowers/specs/2026-10-07-markmap-inverted-tree-design-zh.md",
+          "sha256": "440af9cc061ae97934f7496ae222e110249adb894be80286b86860f1a1b8caf4"
+        },
+        {
+          "path": "docs/qa/assets/2026-10-07-markmap/markmap-inverted-overview.svg",
+          "sha256": "aa5ef25160a2d885a799485508fd5e04c56e15b24e808115a526484038be9911"
+        },
+        {
+          "path": "docs/qa/assets/2026-10-07-markmap/markmap-inverted-expanded.svg",
+          "sha256": "0ffc169d5c4e2211a2892d0ba65668c90582d142ceb7b0aa7d500a47c9588158"
+        },
+        {
+          "path": "docs/qa/assets/2026-10-07-markmap/markmap-original-html-reference.png",
+          "sha256": "05d8c8ccd6ae08627f4e718d24f9a860773519888677dbc5bb0f7a50f98d694a"
         }
       ],
       "ui": {
         "route": "任务 → 结构",
-        "implementation_status": "原生彩色思维导图：稳定分支色、曲线与连接点、紧凑浅底节点、单一展示根；23 号三个限定原生交互通过，审美人工评审与真机分发待",
+        "implementation_status": "23 号原生交互技术验证保留，圆角块审美被用户否定；10/7 已确认 Markmap 彩色线、文字底线、绿色进度小圈的倒树方向，详细设计稿待评审，原生尚未修改",
         "code": [
           {
             "path": "Sources/ToughTrialV2App/V2TasksView.swift",
@@ -987,39 +1007,66 @@
         ],
         "review_pages": [
           {
+            "id": "markmap-topdown-20261007",
+            "title": "Markmap 倒树 · 手机设计稿",
+            "image": "outputs/contacts-design-review/assets/markmap-inverted-overview.svg",
+            "kind": "design",
+            "provenance": "2026-10-07 · 静态设计 / 合成示例 · 无安装构建号 · 非原生截图",
+            "verification": "彩色曲线接文字底线，前置小圈内部显示绿色进度；未分类展示根，折叠与展开；SVG 概念稿，原生未修改",
+            "review_path": "/#markmap-topdown-20261007"
+          },
+          {
+            "id": "markmap-expanded-20261007",
+            "title": "Markmap 倒树 · 完整展开",
+            "image": "outputs/contacts-design-review/assets/markmap-inverted-expanded.svg",
+            "kind": "design",
+            "provenance": "2026-10-07 · 静态设计 / 合成示例 · 无安装构建号 · 非原生截图",
+            "verification": "同一棵示例任务树展开；定位 1/3、选题库 2/3、复盘 0/2；SVG 概念稿，原生未修改",
+            "review_path": "/#markmap-expanded-20261007"
+          },
+          {
+            "id": "markmap-original-reference",
+            "title": "历史 Markmap · 已确认风格",
+            "image": "outputs/contacts-design-review/assets/markmap-original-html-reference.png",
+            "kind": "design",
+            "provenance": "早期已确认 HTML 设计稿 · 10/7 原样渲染 · 非原生截图",
+            "verification": "早期 HTML 原样截图；横向展开，作为彩色线段、底线和小圆圈的风格来源；非原生截图",
+            "review_path": "/#markmap-original-reference"
+          },
+          {
             "id": "structure-mindmap-tree-20261006",
-            "title": "彩色思维导图 · 总览",
+            "title": "历史 23 · 彩色思维导图 · 总览",
             "image": "outputs/contacts-design-review/assets/structure-mindmap-tree-23-native-20261006.png",
             "kind": "simulator",
             "provenance": "2026-10-06 · iPhone 13 Pro · iOS 26.5 · 1.0（23）Debug · 生产 SwiftUI / 合成数据 · light · 未分发",
-            "verification": "彩色分支、细曲线与连接节点；紧凑浅底节点，从同一个未分类展示根展开；原生操作范围见 10/6 阶段 QA，审美人工评审与真机待。",
+            "verification": "彩色分支、细曲线与连接节点；紧凑浅底节点，从同一个未分类展示根展开；原生操作范围见 10/6 阶段 QA，审美人工评审与真机待。 用户已否定圆角块的审美；10/7 选择 Markmap 文字节点方向，原生待改。",
             "review_path": "/#structure-mindmap-tree-20261006"
           },
           {
             "id": "structure-mindmap-completed-20261006",
-            "title": "彩色树 · 完成状态",
+            "title": "历史 23 · 彩色树 · 完成状态",
             "image": "outputs/contacts-design-review/assets/structure-mindmap-completed-23-native-20261006.png",
             "kind": "simulator",
             "provenance": "2026-10-06 · iPhone 13 Pro · iOS 26.5 · 1.0（23）Debug · 生产 SwiftUI / 合成数据 · light · 未分发",
-            "verification": "完成父节点和叶节点保留勾选、已完成和删除线，颜色退为中性；原生操作范围见 10/6 阶段 QA，审美人工评审与真机待。",
+            "verification": "完成父节点和叶节点保留勾选、已完成和删除线，颜色退为中性；原生操作范围见 10/6 阶段 QA，审美人工评审与真机待。 用户已否定圆角块的审美；10/7 选择 Markmap 文字节点方向，原生待改。",
             "review_path": "/#structure-mindmap-completed-20261006"
           },
           {
             "id": "structure-mindmap-selected-20261006",
-            "title": "彩色树 · 选中与详情",
+            "title": "历史 23 · 彩色树 · 选中与详情",
             "image": "outputs/contacts-design-review/assets/structure-mindmap-selected-23-native-20261006.png",
             "kind": "simulator",
             "provenance": "2026-10-06 · iPhone 13 Pro · iOS 26.5 · 1.0（23）Debug · 生产 SwiftUI / 合成数据 · light · 未分发",
-            "verification": "选中保持清晰蓝色边界；查看、聚焦和关闭操作沿用原生界面；原生操作范围见 10/6 阶段 QA，审美人工评审与真机待。",
+            "verification": "选中保持清晰蓝色边界；查看、聚焦和关闭操作沿用原生界面；原生操作范围见 10/6 阶段 QA，审美人工评审与真机待。 用户已否定圆角块的审美；10/7 选择 Markmap 文字节点方向，原生待改。",
             "review_path": "/#structure-mindmap-selected-20261006"
           },
           {
             "id": "structure-mindmap-forest-20261006",
-            "title": "彩色树 · 多根分支",
+            "title": "历史 23 · 彩色树 · 多根分支",
             "image": "outputs/contacts-design-review/assets/structure-mindmap-forest-23-native-20261006.png",
             "kind": "simulator",
             "provenance": "2026-10-06 · iPhone 13 Pro · iOS 26.5 · 1.0（23）Debug · 生产 SwiftUI / 合成数据 · light · 未分发",
-            "verification": "多个实际顶层任务从单一未分类展示根展开；宽树可横向拖动；原生操作范围见 10/6 阶段 QA，审美人工评审与真机待。",
+            "verification": "多个实际顶层任务从单一未分类展示根展开；宽树可横向拖动；原生操作范围见 10/6 阶段 QA，审美人工评审与真机待。 用户已否定圆角块的审美；10/7 选择 Markmap 文字节点方向，原生待改。",
             "review_path": "/#structure-mindmap-forest-20261006"
           },
           {
@@ -1255,7 +1302,7 @@
       "evidence": [
         {
           "path": "docs/spec.md",
-          "sha256": "ef8b89d1d2758ca1df5916ee1dff6bc01db4b28e449b580538171938bbf7ffab"
+          "sha256": "90efe4396754071df7de47324d95a7d4e078228db49d6354f4aa650c68c6d766"
         },
         {
           "path": "docs/qa/2026-09-14-four-task-views.md",
@@ -1350,7 +1397,7 @@
       "evidence": [
         {
           "path": "docs/spec.md",
-          "sha256": "ef8b89d1d2758ca1df5916ee1dff6bc01db4b28e449b580538171938bbf7ffab"
+          "sha256": "90efe4396754071df7de47324d95a7d4e078228db49d6354f4aa650c68c6d766"
         },
         {
           "path": "docs/qa/2026-09-14-four-task-views.md",
@@ -1455,7 +1502,7 @@
       "evidence": [
         {
           "path": "docs/spec.md",
-          "sha256": "ef8b89d1d2758ca1df5916ee1dff6bc01db4b28e449b580538171938bbf7ffab"
+          "sha256": "90efe4396754071df7de47324d95a7d4e078228db49d6354f4aa650c68c6d766"
         },
         {
           "path": "docs/qa/2026-09-20-today-queue-native-review.md",
@@ -1559,7 +1606,7 @@
       "evidence": [
         {
           "path": "docs/spec.md",
-          "sha256": "ef8b89d1d2758ca1df5916ee1dff6bc01db4b28e449b580538171938bbf7ffab"
+          "sha256": "90efe4396754071df7de47324d95a7d4e078228db49d6354f4aa650c68c6d766"
         },
         {
           "path": "docs/qa/2026-09-20-today-queue-native-review.md",
@@ -1651,7 +1698,7 @@
       "evidence": [
         {
           "path": "docs/spec.md",
-          "sha256": "ef8b89d1d2758ca1df5916ee1dff6bc01db4b28e449b580538171938bbf7ffab"
+          "sha256": "90efe4396754071df7de47324d95a7d4e078228db49d6354f4aa650c68c6d766"
         },
         {
           "path": "docs/qa/2026-09-20-today-queue-native-review.md",
@@ -1749,7 +1796,7 @@
       "evidence": [
         {
           "path": "docs/spec.md",
-          "sha256": "ef8b89d1d2758ca1df5916ee1dff6bc01db4b28e449b580538171938bbf7ffab"
+          "sha256": "90efe4396754071df7de47324d95a7d4e078228db49d6354f4aa650c68c6d766"
         },
         {
           "path": "docs/superpowers/specs/2026-09-20-customizable-tabbar-and-more-plugins-design-zh.md",
@@ -1777,7 +1824,7 @@
         },
         {
           "path": "docs/design-system.md",
-          "sha256": "faa63e5dddb6b973cff8ff035a0acbfc79a25dc60ed6539079f20e7ccef47289"
+          "sha256": "9956aeb07a975a9bfe1dafe15f55be0d4ef1fc2f1e0627e609911ac0c342e1e2"
         },
         {
           "path": "Tests/ToughTrialUITests/V2TaskEditorUITests.swift",
@@ -1906,7 +1953,7 @@
       "evidence": [
         {
           "path": "docs/spec.md",
-          "sha256": "ef8b89d1d2758ca1df5916ee1dff6bc01db4b28e449b580538171938bbf7ffab"
+          "sha256": "90efe4396754071df7de47324d95a7d4e078228db49d6354f4aa650c68c6d766"
         },
         {
           "path": "docs/superpowers/specs/2026-09-20-business-card-contacts-design-zh.md",
@@ -2040,7 +2087,7 @@
       "evidence": [
         {
           "path": "docs/spec.md",
-          "sha256": "ef8b89d1d2758ca1df5916ee1dff6bc01db4b28e449b580538171938bbf7ffab"
+          "sha256": "90efe4396754071df7de47324d95a7d4e078228db49d6354f4aa650c68c6d766"
         },
         {
           "path": "docs/superpowers/specs/2026-09-20-recurring-rules-daily-instance-design-zh.md",
@@ -2259,7 +2306,7 @@
         },
         {
           "path": "outputs/contacts-design-review/index.html",
-          "sha256": "287c1fcb5d260e51207b8aa895df7cc44f30eb8ce3a5eb906c1bb10c262f33e5"
+          "sha256": "6722ccb68996c3a8dab089eeda581ef3e694a85aafcfc9a4d2e190d032934591"
         },
         {
           "path": "outputs/contacts-design-review/server.py",

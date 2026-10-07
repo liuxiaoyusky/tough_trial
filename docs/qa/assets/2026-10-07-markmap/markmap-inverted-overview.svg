@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="780" height="1688" viewBox="0 0 390 844">
+  <title>Markmap 倒树 · 手机首屏设计稿</title>
+  <desc>历史 Markmap 视觉改为向下展开。彩色曲线与文字底线，小圈内绿色进度。概念稿，不是原生截图。</desc>
+  <defs>
+    <style>
+      text{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif;fill:#20242B}
+      .muted{fill:#67717D}.quiet{fill:#858C96}.done{fill:#67717D;text-decoration:line-through}
+      .coral-ink{fill:#AC5144}.blue-ink{fill:#285FA8}.violet-ink{fill:#6C54A9}
+      .coral{stroke:#D86C5B}.blue{stroke:#3577D4}.violet{stroke:#8F76D6}
+      .wire{fill:none;stroke-linecap:round;stroke-linejoin:round}
+      .ring{fill:#FAF9F5;stroke-width:1.6}.progress{fill:#339B63;stroke:none}
+      .thin{stroke-width:2}.strong{stroke-width:3}.faded{stroke-opacity:.42}
+    </style>
+  </defs>
+  <rect width="390" height="844" fill="#FAF9F5"/>
+  <g stroke="#2E3A4A" stroke-opacity=".022" stroke-width="1">
+    <path d="M78 170V748M156 170V748M234 170V748M312 170V748"/>
+    <path d="M22 210H368M22 288H368M22 366H368M22 444H368M22 522H368M22 600H368M22 678H368"/>
+  </g>
+  <text x="28" y="31" font-size="16" font-weight="650">9:41</text>
+  <g fill="#20242B"><rect x="291" y="22" width="3" height="5" rx="1"/><rect x="297" y="19" width="3" height="8" rx="1"/><rect x="303" y="16" width="3" height="11" rx="1"/></g>
+  <g fill="none" stroke="#20242B" stroke-linecap="round"><path d="M315 19Q322 13 329 19M318 22Q322 18 326 22" stroke-width="1.6"/><rect x="339" y="15" width="23" height="12" rx="3"/><path d="M364 19V23" stroke-width="2"/></g>
+  <rect x="342" y="18" width="17" height="6" rx="1" fill="#20242B"/>
+
+  <text x="22" y="98" font-size="32" font-weight="750">任务</text>
+  <rect x="92" y="64" width="276" height="46" rx="14" fill="#F0EFEB"/>
+  <rect x="163" y="67" width="65" height="40" rx="11" fill="#FFFEFC"/>
+  <g font-size="14" font-weight="600" text-anchor="middle">
+    <text x="127" y="93" class="muted">列表</text><text x="195" y="93">结构</text>
+    <text x="265" y="93" class="muted">时间</text><text x="335" y="93" class="muted">鱼骨</text>
+  </g>
+  <text x="22" y="151" font-size="15" class="muted">全部任务</text>
+  <g stroke="#67717D" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M264 145H278"/><path d="M309 139A7 7 0 1 1 302 148M309 139L304 135M309 139L304 143"/>
+    <path d="M341 145H357M349 137V153"/>
+  </g>
+
+  <!-- Presentation root is deliberately not a task. -->
+  <text x="195" y="203" font-size="14" text-anchor="middle" class="muted">未分类</text>
+  <path d="M170 211H220" stroke="#B4BAC1" stroke-width="1.2" stroke-linecap="round"/>
+  <path d="M195 212C195 244 123 243 123 274" class="wire" stroke="#ABB3BC" stroke-width="1.6"/>
+
+  <!-- Connectors are behind every label and meet progress rings above. -->
+  <g class="wire strong">
+    <path d="M202 301C202 335 48 330 48 362" class="coral"/>
+    <path d="M202 301C202 334 159 332 159 362" class="blue"/>
+    <path d="M202 301C202 331 285 331 285 362" class="violet"/>
+  </g>
+  <g class="wire thin blue">
+    <path d="M207 385C207 434 64 433 64 474" class="faded"/>
+    <path d="M207 385C207 433 226 433 226 474"/>
+    <path d="M280 496C280 534 211 529 211 565V645"/>
+    <path d="M211 565C211 578 233 569 233 580" class="faded"/>
+    <path d="M211 645C211 658 233 647 233 657"/>
+  </g>
+
+  <!-- Root task, 3 / 8 leaf tasks complete. -->
+  <circle cx="123" cy="282" r="7.2" class="ring" stroke="#57616E"/>
+  <path d="M123 282L123 276.8A5.2 5.2 0 0 1 126.677 285.677Z" class="progress"/>
+  <text x="144" y="290" font-size="22" font-weight="650">自媒体成长</text>
+  <path d="M145 300H265" stroke="#57616E" stroke-opacity=".65" stroke-width="2.3" stroke-linecap="round"/>
+
+  <!-- First-level branches, collapsed / expanded / collapsed. -->
+  <circle cx="48" cy="370" r="7.2" class="ring coral"/>
+  <path d="M48 370L48 364.8A5.2 5.2 0 0 1 52.503 372.6Z" class="progress"/>
+  <text x="68" y="377" font-size="19" font-weight="600" class="coral-ink">定位</text>
+  <path d="M69 384H107" class="wire thin coral"/>
+  <text x="117" y="377" font-size="14" class="muted">+3</text>
+
+  <circle cx="159" cy="370" r="7.2" class="ring blue"/>
+  <path d="M159 370L159 364.8A5.2 5.2 0 1 1 154.497 372.6Z" class="progress"/>
+  <text x="179" y="377" font-size="19" font-weight="650" class="blue-ink">选题库</text>
+  <path d="M180 384H239" class="wire strong blue"/>
+
+  <circle cx="285" cy="370" r="7.2" class="ring violet"/>
+  <text x="305" y="377" font-size="19" font-weight="600" class="violet-ink">复盘</text>
+  <path d="M306 384H345" class="wire thin violet"/>
+  <text x="354" y="377" font-size="14" class="muted">+2</text>
+
+  <!-- Done leaf remains legible without taking over the tree. -->
+  <circle cx="64" cy="482" r="7.2" class="ring blue faded"/>
+  <circle cx="64" cy="482" r="5.2" class="progress"/>
+  <text x="84" y="489" font-size="17" class="done">对标账号</text>
+  <path d="M85 496H155" class="wire thin blue faded"/>
+  <text x="84" y="518" font-size="14" class="muted">已完成</text>
+
+  <circle cx="226" cy="482" r="7.2" class="ring blue"/>
+  <path d="M226 482L226 476.8A5.2 5.2 0 0 1 226 487.2Z" class="progress"/>
+  <text x="246" y="489" font-size="17" font-weight="500">爆款拆解</text>
+  <path d="M247 496H317" class="wire thin blue"/>
+
+  <circle cx="233" cy="588" r="7.2" class="ring blue faded"/>
+  <circle cx="233" cy="588" r="5.2" class="progress"/>
+  <text x="253" y="595" font-size="17" class="done">收集样本</text>
+  <path d="M254 602H324" class="wire thin blue faded"/>
+  <text x="253" y="624" font-size="14" class="muted">已完成</text>
+
+  <circle cx="233" cy="665" r="7.2" class="ring blue"/>
+  <text x="253" y="672" font-size="17" font-weight="500">拆解开头</text>
+  <path d="M254 679H324" class="wire thin blue"/>
+
+  <text x="22" y="735" font-size="14" class="muted">拖动探索，点圆圈展开</text>
+  <circle cx="343" cy="727" r="28" fill="#0E63E6"/>
+  <path d="M332 727H354M343 716V738" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round"/>
+
+  <rect y="775" width="390" height="69" fill="#FFFEFC"/>
+  <path d="M0 775H390" stroke="#E6E7E4" stroke-width=".7"/>
+  <g fill="none" stroke="#858C96" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M39 788L41 795L47 797L41 800L39 807L37 800L31 797L37 795ZM48 788V794M45 791H51"/>
+    <rect x="108" y="790" width="19" height="18" rx="3"/><path d="M108 796H127M113 787V793M122 787V793M113 800H116M120 800H123M113 804H116"/>
+    <path d="M192 788L203 793L192 798L181 793ZM181 799L192 804L203 799M181 805L192 810L203 805" stroke="#0E63E6"/>
+    <path d="M277 791H263V808H280V799M270 802L271 797L280 788L284 792L275 801Z"/>
+    <circle cx="351" cy="799" r="10"/>
+  </g>
+  <g fill="#858C96"><circle cx="346" cy="799" r="1"/><circle cx="351" cy="799" r="1"/><circle cx="356" cy="799" r="1"/></g>
+  <g font-size="14" text-anchor="middle"><text x="39" y="832" class="muted">助手</text><text x="117" y="832" class="muted">今天</text><text x="195" y="832" style="fill:#0E63E6">任务</text><text x="273" y="832" class="muted">随手记</text><text x="351" y="832" class="muted">更多插件</text></g>
+</svg>

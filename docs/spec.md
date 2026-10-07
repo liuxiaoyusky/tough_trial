@@ -1,7 +1,7 @@
 # Tough Trial Product Spec
 
 Status: active source-of-truth entrypoint
-Last updated: 2026-10-05
+Last updated: 2026-10-07
 
 ## 手机页面评审（2026-09-30 用户确认）
 
@@ -24,6 +24,8 @@ Current assistant home redesign: `docs/superpowers/specs/2026-09-11-assistant-ho
 2026-10-06 树图修订：用户要求回到带多色节点的思维导图式倒树，取代 22 号纯文字轻树。沿用早期倒树稿的可见节点与分支色，使用紧凑的浅色圆角节点、细彩色曲线和小连接点；按一级分支分配色组，同一子树保持同色，折叠与聚焦不改变颜色，颜色仅表达分支归属。标题和展开控件仍并排，选择 / 展开点击区独立。完成节点保持中性弱化、删除线、勾选与「已完成」，选中使用淡蓝反馈。单一未分类展示根是布局分组，不写入业务；任务、计时、提醒、同步与编辑规则继续兼容。当前原生稿与早期概念稿分别登记，旧图不覆盖。
 
 ## Canonical Design Source
+
+2026-10-07 视觉方向修订：用户否定 23 号圆角节点，明确选择早期 Markmap 的彩色曲线、文字底线和前置小圆圈，改为向下展开；圆圈内部绿色表示完成进度。未分类展示根、任务关系及既有命令继续保留。[本次设计稿](superpowers/specs/2026-10-07-markmap-inverted-tree-design-zh.md)采用文字节点，不再以背景块承载节点；详细稿待评审，原生实现尚未修改。本条替代 10/6 圆角节点的视觉方向，不把概念稿标为原生验收通过。
 
 The canonical detailed product specs are:
 
