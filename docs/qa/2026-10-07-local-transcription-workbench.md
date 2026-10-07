@@ -61,5 +61,7 @@ iOS UI 实际操作：选择 Apple、开始、失败反馈、返回后识别选�
 iPhone 13 Pro 模拟器是另一设备。Apple 要求按运行时支持判断，不能按机型或系统版本
 猜测已可识别，见 [Apple DTS 说明](https://developer.apple.com/forums/thread/802863)。
 
-本轮未更新手机包，转录库仍本机保存，未扩展 GitHub 同步。最终收束结果另存
-`.runtime/transcription-workbench-20261007/closeout.json`；未提交的树图设计稿与本轮修改保留。
+本轮转录验证未更新手机包，转录库仍本机保存，未扩展 GitHub 同步。提交前收束结果另存
+`.runtime/transcription-workbench-20261007/closeout.json`，当时未提交的树图稿与本轮修改保留。
+随后按用户授权分开提交并推送，源码收束已通过；24 号归档与分发签名阻塞见
+[后续分发记录](2026-10-07-testflight-build24.md)，不能把该源码收束推断为手机已更新。

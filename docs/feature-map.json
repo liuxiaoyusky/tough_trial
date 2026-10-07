@@ -2726,6 +2726,10 @@
         {
           "source": "docs/qa/2026-10-07-local-transcription-workbench.md",
           "expected": "本机真实 Apple 模型恢复已保存前缀、跳过先前音频、时间戳不超出原文件，重开后文字和原件保留；模拟器模型 skip、原手机不可连接与收束门禁分别报告。"
+        },
+        {
+          "source": "docs/qa/2026-10-07-testflight-build24.md",
+          "expected": "24 号归档对应已推送的 8b37437，主 App/扩展版本与来源匹配；无账号或发布签名时明确分发未完成，不以源码收束或归档通过推断手机已更新。"
         }
       ],
       "ontology_refs": [],
@@ -2808,7 +2812,11 @@
         },
         {
           "path": "docs/qa/2026-10-07-local-transcription-workbench.md",
-          "sha256": "b5fd58cdb85b70838baa5f26f6d72a966e7ed76a04e46789ec5f4648862ed397"
+          "sha256": "bce5808d318feed85af6a9d8450422fc5374e06cbd5b84ac7a4c3dbced3ce97d"
+        },
+        {
+          "path": "docs/qa/2026-10-07-testflight-build24.md",
+          "sha256": "4ac9ccebb7d8ca0b8d2b43eaac18e6edca8aec442abdc0065ed4e3d57e531498"
         }
       ],
       "code": [
@@ -2868,7 +2876,7 @@
         "human_acceptance": "pending",
         "roadmap_stage": "R1",
         "status_source": "docs/roadmap.md",
-        "open_items": "10/7 新工作台记录的 Mac App 23 项及真实 Apple 转录通过；iOS 转录单元 13 通过/2 模型 skip、UI 3 通过。原 iPhone 当前不可连接；原录音、长录音/后台/锁屏、FunASR/AI 生产及新包验收仍待；本轮修改未提交，收束检查未通过。"
+        "open_items": "10/7 同功能源码的 Mac App 23 项及真实 Apple 转录、iOS 单元 13 通过/2 模型 skip、UI 3 通过。8b37437 已提交推送，源码收束通过；1.0（24）Release 预检与签名归档通过，但分发导出因 Xcode 无账号及发布签名退出 70，尚未上传。原录音、长录音/后台/锁屏及 FunASR/AI 生产仍待。"
       }
     },
     {
