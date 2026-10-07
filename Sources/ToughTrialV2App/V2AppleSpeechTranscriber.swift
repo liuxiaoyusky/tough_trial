@@ -178,13 +178,14 @@ final class V2AppleSpeechBackend {
     private let microphone = V2AppleSpeechMicrophone()
     private var analyzer: SpeechAnalyzer?
 
-    static func makeTranscriber() async throws -> SpeechTranscriber {
+    static func makeTranscriber(file: Bool = false) async throws -> SpeechTranscriber {
         guard SpeechTranscriber.isAvailable else {
             throw V2AppleSpeechError.unavailable("这台设备暂不支持苹果新版语音模型。")
         }
         guard let locale = await SpeechTranscriber.supportedLocale(equivalentTo: Locale(identifier: "zh_CN")) else {
             throw V2AppleSpeechError.unavailable("当前系统暂不支持苹果中文语音模型。")
         }
+        if file { return SpeechTranscriber(locale: locale, preset: .transcription) }
         return SpeechTranscriber(locale: locale, transcriptionOptions: [], reportingOptions: [.volatileResults, .fastResults], attributeOptions: [])
     }
 
@@ -193,7 +194,7 @@ final class V2AppleSpeechBackend {
         try await install(transcriber, status: status)
     }
 
-    private static func install(_ transcriber: SpeechTranscriber, status: (String) -> Void) async throws {
+    static func install(_ transcriber: SpeechTranscriber, status: (String) -> Void) async throws {
         try Task.checkCancellation()
         if let request = try await AssetInventory.assetInstallationRequest(supporting: [transcriber]) {
             status("正在下载中文语音模型，首次使用可能需要一些时间…")

@@ -4,11 +4,16 @@ from pathlib import Path
 import json
 import os
 import re
+import sys
+
+PROJECT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(PROJECT / "Tools/FeatureCLI"))
+from review_links import inspect
 
 ROOT = Path(__file__).resolve().parent
 def page_ids():
     return set(re.findall(r"\{id:'([^']+)'", (ROOT / "index.html").read_text(encoding="utf-8")))
-PORT = 8768
+PORT = int(os.environ.get("REVIEW_PORT", "8770"))
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -16,7 +21,19 @@ class Handler(SimpleHTTPRequestHandler):
         super().__init__(*args, directory=str(ROOT), **kwargs)
 
     def do_GET(self):
-        if self.path == "/api/feedback":
+        if self.path == "/api/features":
+            try:
+                result = inspect(PROJECT)
+                data = json.dumps(result, ensure_ascii=False).encode("utf-8")
+                self.send_response(200)
+            except (OSError, ValueError, KeyError):
+                data = b'{"ok":false,"errors":["Feature Map is unavailable"]}'
+                self.send_response(503)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(data)
+        elif self.path == "/api/feedback":
             data = (ROOT / "feedback.json").read_bytes() if (ROOT / "feedback.json").exists() else b"[]"
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")

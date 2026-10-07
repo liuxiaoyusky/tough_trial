@@ -27,11 +27,7 @@ extension V2AppStore {
             do {
                 switch job.kind {
                 case .taskReminders:
-                    let snapshot = engine.snapshot
-                    let eligible = snapshot.planItems.filter { item in
-                        let task = snapshot.tasks.first { $0.id == item.taskID }
-                        return task?.status != .done && task?.status != .archived
-                    }
+                    let eligible = planReminderItems(at: date)
                     try await notificationService.rebuildOwned(planItems: eligible, now: date, calendar: calendar)
                 case .financeReminders:
                     let applied = await V2FinanceNotifications.shared.refresh(engine.snapshot.capture.finance?.plans ?? [], now: date)

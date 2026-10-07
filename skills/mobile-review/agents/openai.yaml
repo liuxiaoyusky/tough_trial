@@ -1,0 +1,4 @@
+interface:
+  display_name: "手机评审工作台"
+  short_description: "通过 CLI 创建手机画圈批注工作台，关联功能、图片版本和代码来源"
+  default_prompt: "使用 $mobile-review 为当前项目生成手机页面评审工作台，优先复用原生渲染图。"

@@ -39,7 +39,6 @@ final class V2AppStore: ObservableObject {
     @Published private(set) var memoryRecords: [V2UserMemoryRecord] = []
     @Published private(set) var memoryIssueMessage: String?
     @Published private(set) var dreamingCandidates: [V2DreamingCandidate] = []
-    @Published private(set) var noticeMessage: String?
 
     let engine: V2Engine
     private var planningClient: any V2PlanningClient
@@ -50,7 +49,7 @@ final class V2AppStore: ObservableObject {
     var isStoppingServices = false
     var isDrainingModuleOutbox = false
     var moduleSceneActive = true
-    let notificationService = V2NotificationService()
+    let notificationService: V2NotificationService
     private let liveActivityService = V2LiveActivityService()
     let calendar: Calendar
     let canWrite: Bool
@@ -74,6 +73,7 @@ final class V2AppStore: ObservableObject {
         aiProviderSettings injectedAIProviderSettings: V2AIProviderSettings? = nil,
         memoryStoreURL: URL? = nil,
         initialState: V2PrototypeState = .empty(),
+        notificationService: V2NotificationService? = nil,
         calendar: Calendar = .current
     ) {
         let environment = ProcessInfo.processInfo.environment
@@ -92,6 +92,7 @@ final class V2AppStore: ObservableObject {
         let hasDebugAIConfiguration = false
         #endif
         self.state = initialState
+        self.notificationService = notificationService ?? V2NotificationService()
         self.calendar = calendar
         self.allowsPlanningWithoutSavedAIService =
             injectedPlanningClient != nil
@@ -1068,23 +1069,12 @@ final class V2AppStore: ObservableObject {
         errorMessage = nil
     }
 
-    func dismissNotice() {
-        noticeMessage = nil
-    }
-
-    func enablePlanReminders(at date: Date = Date()) async {
-        do {
-            let count = try await notificationService.requestAndSchedule(
-                planItems: engine.snapshot.planItems,
-                now: date,
-                calendar: calendar
-            )
-            noticeMessage = count == 0
-                ? "通知已开启；当前没有带具体时间的未来计划。"
-                : "已为 \(count) 个带具体时间的计划开启提醒。"
-        } catch {
-            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-        }
+    func enablePlanReminders(at date: Date = Date()) async throws -> Int {
+        try await notificationService.requestPermission()
+        // Read after the permission dialog: edits/undo may have happened while it was open.
+        return try await notificationService.rebuildOwned(
+            planItems: planReminderItems(at: date), now: date, calendar: calendar
+        )
     }
 
     /// Running sessions retain projection order; the focused session is the head.
@@ -1092,14 +1082,17 @@ final class V2AppStore: ObservableObject {
         state.activeSessions.filter { $0.status == .running }
     }
 
-    var todayPlannedItems: [V2TimelineItem] {
-        let running = todayRunningSessions
-        return state.timelineItems.filter { item in
-            !running.contains { session in
-                if let taskID = item.taskID { return session.taskID == taskID }
-                if let planID = item.planItemID { return session.planItemID == planID }
-                return item.id.hasPrefix("execution-session-\(session.id)-")
-            }
+    /// The unified timeline keeps other running work, without repeating the focus card.
+    var todayTimelineItems: [V2TimelineItem] {
+        guard let primary = todayRunningSessions.first else { return state.timelineItems }
+        return state.timelineItems.filter { todayRunningSession(for: $0)?.id != primary.id }
+    }
+
+    func todayRunningSession(for item: V2TimelineItem) -> V2ActiveSession? {
+        todayRunningSessions.first { session in
+            if let planID = item.planItemID, session.planItemID == planID { return true }
+            if let taskID = item.taskID { return session.taskID == taskID }
+            return item.id.hasPrefix("execution-session-\(session.id)-")
         }
     }
 
@@ -1273,6 +1266,7 @@ final class V2AppStore: ObservableObject {
             )
         }
         if result != nil {
+            clearTodaySelection()
             Task {
                 for session in ending { await liveActivityService.end(session: session) }
                 if let next = todayRunningSessions.first { try? await liveActivityService.sync(session: next) }

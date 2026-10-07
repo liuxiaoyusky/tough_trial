@@ -1,7 +1,13 @@
 # Tough Trial Product Spec
 
 Status: active source-of-truth entrypoint
-Last updated: 2026-09-20
+Last updated: 2026-10-07
+
+## 手机页面评审（2026-09-30 用户确认）
+
+阶段一使用纯前端评审工作台，手机全屏查看原生截图或设计、画圈/点位批注、翻页和导出反馈；无需安装独立 TestFlight 评审 App。批注先保存在当前浏览器，并可导出/导入，不声称跨设备自动同步。App 内采集实际操作、日志及 TestFlight 反馈聚合延后至 roadmap。
+
+视觉定稿必须来自目标 iOS 版本上的真实 SwiftUI 渲染，复用生产 `V2Theme`、布局与控件；新功能可以用合成数据渲染同一 View，但必须标明“原生设计预览，业务未实现”。HTML/SVG 手绘只作概念探索，不能当作像素一致的交付基线。每张图关联 Feature ID、不可变图片摘要、来源、日期/构建号及验收状态；没有证据的版本注明未知，不能用截图替代真实交互验收。旧图与旧批注保留，更新图片不可把旧批注直接贴到新图。当前历史图尚未全部重拍，TestFlight 17 视觉问题仍开放。
 
 ## Mac 与 Ontology 实施（2026-09-16 已确认）
 
@@ -9,9 +15,17 @@ Last updated: 2026-09-20
 
 任务页遵循用户最新修订：并排「列表、结构、时间、鱼骨」；列表平铺，结构直接呈现树状关系。此修订优先于下方历史结构入口描述。
 
+2026-10-05 列表修订：iPhone 与 Mac 的列表仍平铺所有未归档任务（含子任务），在同一滚动页按「进行中、未开始、已完成」分为三个子列表，各显示数量。进行中包含 active、paused，以及已有执行记录但仍未完成的待办；分别标明「进行中」「已暂停」「待继续」。今天的暂停沿用结束本段的规则，底层会回到待办，因此分组同时读取执行记录，不把做过的任务误认成未开始。未开始只包含没有执行记录的 notStarted / planned；done 优先归已完成，归档不展示。组内保留原有顺序。完成、恢复及撤销后立即重新归组；恢复有执行记录的任务回到进行中，没有记录的回到未开始，不自动开启计时。仅改变展示，不改任务关系或计时规则。已完成置底、灰显并加删除线；各组空时保留数量与简短空提示，全列表空时保留原新增引导。任务标题打开原详情/编辑，完成图标仍为可操作按钮。
+
 Current assistant home redesign: `docs/superpowers/specs/2026-09-11-assistant-home-design.md` supersedes the standalone assistant presentation.
 
+2026-10-05 手机评审修订：已有平铺列表，结构页移除「目录 / 倒树」二级切换，直接显示根在上、分支向下的树图。顶层任务从同一个「未分类」展示根延伸；这里的未分类表示尚无父任务的顶层集合，不重写任务的目标、类别或父子关系。展示根是布局元素，不能打开任务详情、编辑、完成、作为新任务的父节点或写入同步数据。空任务不伪造根节点。保留展开收起、缩放拖动、真实节点选择与详情、聚焦分支、返回上级与复位；首次进入和从聚焦返回总览时定位展示根，宽树通过横向拖动查看，不缩小文字强塞首屏。完成节点显示删除线和「已完成」，保持中性弱化。此条替代 9/21 的目录默认、两模式切换与多棵并列无根展示。Mac 既有直接树视图不增加目录入口。设计参考 `outputs/contacts-design-review/README.md`。
+
+2026-10-06 树图修订：用户要求回到带多色节点的思维导图式倒树，取代 22 号纯文字轻树。沿用早期倒树稿的可见节点与分支色，使用紧凑的浅色圆角节点、细彩色曲线和小连接点；按一级分支分配色组，同一子树保持同色，折叠与聚焦不改变颜色，颜色仅表达分支归属。标题和展开控件仍并排，选择 / 展开点击区独立。完成节点保持中性弱化、删除线、勾选与「已完成」，选中使用淡蓝反馈。单一未分类展示根是布局分组，不写入业务；任务、计时、提醒、同步与编辑规则继续兼容。当前原生稿与早期概念稿分别登记，旧图不覆盖。
+
 ## Canonical Design Source
+
+2026-10-07 视觉方向修订：用户否定 23 号圆角节点，明确选择早期 Markmap 的彩色曲线、文字底线和前置小圆圈，改为向下展开；圆圈内部绿色表示完成进度。未分类展示根、任务关系及既有命令继续保留。[本次设计稿](superpowers/specs/2026-10-07-markmap-inverted-tree-design-zh.md)采用文字节点，不再以背景块承载节点；详细稿待评审，原生实现尚未修改。本条替代 10/6 圆角节点的视觉方向，不把概念稿标为原生验收通过。
 
 The canonical detailed product specs are:
 
@@ -24,6 +38,7 @@ The canonical detailed product specs are:
 - `docs/superpowers/specs/2026-09-14-local-backup-and-sync-design-zh.md`
 - `docs/superpowers/specs/2026-09-20-business-card-contacts-design-zh.md`
 - `docs/superpowers/specs/2026-09-20-customizable-tabbar-and-more-plugins-design-zh.md`
+- `docs/superpowers/specs/2026-09-20-recurring-rules-daily-instance-design-zh.md`
 
 The 2026-08-17 assistant spec supersedes the older plan-page information
 architecture. The planning rules remain active as one assistant capability. The 2026-09-07
@@ -62,9 +77,17 @@ and the remaining 1–4 tabs are ordered user choices from currently available
 modules. Removing a module from the tab bar does not disable it or delete its
 data. `我的资料` is the first new independent module using this navigation model.
 
+The independent `转录` library follows [the transcription design](superpowers/specs/2026-09-25-transcription-library-design-zh.md): imported local audio/video becomes searchable records with summary first and transcript detail second. Media and records stay local; AI summary uses the configured provider after clear disclosure.
+
+## 结构图密度修订（2026-09-21 用户评审确认）
+
+历史修订：9/21 曾采用紧凑目录；现由本页 10/5 手机评审修订替代。仍保留内容决定画布尺寸、两行标题、原主题字体、展开/收起、详情、缩放与新增入口，不写入额外任务。
+
 ## 今日执行分区（2026-09-20 用户评审确认）
 
-以 [今日执行队列设计](superpowers/specs/2026-09-20-today-execution-queue.md) 为准：主卡片、执行队列、今日规划；暂停/完成后队首补位，完成任务留在今日规划，显示本段、今日和跨天累计用时。此修订替代旧版今日暂停/结束双入口。
+以 [今日执行队列设计](superpowers/specs/2026-09-20-today-execution-queue.md) 为准。10/5 用户修订：主卡片与整页一起滚动，移除独立「执行中」分区；其他运行、待开始、暂停和已完成条目并入今日规划的连续时间线，主卡片任务不重复出现。已完成条目紧凑、灰色、默认收起操作，并以明确的「已完成」文字、完成符号和删除线共同表示，不能只用灰显表示状态。暂停 / 完成后队首补位，本段、今日和跨天累计继续保留，右下角新增仍悬浮。此修订替代旧版今日分区和暂停 / 结束双入口。
+
+重复规划以 [重复规则与当日实例设计](superpowers/specs/2026-09-20-recurring-rules-daily-instance-design-zh.md) 为准：规则只负责按日期幂等生成；进入当天后，规则生成与手写计划共用同一种当日实例、同一执行/comment/实际值/记账路径。规则库和未来日历位于 `任务 → 时间`，不进入 `今天`。
 
 ## Current Direction
 
@@ -72,11 +95,11 @@ data. `我的资料` is the first new independent module using this navigation m
 long-term category labels, Dreaming recommendations, forced conflict resolution,
 or planning analysis during execution.
 
-`任务` should support multiple views. The structure entry shows a compact list
-of top-level tasks; standalone tasks open details, while tasks with children open
-a wide, horizontally scrollable and pinch-zoomable map with a return-to-list action. Nodes show progress through
-a completion signal: leaf nodes are `1` when done and `0` otherwise; parent nodes
-average their children. The UI reads that signal and renders green fill.
+`任务` uses four parallel views: list, structure, time and fishbone. Structure
+opens the inverted tree directly. Its single “未分类” overview root is a layout
+element for the top-level forest, never a durable task or a command target.
+Real nodes retain expand/collapse, pan/zoom, selection, detail and branch focus.
+Completed nodes show a checkmark, explicit completion text and strikethrough.
 
 `助手` should default to unrestricted natural-language chat and automatically
 select read-only tools when useful. It supports multiple isolated sessions,

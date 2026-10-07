@@ -21,8 +21,10 @@ enum V2Theme {
 
         static let taskActive = Color(red: 0.03, green: 0.64, blue: 0.50)
         static let taskActiveContainer = Color(red: 0.91, green: 0.97, blue: 0.95)
+        static let onTaskActiveContainer = Color(red: 0, green: 0.42, blue: 0.32)
         static let taskPaused = Color(red: 0.96, green: 0.39, blue: 0.08)
         static let taskPausedContainer = Color(red: 1.00, green: 0.94, blue: 0.86)
+        static let onTaskPausedContainer = Color(red: 0.54, green: 0.235, blue: 0.047)
         static let taskComplete = Color(red: 0.20, green: 0.62, blue: 0.43)
         static let taskCompleteContainer = Color(red: 0.91, green: 0.97, blue: 0.93)
         static let taskIncomplete = Color(red: 0.96, green: 0.51, blue: 0.47)

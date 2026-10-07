@@ -108,13 +108,14 @@ final class MacAppModel: ObservableObject {
 }
 
 enum MacPage: String, CaseIterable, Identifiable {
-    case today = "今天", tasks = "任务", capture = "随手记", finance = "理账", assistant = "助手", recall = "回想", settings = "设置"
+    case today = "今天", tasks = "任务", capture = "随手记", transcription = "转录", finance = "理账", assistant = "助手", recall = "回想", settings = "设置"
     var id: String { rawValue }
     var symbol: String {
         switch self {
         case .today: "sun.max"
         case .tasks: "checklist"
         case .capture: "square.and.pencil"
+        case .transcription: "waveform"
         case .finance: "chart.bar.xaxis"
         case .assistant: "sparkles"
         case .recall: "clock.arrow.circlepath"
@@ -125,6 +126,7 @@ enum MacPage: String, CaseIterable, Identifiable {
         switch self {
         case .today, .tasks: "tasks"
         case .capture: "capture"
+        case .transcription: "transcription"
         case .finance: "finance"
         case .assistant: "assistant"
         case .recall: "recall"
