@@ -23,6 +23,29 @@ python3 -B "$WORKBENCH" --state-dir "$PWD/.runtime/workbench" project inspect --
 技术检查通过不代表产品效果或用户验收通过。来源改变后检查差异、重新登记，
 不要沿用旧 task 或只改哈希消除告警。
 
+## 新版工作台的开发执行记录
+
+2026-10-07 接入新版 `execution` 与 `workspace` 入口。仍使用本项目的
+`.runtime/workbench`，保留历史；更新工具及已审阅的入口/地图后明确重新 register。
+Feature Map 的受管只读检查与本地构建记录是两个入口，不能相互代替。
+
+```sh
+python3 -B "$WORKBENCH" --state-dir "$PWD/.runtime/workbench" workspace inspect --root "$PWD"
+python3 -B "$WORKBENCH" --state-dir "$PWD/.runtime/workbench" execution run --request <本机请求.json> --apply
+python3 -B "$WORKBENCH" --state-dir "$PWD/.runtime/workbench" execution verify --run <返回的exec_ID>
+python3 -B "$WORKBENCH" --state-dir "$PWD/.runtime/workbench" execution list --root "$PWD"
+python3 -B "$WORKBENCH" --state-dir "$PWD/.runtime/workbench" workspace closeout --root "$PWD" --run <本仓库exec_ID>
+```
+
+请求固定 `task_id/session_id/authorization_ref/cwd/argv/sources/timeout_seconds`；
+argv 为数组，程序使用绝对路径，sources 为绝对文件路径及已核对的 SHA256，超时最多
+300 秒。运行前必须有记录，运行后必须有终态；缺记录不能用重跑掩盖。原生日志和
+xcresult 由本机检查脚本保留，不能只拿退出 0 当作实际识别成功。初次接入前的命令
+属于 bootstrap/unmanaged，不追认为 Trace。
+
+录音转文字的本次运行及范围见 [转录 QA](../../docs/qa/2026-10-07-local-transcription-workbench.md)。
+工作区有未提交内容时，收束门禁仍为未通过；不自动丢弃其他任务的草稿。
+
 ## UI 差异排查
 
 初始排查登记 `ui.capture`，操作 `inspect-baseline`。需求继续以 `docs/spec.md`、

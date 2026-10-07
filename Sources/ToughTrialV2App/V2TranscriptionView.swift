@@ -293,7 +293,9 @@ private struct V2TranscriptionDetailView: View {
                 : "只上传音轨到阿里云百炼，不上传视频画面；每段最多 5 分钟，按服务用量计费。")
                 .font(.subheadline).foregroundStyle(V2Theme.secondary)
             if record.status == .failed, provider == .apple, !record.transcript.isEmpty {
-                Text("苹果原生重试会重新识别整段，并用新结果替换已保存的部分文字。")
+                Text(record.provider == .apple && !record.segments.isEmpty
+                    ? "从上次保存的位置继续，已有文字会保留。"
+                    : "这次从头识别，新文字返回后才替换已有内容。")
                     .font(.caption).foregroundStyle(V2Theme.secondary)
             }
             Text("转录完成后，若已配置 AI 服务，逐字稿会发送给该服务生成摘要；原文件和记录留在本机。")
@@ -386,7 +388,8 @@ private struct V2TranscriptionDetailView: View {
             let selectedProvider = provider
             activeTask = Task {
                 do {
-                    try await V2TranscriptionProcessor.transcribe(current, store: store, provider: selectedProvider) {
+                    // The processor owns processing state; keep the saved checkpoint metadata.
+                    try await V2TranscriptionProcessor.transcribe(record, store: store, provider: selectedProvider) {
                         processingStage = $0
                     }
                     try Task.checkCancellation()

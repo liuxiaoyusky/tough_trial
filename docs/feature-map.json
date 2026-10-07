@@ -89,7 +89,7 @@
         },
         {
           "path": "Tools/FeatureCLI/README.md",
-          "sha256": "ba615f591e6a6907efd39c50bdf638126199d526d6cd6bfa3ff3d1462efd357c"
+          "sha256": "069a2c5b45af43ced6e384d53874dc9bc5d09ffc8d2cec3ad0ba479bff03f53c"
         },
         {
           "path": "Sources/ToughTrialV2App/ToughTrialV2App.swift",
@@ -2294,7 +2294,7 @@
       "evidence": [
         {
           "path": "Tools/FeatureCLI/README.md",
-          "sha256": "ba615f591e6a6907efd39c50bdf638126199d526d6cd6bfa3ff3d1462efd357c"
+          "sha256": "069a2c5b45af43ced6e384d53874dc9bc5d09ffc8d2cec3ad0ba479bff03f53c"
         },
         {
           "path": "Tools/FeatureCLI/review_links.py",
@@ -2682,11 +2682,14 @@
     {
       "id": "ui.transcription",
       "title": "转录资料库",
-      "purpose": "本地音视频保存、Apple/FunASR 文件转录、摘要与查询；相册合成视频导入 / 播放及返回时保留识别选择通过，真实 iPhone 与服务验收仍待。",
+      "purpose": "本地音视频导入、Apple/FunASR 转录与保存；Apple 同方式失败后按断点续转，保留前缀与原文件；本机模型和落盘已验证，iPhone 原录音仍待。",
       "aliases": [
         "转录",
         "音视频",
-        "录音资料库"
+        "录音资料库",
+        "本地录音转文字",
+        "失败后继续",
+        "断点转录"
       ],
       "preconditions": [
         "本项目来源可读；本次只核对实现/设计与历史证据，不访问个人业务数据或运行外部服务。"
@@ -2719,13 +2722,17 @@
         {
           "source": "docs/qa/2026-10-06-milestone.md",
           "expected": "10/6 源码阶段收束，按限定验证和保留的失败历史核对；23 号未分发，手机及服务验收仍开放。"
+        },
+        {
+          "source": "docs/qa/2026-10-07-local-transcription-workbench.md",
+          "expected": "本机真实 Apple 模型恢复已保存前缀、跳过先前音频、时间戳不超出原文件，重开后文字和原件保留；模拟器模型 skip、原手机不可连接与收束门禁分别报告。"
         }
       ],
       "ontology_refs": [],
       "evidence": [
         {
           "path": "docs/superpowers/specs/2026-09-25-transcription-library-design-zh.md",
-          "sha256": "2ee29b69528a9423d8e7cf653fb53f2e0bf9814359b40c3b2d7dad473e04dc4d"
+          "sha256": "1fea1226f64f3e50e5f0f659ea4247fa0c47a06a318d8af433563194ebc6eb10"
         },
         {
           "path": "Sources/ToughTrialV2App/V2RootView.swift",
@@ -2745,11 +2752,11 @@
         },
         {
           "path": "Sources/ToughTrialV2App/V2TranscriptionProcessor.swift",
-          "sha256": "73bb53b286719967e09cd8352bc4d3a01555ed489b659525bf3f0fca681c776d"
+          "sha256": "80da7246f56b9538bced623f833559c6406d38fd45e8a8089026e596c30faa1d"
         },
         {
           "path": "Sources/ToughTrialV2App/V2TranscriptionView.swift",
-          "sha256": "64452c9ab90b8a31fed79ca28d3f95bd4f14c0521059b857af5eaa25a7d1ca22"
+          "sha256": "3e98d91dda4de8a769382f209842d70d4949162ff27faef47275f3bc9861f39f"
         },
         {
           "path": "Sources/ToughTrialV2App/V2AppleSpeechTranscriber.swift",
@@ -2757,7 +2764,7 @@
         },
         {
           "path": "Tests/ToughTrialV2AppTests/V2TranscriptionTests.swift",
-          "sha256": "2f8a116a6e7a16cb995a49a8ac9a48fe66ac37e6536a9f999ac343fe53566d3b"
+          "sha256": "9d9cf533adfc77568bb83188a12a6f81fb42d7f127a1f48ce068e6e4c2071b7d"
         },
         {
           "path": "Tests/ToughTrialUITests/V2TranscriptionUITests.swift",
@@ -2798,6 +2805,10 @@
         {
           "path": "docs/qa/2026-10-06-milestone.md",
           "sha256": "63b4b66e9450106507254a67b5e2933a6b905ba29c23092c3e0c557d09c4a1a5"
+        },
+        {
+          "path": "docs/qa/2026-10-07-local-transcription-workbench.md",
+          "sha256": "b5fd58cdb85b70838baa5f26f6d72a966e7ed76a04e46789ec5f4648862ed397"
         }
       ],
       "code": [
@@ -2840,16 +2851,24 @@
         {
           "path": "Sources/ToughTrialV2App/V2TranscriptionView.swift",
           "symbol": "V2TranscriptionDetailView.init"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2TranscriptionProcessor.swift",
+          "symbol": "V2TranscriptionAppleReader.init(url:format:startingAt:)"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2TranscriptionView.swift",
+          "symbol": "V2TranscriptionDetailView.start"
         }
       ],
       "delivery": {
-        "assessed_on": "2026-10-06",
+        "assessed_on": "2026-10-07",
         "implementation": "partial",
-        "technical_verification": "scoped-runtime-and-ui-pass",
+        "technical_verification": "current-mac-model-persistence-and-ios-scoped-pass",
         "human_acceptance": "pending",
         "roadmap_stage": "R1",
         "status_source": "docs/roadmap.md",
-        "open_items": "10/5 修复后转录专项 15 通过、1 苹果模型因模拟器不支持跳过；实际合成相册视频导入和播放到末尾已操作。原视频、iPhone 模型识别、FunASR/AI 真实服务、长视频 / 后台未验收。最新 1.0（19）分发签名与上传通过，Apple 返回处理中；测试群组可用和手机实际更新仍待。历史协议阻塞已经解除。"
+        "open_items": "10/7 新工作台记录的 Mac App 23 项及真实 Apple 转录通过；iOS 转录单元 13 通过/2 模型 skip、UI 3 通过。原 iPhone 当前不可连接；原录音、长录音/后台/锁屏、FunASR/AI 生产及新包验收仍待；本轮修改未提交，收束检查未通过。"
       }
     },
     {

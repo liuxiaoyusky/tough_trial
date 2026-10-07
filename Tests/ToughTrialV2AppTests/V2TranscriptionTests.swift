@@ -236,6 +236,11 @@ final class V2TranscriptionTests: XCTestCase {
         }
         XCTAssertEqual(Double(frames) / format.sampleRate, 2, accuracy: 0.005)
         XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+        let resumed = V2TranscriptionAppleInput(reader: try V2TranscriptionAppleReader(url: url,
+            format: format, startingAt: 1))
+        var remaining: AVAudioFrameCount = 0
+        for try await value in resumed { remaining += value.buffer.frameLength }
+        XCTAssertEqual(Double(remaining) / format.sampleRate, 1, accuracy: 0.005)
     }
 
     func testInterruptedOperationDuringPauseUsesPauseMessage() {
@@ -296,6 +301,40 @@ final class V2TranscriptionTests: XCTestCase {
         XCTAssertEqual(store.record(record.id)?.status, .draft)
     }
 
+    /// Opt-in: the saved prefix must survive retry, while later timestamps remain absolute.
+    func testAppleRetryKeepsSavedPrefixAndContinuesAfterCheckpoint() async throws {
+        guard let path = ProcessInfo.processInfo.environment["TOUGH_TRIAL_TRANSCRIPTION_TEST_MEDIA"] else {
+            throw XCTSkip("Provide a synthetic local test recording path")
+        }
+        guard #available(iOS 26.0, macOS 26.0, *), SpeechTranscriber.isAvailable else {
+            throw XCTSkip("Apple model unavailable; no recognition success claimed")
+        }
+        let library = try directory()
+        let store = V2TranscriptionStore(directory: library)
+        let url = URL(fileURLWithPath: path)
+        var record = try await store.importMedia(from: url, source: url.pathExtension == "mp4" ? .video : .audio)
+        let prefix = V2TranscriptionSegment(start: 0, end: 1, text: "已保存的首段。")
+        record.provider = .apple
+        record.status = .failed
+        record.errorMessage = "上次转录失败"
+        record.segments = [prefix]
+        record.transcript = prefix.text
+        try store.update(record)
+        try await V2TranscriptionProcessor.transcribe(record, store: store, provider: .apple)
+        let saved = try XCTUnwrap(store.record(record.id))
+        XCTAssertEqual(saved.segments.first, prefix)
+        XCTAssertGreaterThan(saved.segments.count, 1)
+        XCTAssertTrue(saved.transcript.hasPrefix(prefix.text))
+        XCTAssertTrue(saved.segments.dropFirst().allSatisfy { $0.start >= prefix.end })
+        let duration = try XCTUnwrap(saved.duration)
+        XCTAssertLessThanOrEqual(try XCTUnwrap(saved.segments.last).end, duration + 0.02)
+        XCTAssertTrue(saved.transcript.contains("开会"))
+        XCTAssertNil(saved.errorMessage)
+        let reopened = V2TranscriptionStore(directory: library)
+        XCTAssertEqual(reopened.record(record.id)?.transcript, saved.transcript)
+        XCTAssertEqual(reopened.record(record.id)?.segments, saved.segments)
+    }
+
     /// Opt-in: synthetic local media only. Does not load credentials or call FunASR/AI.
     func testFixedMediaThroughProductionApplePipeline() async throws {
         let fixture = Bundle.main.bundleIdentifier == "com.skyliu.toughtrial.transcriptioncheck"
@@ -307,7 +346,8 @@ final class V2TranscriptionTests: XCTestCase {
         guard SpeechTranscriber.isAvailable else {
             throw XCTSkip("Apple SpeechTranscriber is unavailable on this runtime; no recognition success claimed")
         }
-        let store = V2TranscriptionStore(directory: try directory())
+        let library = try directory()
+        let store = V2TranscriptionStore(directory: library)
         let url = URL(fileURLWithPath: path)
         let record = try await store.importMedia(from: url, source: url.pathExtension == "mp4" ? .video : .audio)
         var stages: [String] = []
@@ -322,5 +362,12 @@ final class V2TranscriptionTests: XCTestCase {
         XCTAssertGreaterThan(saved.duration ?? 0, 1)
         XCTAssertTrue(stages.contains { $0.contains("本机识别") })
         XCTAssertTrue(FileManager.default.fileExists(atPath: store.mediaURL(for: record).path))
+        let reopened = V2TranscriptionStore(directory: library)
+        let persisted = try XCTUnwrap(reopened.record(record.id))
+        XCTAssertEqual(persisted.provider, .apple)
+        XCTAssertEqual(persisted.transcript, saved.transcript)
+        XCTAssertEqual(persisted.segments, saved.segments)
+        XCTAssertEqual(persisted.duration, saved.duration)
+        XCTAssertEqual(try Data(contentsOf: reopened.mediaURL(for: persisted)), try Data(contentsOf: url))
     }
 }

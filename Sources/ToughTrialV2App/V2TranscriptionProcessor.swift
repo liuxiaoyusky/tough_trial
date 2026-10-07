@@ -63,10 +63,11 @@ actor V2TranscriptionAppleReader {
     private var pending: [AVAudioPCMBuffer] = []
     private var finished = false
 
-    init(url: URL, format: AVAudioFormat) throws {
+    init(url: URL, format: AVAudioFormat, startingAt seconds: Double = 0) throws {
         file = try AVAudioFile(forReading: url)
         guard file.length > 0, file.processingFormat.sampleRate > 0 else { throw V2TranscriptionProcessingError.noAudio }
         duration = Double(file.length) / file.processingFormat.sampleRate
+        file.framePosition = min(file.length, max(0, AVAudioFramePosition(seconds * file.processingFormat.sampleRate)))
         converter = try V2AppleAudioConverter(input: file.processingFormat, output: format)
     }
 
@@ -180,6 +181,9 @@ enum V2TranscriptionProcessor {
     private static func transcribeApple(_ original: V2TranscriptionRecord, audioURL: URL,
                                         store: V2TranscriptionStore,
                                         progress: @escaping @MainActor (String) -> Void) async throws {
+        let start = original.status != .complete && original.provider == .apple
+            && !original.transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? max(0, original.segments.map(\.end).max() ?? 0) : 0
         progress("正在准备本机中文语音模型…")
         let transcriber = try await V2AppleSpeechBackend.makeTranscriber(file: true)
         try await V2AppleSpeechBackend.install(transcriber, status: progress)
@@ -188,17 +192,18 @@ enum V2TranscriptionProcessor {
         }
         let opening = Task.detached(priority: .userInitiated) {
             try Task.checkCancellation()
-            return try V2TranscriptionAppleReader(url: audioURL, format: format)
+            return try V2TranscriptionAppleReader(url: audioURL, format: format, startingAt: start)
         }
         let reader = try await withTaskCancellationHandler { try await opening.value } onCancel: { opening.cancel() }
         let input = V2TranscriptionAppleInput(reader: reader)
         let analyzer = SpeechAnalyzer(modules: [transcriber])
         var record = original
         record.status = .processing
+        record.errorMessage = nil
         record.duration = reader.duration
         try Task.checkCancellation()
         try store.update(record)
-        var receivedFinal = false
+        var hasSpeech = start > 0
         do {
             try await withTaskCancellationHandler {
                 try await analyzer.prepareToAnalyze(in: format)
@@ -222,15 +227,15 @@ enum V2TranscriptionProcessor {
                         guard result.isFinal else { continue }
                         let text = String(result.text.characters).trimmingCharacters(in: .whitespacesAndNewlines)
                         guard !text.isEmpty else { continue }
-                        if !receivedFinal {
+                        if !hasSpeech {
                             record.segments = []
                             record.transcript = ""
-                            record.summary = nil
                             record.provider = .apple
-                            receivedFinal = true
+                            hasSpeech = true
                         }
-                        let segment = V2TranscriptionSegment(start: result.range.start.seconds,
-                            end: result.range.end.seconds, text: text)
+                        record.summary = nil
+                        let segment = V2TranscriptionSegment(start: start + result.range.start.seconds,
+                            end: start + result.range.end.seconds, text: text)
                         record.segments.removeAll { $0.start < segment.end && segment.start < $0.end }
                         record.segments.append(segment)
                         record.segments.sort { $0.start < $1.start }
@@ -254,7 +259,7 @@ enum V2TranscriptionProcessor {
             if Task.isCancelled { throw CancellationError() }
             throw error
         }
-        guard receivedFinal, !record.transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        guard hasSpeech, !record.transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw V2TranscriptionProcessingError.emptyTranscript
         }
     }
@@ -271,6 +276,7 @@ enum V2TranscriptionProcessor {
         }
         var record = original
         record.status = .processing
+        record.errorMessage = nil
         // A previous all-empty attempt must be retryable rather than resuming at EOF forever.
         let start = record.provider == .funASR && !record.transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? (record.segments.last?.end ?? 0) : 0
