@@ -254,6 +254,101 @@ final class V2TranscriptionTests: XCTestCase {
         XCTAssertFalse(failure.contains("Operation Interrupted"))
     }
 
+    func testSystemFailureRetainsStageAndErrorCodeWithoutLeakingPayload() {
+        let error = NSError(domain: AVFoundationErrorDomain, code: -11847,
+            userInfo: [NSLocalizedDescriptionKey: "secret-token /private/user-recording.mov"])
+        let message = V2TranscriptionProcessor.failureMessage(error, stage: "正在提取视频音轨…", cancelled: false)
+        XCTAssertTrue(message.contains("音轨"))
+        XCTAssertTrue(message.contains("AVFoundationErrorDomain"))
+        XCTAssertTrue(message.contains("-11847"))
+        XCTAssertFalse(message.contains("secret-token"))
+        XCTAssertFalse(message.contains("/private/"))
+    }
+
+    func testFailureDiagnosisSurvivesRestartAndExcludesPrivatePayload() throws {
+        let library = try directory()
+        let store = V2TranscriptionStore(directory: library)
+        let record = V2TranscriptionRecord(title: "private-title", source: .video,
+            mediaFileName: "private-file.mov", provider: .apple, status: .processing,
+            transcript: "private-transcript", summary: "private-summary", processingStage: .recognition)
+        let underlying = NSError(domain: NSOSStatusErrorDomain, code: -50,
+            userInfo: [NSLocalizedDescriptionKey: "secret-token /private/media.mov"])
+        let system = NSError(domain: AVFoundationErrorDomain, code: -11847,
+            userInfo: [NSUnderlyingErrorKey: underlying, NSLocalizedFailureReasonErrorKey: "private-response"])
+        let failure = V2TranscriptionProcessor.failedRecord(record,
+            error: V2TranscriptionStageError(stage: .formatConversion, underlying: system),
+            provider: .funASR, cancelled: false)
+        XCTAssertEqual(failure.processingStage, .formatConversion, "The actual operation overrides the outer recognition phase")
+        XCTAssertEqual(failure.provider, .apple, "Failure must not replace the saved transcript's provider")
+        let details = try XCTUnwrap(failure.diagnosticDetails)
+        XCTAssertTrue(details.contains("funASR")); XCTAssertTrue(details.contains("video"))
+        XCTAssertTrue(details.contains("AVFoundationErrorDomain (-11847)"))
+        XCTAssertTrue(details.contains("NSOSStatusErrorDomain (-50)"))
+        for privateValue in ["private-title", "private-file", "private-transcript", "private-summary", "secret-token", "/private/", "private-response"] {
+            XCTAssertFalse(details.contains(privateValue))
+        }
+        try store.update(failure)
+        let reopened = try XCTUnwrap(V2TranscriptionStore(directory: library).record(record.id))
+        XCTAssertEqual(reopened, failure)
+    }
+
+    func testLegacyRecordDecodesWithoutDiagnosticFields() throws {
+        let record = V2TranscriptionRecord(title: "旧记录", source: .audio, mediaFileName: "old.wav", transcript: "已保存")
+        let data = try JSONEncoder().encode(record)
+        let decoded = try JSONDecoder().decode(V2TranscriptionRecord.self, from: data)
+        XCTAssertNil(decoded.processingStage); XCTAssertNil(decoded.diagnosticDetails)
+        XCTAssertEqual(decoded.transcript, record.transcript)
+    }
+
+    func testMissingSourceIsIdentifiedBeforePreparingModel() async throws {
+        let store = V2TranscriptionStore(directory: try directory())
+        let record = V2TranscriptionRecord(title: "missing", source: .video, mediaFileName: "missing.mov")
+        try store.update(record)
+        var phases: [String] = []
+        do {
+            try await V2TranscriptionProcessor.transcribe(record, store: store, provider: .apple) { phases.append($0) }
+            XCTFail("Expected missing file")
+        } catch {
+            XCTAssertEqual((error as? V2TranscriptionStageError)?.stage, .sourceRead)
+            XCTAssertEqual(store.record(record.id)?.processingStage, .sourceRead)
+            XCTAssertFalse(phases.contains { $0.contains("模型") })
+        }
+    }
+
+    func testInvalidVideoAndAudioReportDifferentFailingOperations() async throws {
+        let file = try directory().appendingPathComponent("invalid.mov")
+        try Data("invalid media".utf8).write(to: file)
+        do {
+            _ = try await V2TranscriptionAudioFile.prepare(file, source: .video)
+            XCTFail("Invalid video must fail")
+        } catch { XCTAssertEqual((error as? V2TranscriptionStageError)?.stage, .videoAudioInspection) }
+        do {
+            _ = try V2TranscriptionPCMReader(url: file)
+            XCTFail("Invalid audio must fail")
+        } catch { XCTAssertEqual((error as? V2TranscriptionStageError)?.stage, .audioRead) }
+        XCTAssertEqual(try Data(contentsOf: file), Data("invalid media".utf8))
+    }
+
+    func testRetryClearsDiagnosisButRetainsCheckpointWhileAwaitingRecognition() async throws {
+        let root = try directory()
+        let store = V2TranscriptionStore(directory: root.appendingPathComponent("library"))
+        var record = try await store.importMedia(from: audio(in: root), source: .audio)
+        record.provider = .funASR; record.status = .failed
+        record.transcript = "首段"; record.segments = [.init(start: 0, end: 1, text: "首段")]
+        record.diagnosticDetails = "old diagnosis"; record.errorMessage = "old error"
+        record.processingStage = .recognition
+        try store.update(record)
+        try await V2TranscriptionProcessor.transcribeFunASR(record, audioURL: store.mediaURL(for: record),
+            store: store, key: "synthetic-test", maximumBytes: 32_000, transcribeChunk: { _, _ in
+                let waiting = try XCTUnwrap(store.record(record.id))
+                XCTAssertEqual(waiting.processingStage, .recognition)
+                XCTAssertNil(waiting.diagnosticDetails); XCTAssertNil(waiting.errorMessage)
+                XCTAssertEqual(waiting.transcript, "首段")
+                return "后段"
+            })
+        XCTAssertEqual(store.record(record.id)?.transcript, "首段\n后段")
+    }
+
     func testPhotoImportHasReadableTitleAndInterruptedRecordSurvivesRestart() async throws {
         let root = try directory()
         let source = try audio(in: root)
@@ -264,10 +359,14 @@ final class V2TranscriptionTests: XCTestCase {
         var record = try await store.importMedia(from: photo, source: .video)
         XCTAssertEqual(record.title, "相册视频")
         record.status = .processing; record.transcript = "已保存的文字"
+        record.processingStage = .videoAudioExtraction
         try store.update(record)
         let restored = V2TranscriptionStore(directory: library)
         XCTAssertEqual(restored.record(record.id)?.status, .failed)
         XCTAssertEqual(restored.record(record.id)?.transcript, "已保存的文字")
+        XCTAssertEqual(restored.record(record.id)?.processingStage, .videoAudioExtraction)
+        XCTAssertTrue(restored.record(record.id)?.diagnosticDetails?.contains("videoAudioExtraction") == true)
+        XCTAssertTrue(restored.record(record.id)?.errorMessage?.contains("音轨提取") == true)
         XCTAssertTrue(FileManager.default.fileExists(atPath: restored.mediaURL(for: record).path))
     }
 

@@ -282,7 +282,9 @@ final class V2SpeechPCMConverter: @unchecked Sendable {
             state.pointee = .haveData
             return input
         }
-        guard status != .error, error == nil, let samples = buffer.int16ChannelData?[0] else { throw V2SpeechAudioError.conversion }
+        guard status != .error, error == nil, let samples = buffer.int16ChannelData?[0] else {
+            throw (error as Error?) ?? V2SpeechAudioError.conversion
+        }
         return Data(bytes: samples, count: Int(buffer.frameLength) * 2)
     }
     func finish() throws -> Data {
@@ -302,7 +304,7 @@ final class V2SpeechPCMConverter: @unchecked Sendable {
                 return nil
             }
             guard status != .error, error == nil, let samples = buffer.int16ChannelData?[0] else {
-                throw V2SpeechAudioError.conversion
+                throw (error as Error?) ?? V2SpeechAudioError.conversion
             }
             result.append(Data(bytes: samples, count: Int(buffer.frameLength) * 2))
             if status == .endOfStream || buffer.frameLength == 0 { return result }

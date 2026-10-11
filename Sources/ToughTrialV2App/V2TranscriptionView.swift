@@ -208,6 +208,9 @@ private struct V2TranscriptionDetailView: View {
     @State private var editingSummary = false
     @State private var editedSummary = ""
     @State private var confirmingDelete = false
+    @State private var showingDiagnostics = false
+    @State private var copiedDiagnostics = false
+    @State private var unsavedDiagnostics: String?
 
     init(store: V2TranscriptionStore, recordID: UUID) {
         self.store = store
@@ -231,6 +234,18 @@ private struct V2TranscriptionDetailView: View {
                         Label(message, systemImage: "exclamationmark.triangle")
                             .font(.subheadline).foregroundStyle(V2Theme.orange)
                             .accessibilityIdentifier("transcription.issue")
+                    }
+                    if let details = unsavedDiagnostics ?? record.diagnosticDetails {
+                        DisclosureGroup(isExpanded: $showingDiagnostics) {
+                            Text(details).font(.caption.monospaced()).textSelection(.enabled)
+                                .accessibilityIdentifier("transcription.diagnostics.text")
+                            Button(copiedDiagnostics ? "已复制诊断信息" : "复制诊断信息") {
+                                V2Platform.copy(details); copiedDiagnostics = true
+                            }
+                            .accessibilityIdentifier("transcription.diagnostics.copy")
+                            .frame(minHeight: 44)
+                        } label: { Text("诊断信息") }
+                        .foregroundStyle(V2Theme.secondary)
                     }
                     summarySection(record)
                     transcriptSection(record)
@@ -381,8 +396,13 @@ private struct V2TranscriptionDetailView: View {
             var current = record
             current.status = .processing
             current.errorMessage = nil
-            try store.update(current)
+            current.diagnosticDetails = nil
+            current.processingStage = .sourceRead
+            try V2TranscriptionStageError.run(.transcriptSave) { try store.update(current) }
             issue = nil
+            showingDiagnostics = false
+            copiedDiagnostics = false
+            unsavedDiagnostics = nil
             processingStage = "正在准备转录…"
             activeTask?.cancel()
             let selectedProvider = provider
@@ -396,18 +416,29 @@ private struct V2TranscriptionDetailView: View {
                     try plugins.validate(ticket)
                     guard var finished = store.record(recordID) else { return }
                     finished.status = .complete
+                    finished.processingStage = nil
+                    finished.diagnosticDetails = nil
                     try store.update(finished)
                     summarize(finished)
                 } catch {
-                    guard var failed = store.record(recordID), failed.status == .processing else { return }
-                    failed.status = .failed
-                    failed.errorMessage = V2TranscriptionProcessor.failureMessage(error, stage: processingStage,
-                        cancelled: Task.isCancelled)
+                    guard let latest = store.record(recordID), latest.status == .processing else { return }
+                    let failed = V2TranscriptionProcessor.failedRecord(latest, error: error,
+                        provider: selectedProvider, cancelled: Task.isCancelled)
                     do { try store.update(failed) }
-                    catch { issue = error.localizedDescription }
+                    catch {
+                        issue = "\(failed.errorMessage ?? "转录未完成。")\n诊断信息暂未保存，请先复制。"
+                        unsavedDiagnostics = failed.diagnosticDetails
+                    }
                 }
             }
-        } catch { issue = error.localizedDescription }
+        } catch {
+            guard error is V2TranscriptionStageError else { issue = error.localizedDescription; return }
+            let failed = V2TranscriptionProcessor.failedRecord(record,
+                error: error,
+                provider: provider, cancelled: false)
+            issue = "\(failed.errorMessage ?? "转录未完成。")\n诊断信息暂未保存，请先复制。"
+            unsavedDiagnostics = failed.diagnosticDetails
+        }
     }
 
     private func summarize(_ record: V2TranscriptionRecord) {

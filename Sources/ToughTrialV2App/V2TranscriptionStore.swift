@@ -24,7 +24,10 @@ final class V2TranscriptionStore: ObservableObject {
                         var record = value
                         if record.status == .processing {
                             record.status = .failed
-                            record.errorMessage = "上次转录已中断，可从已保存的位置继续。"
+                            let stage = record.processingStage.map { "（最后记录：\($0.title)）" } ?? ""
+                            record.errorMessage = "上次转录已中断\(stage)，可从已保存的位置继续。"
+                            record.diagnosticDetails = record.diagnosticDetails
+                                ?? "结果：上次运行未结束\n最后记录阶段：\(record.processingStage?.rawValue ?? "unknown")\n没有系统错误回执，无法确认中断原因。"
                         }
                         return record
                     }

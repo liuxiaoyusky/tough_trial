@@ -332,7 +332,7 @@ final class V2AppleAudioConverter: @unchecked Sendable {
                 state.pointee = .haveData
                 return pendingInput
             }
-            guard status != .error, error == nil else { throw V2SpeechAudioError.conversion }
+            guard status != .error, error == nil else { throw (error as Error?) ?? V2SpeechAudioError.conversion }
             if buffer.frameLength > 0 { buffers.append(buffer) }
             if status == .endOfStream || status == .inputRanDry || buffer.frameLength == 0 { break }
         }

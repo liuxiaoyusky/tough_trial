@@ -26,6 +26,17 @@ final class V2TranscriptionUITests: XCTestCase {
         let issue = app.descendants(matching: .any)["transcription.issue"].firstMatch
         XCTAssertTrue(issue.waitForExistence(timeout: 30))
         XCTAssertTrue(app.buttons["transcription.start"].exists)
+        XCTAssertFalse(app.buttons["transcription.diagnostics.copy"].exists)
+        app.staticTexts["诊断信息"].tap()
+        let details = app.staticTexts["transcription.diagnostics.text"]
+        XCTAssertTrue(details.waitForExistence(timeout: 5))
+        XCTAssertTrue(details.label.contains("modelPreparation") || details.label.contains("recognition"))
+        XCTAssertFalse(details.label.contains("fixture.wav"))
+        let copy = app.buttons["transcription.diagnostics.copy"]
+        copy.tap()
+        XCTAssertEqual(copy.label, "已复制诊断信息")
+        app.staticTexts["诊断信息"].tap()
+        XCTAssertFalse(copy.exists)
         let feedback = XCTAttachment(screenshot: app.screenshot())
         feedback.name = "transcription-readable-retry"; feedback.lifetime = .keepAlways; add(feedback)
         app.buttons["transcription.transcript.open"].tap()
@@ -40,6 +51,9 @@ final class V2TranscriptionUITests: XCTestCase {
         XCTAssertTrue(provider.waitForExistence(timeout: 5))
         XCTAssertTrue(provider.buttons["苹果原生"].isSelected,
                       "查看原文件返回后必须保留所选的本地识别方式")
+        app.staticTexts["诊断信息"].tap()
+        XCTAssertTrue(details.waitForExistence(timeout: 5))
+        app.staticTexts["诊断信息"].tap()
     }
 
     @MainActor func testProcessingKeepsSavedContentReadableAndPreventsEditing() {

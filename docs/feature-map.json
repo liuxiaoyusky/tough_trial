@@ -2682,14 +2682,17 @@
     {
       "id": "ui.transcription",
       "title": "转录资料库",
-      "purpose": "本地音视频导入、Apple/FunASR 转录与保存；Apple 同方式失败后按断点续转，保留前缀与原文件；本机模型和落盘已验证，iPhone 原录音仍待。",
+      "purpose": "本地音视频导入、Apple/FunASR 转录与断点保存；失败阶段、系统错误码和诊断重开可查、可复制；本机与模拟器已验证，iPhone 原素材仍待。",
       "aliases": [
         "转录",
         "音视频",
         "录音资料库",
         "本地录音转文字",
         "失败后继续",
-        "断点转录"
+        "断点转录",
+        "失败定位",
+        "错误码",
+        "转录诊断"
       ],
       "preconditions": [
         "本项目来源可读；本次只核对实现/设计与历史证据，不访问个人业务数据或运行外部服务。"
@@ -2730,13 +2733,17 @@
         {
           "source": "docs/qa/2026-10-07-testflight-build24.md",
           "expected": "24 号归档对应已推送的 8b37437，主 App/扩展版本与来源匹配；无账号或发布签名时明确分发未完成，不以源码收束或归档通过推断手机已更新。"
+        },
+        {
+          "source": "docs/qa/2026-10-11-transcription-diagnostics.md",
+          "expected": "区分实际失败阶段和重开后的最后阶段，保留有限错误链且不泄露内容；当前 Mac 转录 21 通过，iOS 单元 19 通过/2 模型跳过与 UI 3 通过；工作台保留失败，不推断手机原素材已修复或新版已分发。"
         }
       ],
       "ontology_refs": [],
       "evidence": [
         {
           "path": "docs/superpowers/specs/2026-09-25-transcription-library-design-zh.md",
-          "sha256": "1fea1226f64f3e50e5f0f659ea4247fa0c47a06a318d8af433563194ebc6eb10"
+          "sha256": "1b30ab9b51d03866e2d73e66815615161c704fd6924e4f755271857dafdb1558"
         },
         {
           "path": "Sources/ToughTrialV2App/V2RootView.swift",
@@ -2748,31 +2755,31 @@
         },
         {
           "path": "Sources/ToughTrialV2Core/V2TranscriptionRecord.swift",
-          "sha256": "607370f791f0dc5bd332c734f623f9d7250de271066e4b29af3d5cd51cc9993d"
+          "sha256": "3dc4090fde71440a05d5589ee78e466a496552f66f2b9bb603612e6751592042"
         },
         {
           "path": "Sources/ToughTrialV2App/V2TranscriptionStore.swift",
-          "sha256": "d9db877b01f3da6afad78fed655f067efd0bd90a8557a6825ce426b453b2dc04"
+          "sha256": "b6157214245900f92864b4112beebe529d6f02a1e47d73f7978b0d8235973e78"
         },
         {
           "path": "Sources/ToughTrialV2App/V2TranscriptionProcessor.swift",
-          "sha256": "80da7246f56b9538bced623f833559c6406d38fd45e8a8089026e596c30faa1d"
+          "sha256": "21d38200791bb5639afc80516c0e1da332c54788722faf2450831d1c062fe0d1"
         },
         {
           "path": "Sources/ToughTrialV2App/V2TranscriptionView.swift",
-          "sha256": "3e98d91dda4de8a769382f209842d70d4949162ff27faef47275f3bc9861f39f"
+          "sha256": "6c8ca24a6839aee78a66b752e284f01304c5e7d95844ebc2811a9db7ce6c16fa"
         },
         {
           "path": "Sources/ToughTrialV2App/V2AppleSpeechTranscriber.swift",
-          "sha256": "0faf91cf62323df76ed6c1d258142599e5390991d0c33fefb4c4858abdfc62ca"
+          "sha256": "8fdb93caf734f81c0335e8f428c54dadd778c79c453c4302af086b83ae1e2a30"
         },
         {
           "path": "Tests/ToughTrialV2AppTests/V2TranscriptionTests.swift",
-          "sha256": "9d9cf533adfc77568bb83188a12a6f81fb42d7f127a1f48ce068e6e4c2071b7d"
+          "sha256": "94a63841d6316c1e72df558e72292a0f317205b712af931882d4c7628e45ef35"
         },
         {
           "path": "Tests/ToughTrialUITests/V2TranscriptionUITests.swift",
-          "sha256": "bf217a3e892041ef4a2826ab61d6d4b0708dea960ad6070ade8f1fc59f63a237"
+          "sha256": "dcf8790a6b2add4a70280da891559ccea9498464928b021a15aa140a0d87845a"
         },
         {
           "path": "docs/qa/2026-10-04-transcription-file-repair.md",
@@ -2817,6 +2824,14 @@
         {
           "path": "docs/qa/2026-10-07-testflight-build24.md",
           "sha256": "4ac9ccebb7d8ca0b8d2b43eaac18e6edca8aec442abdc0065ed4e3d57e531498"
+        },
+        {
+          "path": "docs/qa/2026-10-11-transcription-diagnostics.md",
+          "sha256": "38f75b817ca984f4cf19397ee2ad907f124f46d9a68aaf8d26dc0860360d41a0"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2RealtimeSpeechTranscriber.swift",
+          "sha256": "532aca7bc48e4ded8cd7afefa9e9dff9a91edd517150664e10b2763c84bc4a04"
         }
       ],
       "code": [
@@ -2867,16 +2882,32 @@
         {
           "path": "Sources/ToughTrialV2App/V2TranscriptionView.swift",
           "symbol": "V2TranscriptionDetailView.start"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2TranscriptionProcessor.swift",
+          "symbol": "V2TranscriptionAudioFile.prepare"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2TranscriptionProcessor.swift",
+          "symbol": "V2TranscriptionStageError.run"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2TranscriptionProcessor.swift",
+          "symbol": "V2TranscriptionProcessor.failedRecord"
+        },
+        {
+          "path": "Sources/ToughTrialV2App/V2TranscriptionProcessor.swift",
+          "symbol": "V2TranscriptionProcessor.failureMessage"
         }
       ],
       "delivery": {
-        "assessed_on": "2026-10-07",
+        "assessed_on": "2026-10-11",
         "implementation": "partial",
-        "technical_verification": "current-mac-model-persistence-and-ios-scoped-pass",
+        "technical_verification": "current-mac-transcription-and-ios-diagnostics-scoped-pass",
         "human_acceptance": "pending",
         "roadmap_stage": "R1",
         "status_source": "docs/roadmap.md",
-        "open_items": "10/7 同功能源码的 Mac App 23 项及真实 Apple 转录、iOS 单元 13 通过/2 模型 skip、UI 3 通过。8b37437 已提交推送，源码收束通过；1.0（24）Release 预检与签名归档通过，但分发导出因 Xcode 无账号及发布签名退出 70，尚未上传。原录音、长录音/后台/锁屏及 FunASR/AI 生产仍待。"
+        "open_items": "本轮 Mac 转录 21 通过；iOS 单元 19 通过 / 2 模型跳过、UI 3 通过；阶段、错误码、重开保留和复制反馈已验证。原手机素材、长录音/后台/锁屏、真实 FunASR、磁盘故障和 Mac 诊断控件 UI 仍待；未上传新包，旧 24 号归档不含诊断，需恢复账号/发布签名后生成新构建。"
       }
     },
     {
