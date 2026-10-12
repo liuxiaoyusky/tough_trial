@@ -370,6 +370,36 @@ final class V2TranscriptionTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: restored.mediaURL(for: record).path))
     }
 
+    /// Opt-in local media: exercise the production failure path on simulators without a speech model.
+    func testLocalVideoModelUnavailablePersistsFailureAndCanRetry() async throws {
+        guard let path = ProcessInfo.processInfo.environment["TOUGH_TRIAL_TRANSCRIPTION_TEST_MEDIA"] else {
+            throw XCTSkip("Provide a local test video path")
+        }
+        guard #available(iOS 26.0, macOS 26.0, *) else { throw XCTSkip("iOS/macOS 26 required") }
+        guard !SpeechTranscriber.isAvailable else { throw XCTSkip("This check targets runtimes without SpeechTranscriber") }
+        let library = try directory()
+        let store = V2TranscriptionStore(directory: library)
+        var record = try await store.importMedia(from: URL(fileURLWithPath: path), source: .video)
+        let original = try Data(contentsOf: store.mediaURL(for: record))
+        for _ in 0..<2 {
+            do {
+                try await V2TranscriptionProcessor.transcribe(record, store: store, provider: .apple) { _ in }
+                XCTFail("Unavailable runtime must report a failure")
+            } catch {
+                let current = try XCTUnwrap(store.record(record.id))
+                let failed = V2TranscriptionProcessor.failedRecord(current, error: error, provider: .apple, cancelled: false)
+                XCTAssertEqual(failed.processingStage, .modelPreparation)
+                XCTAssertEqual(failed.status, .failed)
+                XCTAssertFalse(try XCTUnwrap(failed.diagnosticDetails).isEmpty)
+                try store.update(failed)
+                record = try XCTUnwrap(V2TranscriptionStore(directory: library).record(record.id))
+                XCTAssertEqual(record, failed)
+                XCTAssertEqual(try Data(contentsOf: store.mediaURL(for: record)), original)
+                XCTAssertTrue(record.transcript.isEmpty)
+            }
+        }
+    }
+
     func testSyntheticVideoImportExtractsAndReadsCompleteAudio() async throws {
         guard let path = ProcessInfo.processInfo.environment["TOUGH_TRIAL_TRANSCRIPTION_TEST_MEDIA"] else {
             throw XCTSkip("Provide a synthetic local test video path")
