@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="840" viewBox="0 0 1200 840">
+  <title>Markmap 倒树 · 同一任务树完整展开设计稿</title>
+  <desc>同一示例数据完整展开。根任务完成 3/8 个叶子，定位 1/3、选题库 2/3、复盘 0/2。概念稿，非原生截图。</desc>
+  <defs><style>
+    text{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif;fill:#20242B}
+    .muted{fill:#67717D}.done{fill:#67717D;text-decoration:line-through}
+    .coral-ink{fill:#AC5144}.blue-ink{fill:#285FA8}.violet-ink{fill:#6C54A9}
+    .coral{stroke:#D86C5B}.blue{stroke:#3577D4}.violet{stroke:#8F76D6}
+    .wire{fill:none;stroke-linecap:round;stroke-linejoin:round}.ring{fill:#FAF9F5;stroke-width:1.8}
+    .progress{fill:#339B63;stroke:none}.faded{stroke-opacity:.42}
+  </style></defs>
+  <rect width="1200" height="840" fill="#FAF9F5"/>
+  <text x="48" y="55" font-size="26" font-weight="650">倒树 · Markmap 视觉</text>
+  <text x="48" y="84" font-size="16" class="muted">同一任务树展开；手机通过拖动与折叠探索</text>
+  <g font-size="15" class="muted">
+    <circle cx="830" cy="58" r="7.2" class="ring" stroke="#7C8898"/><text x="850" y="63">未完成</text>
+    <circle cx="944" cy="58" r="7.2" class="ring" stroke="#7C8898"/><path d="M944 58L944 52.8A5.2 5.2 0 0 1 944 63.2Z" class="progress"/><text x="964" y="63">部分完成</text>
+    <circle cx="1073" cy="58" r="7.2" class="ring" stroke="#7C8898"/><circle cx="1073" cy="58" r="5.2" class="progress"/><text x="1093" y="63">已完成</text>
+  </g>
+  <text x="600" y="137" font-size="16" text-anchor="middle" class="muted">未分类</text>
+  <path d="M572 145H628M600 146C600 168 510 168 510 189" class="wire" stroke="#ABB3BC" stroke-width="1.5"/>
+  <g class="wire" stroke-width="3">
+    <path d="M600 225C600 270 170 263 170 326" class="coral"/>
+    <path d="M600 225C600 270 532 274 532 326" class="blue"/>
+    <path d="M600 225C600 265 952 265 952 326" class="violet"/>
+  </g>
+  <g class="wire coral" stroke-width="2.1">
+    <path d="M220 360C220 409 65 410 65 486" class="faded"/>
+    <path d="M220 360C220 413 191 420 191 486"/>
+    <path d="M220 360C220 412 317 418 317 486"/>
+  </g>
+  <g class="wire blue" stroke-width="2.1">
+    <path d="M600 360C600 419 440 410 440 486" class="faded"/>
+    <path d="M600 360C600 415 674 413 674 486"/>
+    <path d="M738 520C738 570 578 567 578 666" class="faded"/>
+    <path d="M738 520C738 573 800 582 800 666"/>
+  </g>
+  <g class="wire violet" stroke-width="2.1">
+    <path d="M1006 360C1006 418 939 420 939 486"/>
+    <path d="M1006 360C1006 418 1100 420 1100 486"/>
+  </g>
+  <circle cx="510" cy="197" r="8.5" class="ring" stroke="#57616E"/>
+  <path d="M510 197L510 190.6A6.4 6.4 0 0 1 514.525 201.525Z" class="progress"/>
+  <text x="536" y="207" font-size="26" font-weight="650">自媒体成长</text>
+  <path d="M538 223H679" class="wire" stroke="#57616E" stroke-opacity=".65" stroke-width="2.4"/>
+
+  <circle cx="170" cy="334" r="8" class="ring coral"/><path d="M170 334L170 328.3A5.7 5.7 0 0 1 174.937 336.85Z" class="progress"/>
+  <text x="197" y="343" font-size="24" font-weight="600" class="coral-ink">定位</text><path d="M198 359H248" class="wire coral" stroke-width="2.3"/>
+  <circle cx="532" cy="334" r="8" class="ring blue"/><path d="M532 334L532 328.3A5.7 5.7 0 1 1 527.063 336.85Z" class="progress"/>
+  <text x="559" y="343" font-size="24" font-weight="650" class="blue-ink">选题库</text><path d="M560 359H636" class="wire blue" stroke-width="3"/>
+  <circle cx="952" cy="334" r="8" class="ring violet"/>
+  <text x="979" y="343" font-size="24" font-weight="600" class="violet-ink">复盘</text><path d="M980 359H1030" class="wire violet" stroke-width="2.3"/>
+
+  <circle cx="65" cy="494" r="7.2" class="ring coral faded"/><circle cx="65" cy="494" r="5.2" class="progress"/>
+  <text x="85" y="502" font-size="18" class="done">内容边界</text><path d="M86 518H160" class="wire coral faded" stroke-width="2"/><text x="85" y="545" font-size="15" class="muted">已完成</text>
+  <circle cx="191" cy="494" r="7.2" class="ring coral"/>
+  <text x="211" y="502" font-size="18">目标读者</text><path d="M212 518H287" class="wire coral" stroke-width="2"/>
+  <circle cx="317" cy="494" r="7.2" class="ring coral"/>
+  <text x="337" y="502" font-size="18">表达风格</text><path d="M338 518H413" class="wire coral" stroke-width="2"/>
+
+  <circle cx="440" cy="494" r="7.2" class="ring blue faded"/><circle cx="440" cy="494" r="5.2" class="progress"/>
+  <text x="460" y="502" font-size="18" class="done">对标账号</text><path d="M461 518H536" class="wire blue faded" stroke-width="2"/><text x="460" y="545" font-size="15" class="muted">已完成</text>
+  <circle cx="674" cy="494" r="7.2" class="ring blue"/><path d="M674 494L674 488.8A5.2 5.2 0 0 1 674 499.2Z" class="progress"/>
+  <text x="694" y="502" font-size="18">爆款拆解</text><path d="M695 518H770" class="wire blue" stroke-width="2"/>
+
+  <circle cx="939" cy="494" r="7.2" class="ring violet"/>
+  <text x="959" y="502" font-size="18">每日记录</text><path d="M960 518H1035" class="wire violet" stroke-width="2"/>
+  <circle cx="1100" cy="494" r="7.2" class="ring violet"/>
+  <text x="1120" y="502" font-size="18">周复盘</text><path d="M1121 518H1178" class="wire violet" stroke-width="2"/>
+
+  <circle cx="578" cy="674" r="7.2" class="ring blue faded"/><circle cx="578" cy="674" r="5.2" class="progress"/>
+  <text x="598" y="682" font-size="18" class="done">收集样本</text><path d="M599 698H674" class="wire blue faded" stroke-width="2"/><text x="598" y="725" font-size="15" class="muted">已完成</text>
+  <circle cx="800" cy="674" r="7.2" class="ring blue"/>
+  <text x="820" y="682" font-size="18">拆解开头</text><path d="M821 698H896" class="wire blue" stroke-width="2"/>
+  <text x="48" y="801" font-size="16" class="muted">分支色表示归属，圈内绿色表示进度；完成同时灰显、划线。</text>
+</svg>

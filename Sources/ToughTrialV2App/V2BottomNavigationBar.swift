@@ -15,12 +15,14 @@ struct V2BottomNavigationBar: View {
                         Image(systemName: item.systemImage)
                             .font(.system(size: 18, weight: selection == item ? .semibold : .regular))
                         Text(item.title).font(.caption2).lineLimit(1)
+                            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                     }
                     .foregroundStyle(selection == item ? V2Theme.blue : .secondary)
-                    .frame(maxWidth: .infinity)
+                    .frame(maxWidth: .infinity, minHeight: 44)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(item.title)
                 .accessibilityIdentifier("root.tab.\(item.rawValue)")
                 .accessibilityAddTraits(selection == item ? .isSelected : [])
                 .draggable(item.rawValue)

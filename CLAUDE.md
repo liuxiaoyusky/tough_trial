@@ -102,6 +102,26 @@ and then `xcodebuild`/simulator or device verification when available.
 - If iOS UI behavior changes, continue to Xcode/simulator/device verification
   when the local environment supports it.
 
+## Recorded Development With AI Dev Workbench
+
+- Use the installed `ai-dev-workbench` skill and its current CLI contract.
+  Keep this project's state in `.runtime/workbench`; preserve existing task
+  history when explicitly re-registering updated tools or reviewed sources.
+- Before development and after each verifiable stage, run `workspace inspect`
+  for this repository. Preserve unrelated changes and worktrees.
+- Run local builds, tests and diagnostic processes through `execution run`
+  with a request that pins source hashes, task/session identity, argv and a
+  bounded timeout; then run `execution verify` for the returned run ID.
+  Source reads and initial CLI discovery are bootstrap, not recorded tests.
+- Do not repeat an execution to replace a missing terminal record. Keep known
+  outcomes and distinguish process success, product behavior and human review.
+- Before stage closeout, run `workspace closeout` with the actual execution ID.
+  A dirty workspace or stale/missing evidence is an open closeout item, never
+  a passed gate. Do not discard other work or mix it into this task's commit.
+- Keep requests, raw logs, media and Trace records under ignored local runtime
+  directories. Feature Map and QA may link scoped results; do not copy private
+  recordings or transcripts into shared Ontology or commit them.
+
 ## UI Interaction Acceptance
 
 - For each changed UI, inventory every visible interactive control, including checkbox-like icons. Exercise the actual tap/input, then assert visible feedback and the resulting domain state; existence checks and screenshots alone do not verify interaction.

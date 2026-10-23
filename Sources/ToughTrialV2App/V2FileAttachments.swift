@@ -15,9 +15,9 @@ import AppKit
 import UniformTypeIdentifiers
 
 #if os(iOS)
-fileprivate typealias V2AttachmentThumbnailImage = UIImage
+typealias V2AttachmentThumbnailImage = UIImage
 #elseif os(macOS)
-fileprivate typealias V2AttachmentThumbnailImage = NSImage
+typealias V2AttachmentThumbnailImage = NSImage
 #endif
 
 /// A file selected by the user. The original filename is kept so the Store can
@@ -553,7 +553,7 @@ private struct V2AttachmentThumbnail: View {
 
 @MainActor
 enum V2AttachmentThumbnailer {
-    fileprivate static func thumbnail(
+    static func thumbnail(
         for asset: V2CaptureAsset,
         store: V2CaptureAssetStore,
         size: CGSize

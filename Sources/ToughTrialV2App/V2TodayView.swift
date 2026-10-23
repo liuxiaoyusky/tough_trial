@@ -13,6 +13,7 @@ struct V2TodayView: View {
     @State private var isZenTaskPickerPresented = false
     @State private var zenTaskSearchText = ""
     @State private var pendingZenStart: V2PendingZenStart?
+    @State private var isPlanRemindersPresented = false
 
     var body: some View {
         NavigationStack {
@@ -26,38 +27,36 @@ struct V2TodayView: View {
                         collapseFocus()
                     }
 
-                VStack(alignment: .leading, spacing: 16) {
-                    V2TodayHeader {
-                        Task {
-                            await store.enablePlanReminders()
-                        }
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        V2TodayHeader { isPlanRemindersPresented = true }
+
+                        V2TodayFocusCanvas(
+                            sessions: Array(store.todayRunningSessions.prefix(1)),
+                            lifetimeSeconds: store.todayRunningSessions.first.map { store.lifetimeSeconds(for: $0) } ?? 0,
+                            isExpanded: isFocusExpanded,
+                            onFocus: focusSession,
+                            onExpand: expandFocus,
+                            onToggle: { store.pauseTodaySession($0.id) },
+                            onEnd: { store.completeTodaySession($0) },
+                            onStartUnlinkedZen: startUnlinkedZen,
+                            onChooseZenTask: presentZenTaskPicker,
+                            onZen: {
+                                store.startZen(
+                                    planItemID: $0.planItemID,
+                                    taskID: $0.taskID,
+                                    title: $0.title
+                                )
+                            }
+                        )
+                        V2TodayExecutionBoard(store: store, onFocus: focusSession)
+                            .environment(\.scheduleHighlightedIDs, store.highlightedScheduleIDs)
                     }
-
-                    V2TodayFocusCanvas(
-                        sessions: Array(store.todayRunningSessions.prefix(1)),
-                        lifetimeSeconds: store.todayRunningSessions.first.map { store.lifetimeSeconds(for: $0) } ?? 0,
-                        isExpanded: isFocusExpanded,
-                        onFocus: focusSession,
-                        onExpand: expandFocus,
-                        onToggle: { store.pauseTodaySession($0.id) },
-                        onEnd: { store.completeTodaySession($0) },
-                        onStartUnlinkedZen: startUnlinkedZen,
-                        onChooseZenTask: presentZenTaskPicker,
-                        onZen: {
-                            store.startZen(
-                                planItemID: $0.planItemID,
-                                taskID: $0.taskID,
-                                title: $0.title
-                            )
-                        }
-                    )
-
-                    V2TodayExecutionBoard(store: store, onFocus: focusSession)
-                    .frame(maxHeight: .infinity)
-                    .environment(\.scheduleHighlightedIDs, store.highlightedScheduleIDs)
+                    .padding(.horizontal, 22)
+                    .padding(.top, 18)
+                    .padding(.bottom, 150)
                 }
-                .padding(.horizontal, 22)
-                .padding(.top, 18)
+                .accessibilityIdentifier("today.scroll")
 
                 Button { isQuickAddPresented = true } label: {
                     Image(systemName: "plus")
@@ -106,19 +105,17 @@ struct V2TodayView: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
             }
+            .v2Sheet(isPresented: $isPlanRemindersPresented) {
+                V2PlanRemindersView(store: store)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+            }
             .alert("操作未完成", isPresented: errorBinding) {
                 Button("知道了") {
                     store.dismissError()
                 }
             } message: {
                 Text(store.errorMessage ?? "请稍后再试。")
-            }
-            .alert("计划提醒", isPresented: noticeBinding) {
-                Button("知道了") {
-                    store.dismissNotice()
-                }
-            } message: {
-                Text(store.noticeMessage ?? "")
             }
 
         }
@@ -202,16 +199,6 @@ struct V2TodayView: View {
         )
     }
 
-    private var noticeBinding: Binding<Bool> {
-        Binding(
-            get: { store.noticeMessage != nil },
-            set: { isPresented in
-                if !isPresented {
-                    store.dismissNotice()
-                }
-            }
-        )
-    }
 
 
 }
@@ -243,8 +230,9 @@ private struct V2TodayHeader: View {
 
             Menu {
                 Button(action: onEnableReminders) {
-                    Label("开启计划提醒", systemImage: "bell")
+                    Label("计划提醒", systemImage: "bell")
                 }
+                .accessibilityIdentifier("today.reminders.open")
             } label: {
                 Image(systemName: "line.3.horizontal")
                     .font(V2Theme.TypeRole.titleMedium)
@@ -265,6 +253,7 @@ private struct V2TodayHeader: View {
                     )
             }
             .accessibilityLabel("今天选项")
+            .accessibilityIdentifier("today.options")
         }
     }
 

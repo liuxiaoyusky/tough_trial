@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#faf9f5"><meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="description" content="手机画面评审与圈画批注">
+<title>手机页面评审</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230e63e6'/%3E%3Cpath d='M7 9h18M16 9v16' stroke='white' stroke-width='3'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="review.css"><script type="module" src="review.js"></script>
+</head><body>
+<header><button id="catalog" aria-label="选择评审页面">☰ 页面</button><strong><span id="projectTitle">页面</span> <span>评审</span></strong><button id="details">来源</button></header>
+<main>
+<div class="heading"><div><span id="kind" class="badge">读取中</span><h1 id="title">正在载入画面…</h1></div><button id="zoom" aria-pressed="false">放大</button></div>
+<p id="provenance" class="caption"></p>
+<div id="viewport"><div id="canvas"><img id="image" alt="" draggable="false"><svg id="marks" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-label="画圈批注画布"></svg><div id="pins"></div></div></div>
+<p id="hint" class="caption">图中控件为静态画面；点“画圈”标出要改的位置。</p>
+<p id="status" role="status">批注仅保存在当前浏览器；导出后可发回给我。</p>
+</main>
+<footer><button id="previous" aria-label="上一页">‹</button><span id="position"></span><button id="next" aria-label="下一页">›</button><button id="draw" class="primary" aria-pressed="false">画圈</button><button id="point" aria-pressed="false">点批注</button><button id="notes">批注 0</button></footer>
+<dialog id="catalogDialog"><div class="sheet-head"><h2>选择画面</h2><button data-close="catalogDialog">关闭</button></div><div class="filters"><select id="feature" aria-label="按功能筛选"><option value="">全部功能</option></select><select id="kindFilter" aria-label="按画面来源筛选"><option value="native">实图 / 原生预览</option><option value="all">全部画面</option><option value="design">概念稿</option></select></div><p class="caption">原生图保留实际外观；概念稿未验证原生一致性。</p><div id="pageList"></div></dialog>
+<dialog id="detailsDialog"><div class="sheet-head"><h2>画面来源</h2><button data-close="detailsDialog">关闭</button></div><div id="sourceDetails"></div></dialog>
+<dialog id="noteDialog"><form id="noteForm"><div class="sheet-head"><h2>这处怎么改？</h2><button type="button" data-close="noteDialog">取消</button></div><label class="sr-only" for="comment">批注意见</label><textarea id="comment" maxlength="4000" placeholder="直接写想法，也可以用键盘听写。" required></textarea><div class="form-actions"><button id="undoStroke" type="button">撤销圈画</button><button class="primary" type="submit">保存批注</button></div><p class="caption">保存后可在“批注”中编辑、处理或导出。</p></form></dialog>
+<dialog id="notesDialog"><div class="sheet-head"><h2>批注</h2><button data-close="notesDialog">关闭</button></div><div id="noteList"></div><div class="transfer"><button id="export">导出全部批注</button><button id="import">导入批注</button><input id="importFile" type="file" accept="application/json,.json" hidden></div><p id="storageInfo" class="caption">保存在此设备的此浏览器。清理网站数据会删除本地批注，请及时导出。</p></dialog>
+<noscript>此评审工具需要启用 JavaScript。</noscript>
+</body></html>

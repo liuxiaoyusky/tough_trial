@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="780" height="1688" viewBox="0 0 390 844">
+<defs><style>text{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif;fill:#0E0F12}.muted{fill:#575C69}.small{font-size:14px}.label{font-size:16px;font-weight:600}.line{fill:none;stroke:#88BDB6;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}.card{fill:#FFFEFC;stroke:#DCE6E1;stroke-width:1}.blue{fill:#0E63E6}</style></defs>
+<rect width="390" height="844" fill="#FAF9F5"/>
+<text x="28" y="30" font-size="16" font-weight="600">9:41</text><path d="M322 22q8-7 16 0m-13 4q5-4 10 0" fill="none" stroke="#0E0F12" stroke-width="2"/><rect x="345" y="17" width="23" height="12" rx="3" fill="none" stroke="#0E0F12"/><rect x="348" y="20" width="17" height="6" rx="1" fill="#0E0F12"/>
+<text x="16" y="95" font-size="30" font-weight="800">任务</text>
+<rect x="91" y="62" width="283" height="47" rx="15" fill="#F4F2EE"/><rect x="162" y="65" width="70" height="41" rx="12" fill="white"/>
+<g class="label" text-anchor="middle"><text x="126" y="92" class="muted">列表</text><text x="197" y="92">结构</text><text x="267" y="92" class="muted">时间</text><text x="338" y="92" class="muted">鱼骨</text></g>
+<rect x="16" y="129" width="160" height="40" rx="12" fill="#F4F2EE"/><rect x="96" y="132" width="77" height="34" rx="10" fill="white"/>
+<text x="56" y="155" text-anchor="middle" class="small muted">目录</text><text x="135" y="155" text-anchor="middle" class="small blue" font-weight="600">倒树</text>
+<text x="374" y="155" text-anchor="end" class="small muted">全部任务⌄</text>
+<g class="line"><path d="M195 280V302M104 302H286M104 302V326M286 302V326"/><path d="M104 390V416M58 416H149M58 416V438M149 416V438"/><path d="M286 390V416M241 416H332M241 416V438M332 416V438"/></g>
+<rect x="65" y="212" width="260" height="68" rx="17" fill="#E7F2EF" stroke="#A4CEC5"/>
+<text x="195" y="241" text-anchor="middle" font-size="19" font-weight="700">建立稳定创作系统</text><text x="195" y="264" text-anchor="middle" class="small muted">2 个分支 · 1 / 4 已完成</text>
+<rect class="card" x="22" y="326" width="164" height="64" rx="14"/><rect class="card" x="204" y="326" width="164" height="64" rx="14"/>
+<text x="104" y="352" text-anchor="middle" class="label">定位</text><text x="104" y="377" text-anchor="middle" class="small muted">2 个子任务⌄</text>
+<text x="286" y="352" text-anchor="middle" class="label">选题库</text><text x="286" y="377" text-anchor="middle" class="small muted">2 个子任务⌄</text>
+<rect x="18" y="438" width="80" height="86" rx="12" fill="#F0F4EF" stroke="#DCE6E1"/><rect x="109" y="438" width="80" height="86" rx="12" fill="#E8F2FF" stroke="#0E63E6" stroke-width="1.5"/><rect class="card" x="201" y="438" width="80" height="86" rx="12"/><rect class="card" x="292" y="438" width="80" height="86" rx="12"/>
+<g font-size="16" text-anchor="middle"><text x="58" y="471" class="muted">内容</text><text x="58" y="494" class="muted">边界 ✓</text><text x="149" y="471">目标</text><text x="149" y="494">读者</text><text x="241" y="471">建立对标</text><text x="241" y="494">账号</text><text x="332" y="471">找对标</text><text x="332" y="494">爆款</text></g>
+<rect x="16" y="564" width="358" height="140" rx="20" fill="white" stroke="#E2E0DC"/>
+<text x="34" y="594" font-size="18" font-weight="600">目标读者</text><text x="34" y="618" class="small muted">建立稳定创作系统 / 定位</text>
+<rect x="34" y="640" width="150" height="44" rx="12" fill="#0E63E6"/><text x="109" y="668" text-anchor="middle" font-size="15" fill="white" style="fill:white">查看任务</text>
+<rect x="196" y="640" width="160" height="44" rx="12" fill="#F4F2EE"/><text x="276" y="668" text-anchor="middle" font-size="15">聚焦所属分支</text>
+<text x="16" y="738" class="small muted">双指缩放 · 拖动画布</text><rect x="250" y="719" width="60" height="36" rx="10" fill="#F4F2EE"/><text x="280" y="743" text-anchor="middle" class="small">复位</text><circle cx="348" cy="737" r="24" fill="#0E63E6"/><path d="M338 737h20m-10-10v20" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+<path d="M0 775H390" stroke="#E2E0DC"/><g text-anchor="middle" font-size="14" class="muted"><text x="42" y="809">✧</text><text x="42" y="833">助手</text><text x="120" y="809">▦</text><text x="120" y="833">今天</text><text x="195" y="809" class="blue">◇</text><text x="195" y="833" class="blue">任务</text><text x="272" y="809">✎</text><text x="272" y="833">随手记</text><text x="348" y="809">⊙</text><text x="348" y="833">更多插件</text></g>
+</svg>

@@ -50,3 +50,14 @@ tasks.md
 # Python tooling caches
 __pycache__/
 *.py[cod]
+
+# Local feature CLI execution records and UI reference inventories
+.runtime/
+.mobile-review/
+
+# Local learning notes and generated review/skill projections
+.claude/
+/debug-log.md
+/mobile-review-project.json
+/skills/frontend-page-review.skill
+/skills/mobile-review/scripts/

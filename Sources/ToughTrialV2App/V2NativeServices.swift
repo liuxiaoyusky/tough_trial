@@ -31,21 +31,54 @@ enum V2NativeCapabilityError: Error, LocalizedError {
 }
 
 @MainActor
-final class V2NotificationService {
+protocol V2PlanNotificationCenter {
+    func requestAuthorization() async throws -> Bool
+    func authorizationStatus() async -> UNAuthorizationStatus
+    func pendingRequests() async -> [UNNotificationRequest]
+    func add(_ request: UNNotificationRequest) async throws
+    func remove(identifiers: [String])
+}
+
+@MainActor
+private struct V2SystemPlanNotificationCenter: V2PlanNotificationCenter {
     private let center = UNUserNotificationCenter.current()
+    func requestAuthorization() async throws -> Bool {
+        try await center.requestAuthorization(options: [.alert, .sound])
+    }
+    func authorizationStatus() async -> UNAuthorizationStatus {
+        await center.notificationSettings().authorizationStatus
+    }
+    func pendingRequests() async -> [UNNotificationRequest] { await center.pendingNotificationRequests() }
+    func add(_ request: UNNotificationRequest) async throws { try await center.add(request) }
+    func remove(identifiers: [String]) { center.removePendingNotificationRequests(withIdentifiers: identifiers) }
+}
+
+@MainActor
+final class V2NotificationService {
+    private let center: any V2PlanNotificationCenter
+
+    init(center: (any V2PlanNotificationCenter)? = nil) {
+        self.center = center ?? V2SystemPlanNotificationCenter()
+    }
+
+    func authorizationStatus() async -> UNAuthorizationStatus { await center.authorizationStatus() }
 
     func requestAndSchedule(
         planItems: [V2PlanItem],
         now: Date = Date(),
         calendar: Calendar = .current
     ) async throws -> Int {
+        try await requestPermission()
+        return try await rebuildOwned(planItems: planItems, now: now, calendar: calendar)
+    }
+
+    func requestPermission() async throws {
         let ticket = try V2PluginStore.shared.ticket(["tasks"])
-        let granted = try await center.requestAuthorization(options: [.alert, .sound])
+        let granted = try await center.requestAuthorization()
         try V2PluginStore.shared.validate(ticket)
         guard granted else {
             throw V2NativeCapabilityError.notificationsDenied
         }
-        return try await schedule(planItems: planItems, now: now, calendar: calendar, ticket: ticket)
     }
 
     func scheduleIfAuthorized(
@@ -54,10 +87,9 @@ final class V2NotificationService {
         calendar: Calendar = .current
     ) async throws -> Int {
         let ticket = try V2PluginStore.shared.ticket(["tasks"])
-        let settings = await center.notificationSettings()
+        let status = await center.authorizationStatus()
         try V2PluginStore.shared.validate(ticket)
-        guard settings.authorizationStatus == .authorized
-                || settings.authorizationStatus == .provisional
+        guard status == .authorized || status == .provisional
         else {
             return 0
         }
@@ -65,35 +97,36 @@ final class V2NotificationService {
     }
 
     func replaceIfAuthorized(planItems: [V2PlanItem], affectedIDs: Set<String>, now: Date, calendar: Calendar) async throws {
-        center.removePendingNotificationRequests(withIdentifiers: affectedIDs.map { "v2-plan-\($0)" })
+        center.remove(identifiers: affectedIDs.map { "v2-plan-\($0)" })
         _ = try await scheduleIfAuthorized(planItems: planItems, now: now, calendar: calendar)
     }
 
     func cancel(planIDs: Set<String>) {
-        center.removePendingNotificationRequests(withIdentifiers: planIDs.map { "v2-plan-\($0)" })
+        center.remove(identifiers: planIDs.map { "v2-plan-\($0)" })
     }
 
     func cancelAllOwned() {
         Task {
-            let pending = await center.pendingNotificationRequests()
+            let pending = await center.pendingRequests()
             guard !V2PluginStore.shared.enabled("tasks") else { return }
-            center.removePendingNotificationRequests(withIdentifiers: pending.filter { $0.identifier.hasPrefix("v2-plan-") }.map(\.identifier))
+            center.remove(identifiers: pending.filter { $0.identifier.hasPrefix("v2-plan-") }.map(\.identifier))
         }
     }
 
-    func rebuildOwned(planItems: [V2PlanItem], now: Date, calendar: Calendar) async throws {
+    @discardableResult
+    func rebuildOwned(planItems: [V2PlanItem], now: Date, calendar: Calendar) async throws -> Int {
         let ticket = try V2PluginStore.shared.ticket(["tasks"])
-        let pending = await center.pendingNotificationRequests()
+        let pending = await center.pendingRequests()
         try V2PluginStore.shared.validate(ticket)
-        center.removePendingNotificationRequests(withIdentifiers: pending.filter { $0.identifier.hasPrefix("v2-plan-") }.map(\.identifier))
-        let settings = await center.notificationSettings()
+        center.remove(identifiers: pending.filter { $0.identifier.hasPrefix("v2-plan-") }.map(\.identifier))
+        let status = await center.authorizationStatus()
         try V2PluginStore.shared.validate(ticket)
-        guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else {
+        guard status == .authorized || status == .provisional else {
             // No future reminders means no outstanding system permission work.
-            guard planItems.contains(where: { ($0.startAt ?? .distantPast) > now && $0.status != .completed && $0.status != .canceled }) else { return }
+            guard planItems.contains(where: { ($0.startAt ?? .distantPast) > now && $0.status == .planned }) else { return 0 }
             throw V2NativeCapabilityError.notificationsDenied
         }
-        _ = try await schedule(planItems: planItems, now: now, calendar: calendar, ticket: ticket)
+        return try await schedule(planItems: planItems, now: now, calendar: calendar, ticket: ticket)
     }
 
     private func schedule(
@@ -104,8 +137,7 @@ final class V2NotificationService {
     ) async throws -> Int {
         let eligible = planItems
             .filter {
-                $0.status != .canceled
-                    && $0.status != .completed
+                $0.status == .planned
                     && ($0.startAt ?? .distantPast) > now
             }
             .sorted { ($0.startAt ?? $0.date) < ($1.startAt ?? $1.date) }
@@ -116,7 +148,7 @@ final class V2NotificationService {
             try V2PluginStore.shared.validate(ticket)
             guard let startAt = item.startAt else { continue }
             let identifier = "v2-plan-\(item.id)"
-            center.removePendingNotificationRequests(withIdentifiers: [identifier])
+            center.remove(identifiers: [identifier])
 
             let content = UNMutableNotificationContent()
             content.title = item.title
@@ -138,7 +170,7 @@ final class V2NotificationService {
             )
             try await center.add(request)
             do { try V2PluginStore.shared.validate(ticket) }
-            catch { center.removePendingNotificationRequests(withIdentifiers: [identifier]); throw error }
+            catch { center.remove(identifiers: [identifier]); throw error }
             count += 1
         }
         return count

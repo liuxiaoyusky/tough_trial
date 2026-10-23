@@ -38,6 +38,50 @@ public struct V2TaskNode: Equatable, Sendable {
     }
 }
 
+/// Presentation groups shared by the native task lists; no task status is changed.
+public enum V2TaskListGroup: String, CaseIterable, Sendable {
+    case inProgress
+    case notStarted
+    case completed
+
+    public var title: String {
+        switch self {
+        case .inProgress: "进行中"
+        case .notStarted: "未开始"
+        case .completed: "已完成"
+        }
+    }
+}
+
+public extension V2Task.Status {
+    var listGroup: V2TaskListGroup? {
+        switch self {
+        case .active, .paused: .inProgress
+        case .notStarted: .notStarted
+        case .done: .completed
+        case .archived: nil
+        }
+    }
+
+    func listGroup(hasExecution: Bool) -> V2TaskListGroup? {
+        self == .notStarted && hasExecution ? .inProgress : listGroup
+    }
+}
+
+public extension V2TaskNode.Status {
+    var listGroup: V2TaskListGroup {
+        switch self {
+        case .active, .paused: .inProgress
+        case .planned: .notStarted
+        case .done: .completed
+        }
+    }
+
+    func listGroup(hasExecution: Bool) -> V2TaskListGroup {
+        self == .planned && hasExecution ? .inProgress : listGroup
+    }
+}
+
 public extension V2TaskNode {
     var completionSignal: Double {
         guard !children.isEmpty else {

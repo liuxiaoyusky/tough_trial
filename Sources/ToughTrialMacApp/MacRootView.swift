@@ -33,6 +33,7 @@ struct MacRootView: View {
                     case .today: V2TodayView(store: store)
                     case .tasks: MacTaskWorkspaceView(workspace: model.workspace, store: store, onPlan: { model.openTaskPlan($0) })
                     case .capture: V2CaptureView(store: model.capture)
+                    case .transcription: V2TranscriptionView(directory: model.directory.appendingPathComponent("transcriptions", isDirectory: true))
                     case .finance: MacFinanceWorkspace(store: model.capture)
                     case .assistant:
                         V2AssistantView(store: model.assistant, appStore: store, onExit: { model.select(.today) }, embedded: true,

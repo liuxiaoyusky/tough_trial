@@ -73,6 +73,7 @@ public struct V2ModuleDescriptor: Identifiable, Equatable, Hashable, Sendable {
         .init(id: "core.web", name: "网页搜索", dependencies: ["core.assistant"]),
         .init(id: "core.imports", name: "外部文件导入", dependencies: ["core.capture"]),
         .init(id: "core.speech", name: "语音输入"),
+        .init(id: "core.transcription", name: "转录"),
         .init(id: "core.sync", name: "日程同步", dependencies: ["core.tasks"]),
         .init(id: "core.traceViewer", name: "使用记录"),
         .init(id: "core.attachments", name: "附件输入")
