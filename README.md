@@ -65,6 +65,10 @@ information check before staging public changes:
 node Tools/check-sensitive-info.mjs
 ```
 
-This repository currently has no open-source license. Source code is visible for
-evaluation, but no reuse rights are granted until the owner chooses and adds a
-license.
+## License
+
+Copyright 2026 Tough Trial contributors.
+
+Except where otherwise noted, Tough Trial's original source code and documentation
+are licensed under the [Apache License, Version 2.0](LICENSE).
+Third-party code and materials retain their respective licenses and notices.
