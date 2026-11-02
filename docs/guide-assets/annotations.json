@@ -1,0 +1,22 @@
+{
+  "shots": [
+    {
+      "source": "raw/ios-tasks.png",
+      "output": "ios-tasks-guide.png",
+      "caption": "任务列表：右下角加号用于新建，任务条目下方可加入成长树。",
+      "boxes": [[985, 2125, 180, 180], [485, 1218, 310, 85]]
+    },
+    {
+      "source": "raw/ios-today.png",
+      "output": "ios-today-guide.png",
+      "caption": "今天：主卡片显示正在执行的任务，暂停与完成保留本段记录。",
+      "boxes": [[110, 1170, 285, 150], [815, 1170, 280, 150]]
+    },
+    {
+      "source": "raw/ios-growth.png",
+      "output": "ios-growth-guide.png",
+      "caption": "任务结构：底部的缩小、适配和放大按钮调整树的显示范围。",
+      "boxes": [[350, 2085, 355, 105]]
+    }
+  ]
+}
