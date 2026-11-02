@@ -10,4 +10,4 @@
 
 原图尺寸均为 1206 × 2622。测试来源：`V2StoreReleaseUITests/testStoreScreenshotsWithSyntheticTasks()`。内容无私人资料；原图按图注使用，不伪称新 Mac 实拍或新版本验收。
 
-`annotations.json` 的矩形以原图像素为单位，待通过 Workbench 执行 skill 的 `annotate_screenshots.py` 生成到 `annotated/`，再目视检查位置并替换上手稿引用。当前未生成、未验收标注图。README 中的无框图仅用作功能展示。
+`annotations.json` 保存原图像素坐标；已生成 `annotated/` 中的永久红框 PNG，逐张目视检查位置，并在浏览器确认三张图片加载成功。创建表单、Mac 稳定版与首次 GitHub 授权画面仍待补拍。README 无框图仅作功能展示。
