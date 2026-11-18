@@ -634,7 +634,7 @@
         },
         {
           "path": "Tests/ToughTrialMacUITests/MacTaskInteractionTests.swift",
-          "sha256": "e8e22694d5c1ca1f6fe160bdb89f2a704bcd37c112576dfbedd1e22cec8fe0d1"
+          "sha256": "a815e4cf5b0c965b34d5aff83adca1f3e06b19ce1583c6d2eef244ad7ef8b309"
         },
         {
           "path": "docs/qa/2026-10-05-task-list-groups.md",
@@ -1484,6 +1484,14 @@
       ],
       "acceptance": [
         {
+          "source": "Tests/ToughTrialUITests/V2AssistantHomeUITests.swift",
+          "expected": "首页推荐只发送预设问题。未发草稿切页后可恢复，主动发送后输入框才清空。"
+        },
+        {
+          "source": "Tests/ToughTrialMacUITests/MacTaskInteractionTests.swift",
+          "expected": "Mac 从助手返回任务、重启后仍能继续并发送同一份草稿。"
+        },
+        {
           "source": "docs/qa/2026-09-20-today-queue-native-review.md",
           "expected": "按原验收来源核对；历史截图和设计示意不证明当前安装版一致。"
         },
@@ -1514,7 +1522,7 @@
         },
         {
           "path": "Sources/ToughTrialV2App/V2AssistantView.swift",
-          "sha256": "ce6f3ca652e8dd5abef86477973c420c6d5ed723dfc78c80134f9274e5050ce0"
+          "sha256": "a0e0de99cd609a9dd15c86034a00624b63863b8a4e295335d3b4a4c0ba44ece3"
         },
         {
           "path": "Sources/ToughTrialV2App/V2AssistantComposerStore.swift",

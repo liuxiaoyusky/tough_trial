@@ -483,10 +483,8 @@ struct V2AssistantView: View {
     }
 
     private func sendStarter(_ prompt: String) {
-        guard !speech.isActive else { return }
-        promptText = ""
+        guard !speech.isActive, store.send(prompt) else { return }
         isComposerFocused = false
-        store.send(prompt)
     }
 
     private func sendPrompt() {

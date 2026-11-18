@@ -2,6 +2,36 @@ import XCTest
 
 final class V2AssistantHomeUITests: XCTestCase {
     @MainActor
+    func testStarterSendsOnlyItsQuestionAndPreservesUnsentDraft() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchEnvironment["TOUGH_TRIAL_UI_TEST_EMPTY"] = "1"
+        app.launch()
+
+        let assistant = app.buttons["root.tab.assistant"]
+        XCTAssertTrue(assistant.waitForExistence(timeout: 5), app.debugDescription)
+        assistant.tap()
+        let composer = app.textViews["assistant.composer"]
+        XCTAssertTrue(composer.waitForExistence(timeout: 8), app.debugDescription)
+        let draft = "First keep this note. I will send it after the suggested question."
+        composer.tap()
+        composer.typeText(draft)
+        app.buttons["assistant.composer.dismissKeyboard"].tap()
+        app.buttons["assistant.starter.chat"].tap()
+        XCTAssertTrue(app.staticTexts["测试回复：随便聊聊"].waitForExistence(timeout: 8))
+        XCTAssertEqual(composer.value as? String, draft)
+
+        app.buttons["root.tab.today"].tap()
+        app.buttons["root.tab.assistant"].tap()
+        XCTAssertEqual(composer.value as? String, draft)
+        app.buttons["assistant.send"].tap()
+        let reply = app.staticTexts["测试回复：" + draft]
+        XCTAssertTrue(reply.waitForExistence(timeout: 8))
+        XCTAssertEqual(app.staticTexts.matching(identifier: "测试回复：" + draft).count, 1)
+        XCTAssertEqual(composer.value as? String, "")
+    }
+
+    @MainActor
     func testConnectionMustPassBeforeSavingAndEditingInvalidatesIt() {
         let app = openMiniMaxConnectionSettings()
         let save = app.buttons["ai.settings.usePreset"]

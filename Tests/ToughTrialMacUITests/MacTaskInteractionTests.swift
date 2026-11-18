@@ -26,6 +26,30 @@ final class MacTaskInteractionTests: XCTestCase {
         XCTAssertEqual(TISSelectInputSource(keyboard.1), noErr)
         XCTAssertTrue(app.buttons["mac.tasks.new"].waitForExistence(timeout: 15), app.debugDescription)
     }
+    @MainActor
+    func testPlanningDraftSurvivesAssistantStarterAndReturnToTasks() {
+        let assistant = app.buttons["mac.nav.assistant.助手"]
+        assistant.click()
+        let composer = app.textViews["assistant.composer"]
+        XCTAssertTrue(composer.waitForExistence(timeout: 5), app.debugDescription)
+        let draft = "Review the remaining tasks before Friday."
+        composer.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)).click()
+        app.typeText(draft)
+        XCTAssertEqual(composer.value as? String, draft)
+        app.buttons["assistant.starter.chat"].click()
+        XCTAssertTrue(app.staticTexts["测试回复：随便聊聊"].waitForExistence(timeout: 8))
+        XCTAssertEqual(composer.value as? String, draft)
+
+        app.buttons["mac.nav.tasks.任务"].click()
+        app.terminate()
+        app.launch()
+        assistant.click()
+        XCTAssertEqual(composer.value as? String, draft)
+        app.buttons["assistant.send"].click()
+        XCTAssertTrue(app.staticTexts["测试回复：" + draft].waitForExistence(timeout: 8))
+        XCTAssertEqual(composer.value as? String, "")
+    }
+
     override func tearDownWithError() throws {
         app?.terminate()
         let current = TISCopyCurrentKeyboardInputSource().takeRetainedValue()
